@@ -1,0 +1,230 @@
+{
+  "categories": [
+    {
+      "category": "3K Ala Carte",
+      "items": [
+        {
+          "name": "Lechon Kawali",
+          "options": [
+            { "size": "250g", "price": 145 },
+            { "size": "500g", "price": 280 }
+          ]
+        },
+        { "name": "Lumpiang Shanghai", "price": 150 },
+        { "name": "Sizzling Tapa", "price": 140 },
+        { "name": "Sizzling Sisig", "price": 130 },
+        { "name": "Sizzling Tofu", "price": 130 },
+        { "name": "Tokwa't Baboy", "price": 130 },
+        { "name": "Special Sisig", "price": 150 }
+      ]
+    },
+    {
+      "category": "3K Sets / Extras",
+      "items": [
+        {
+          "name": "Set A: 5pcs Fried Chicken with Rice Platter",
+          "price": 300
+        },
+        {
+          "name": "Set B: Bagnet Kare-kare, Rice Platter & Iced Tea Pitcher",
+          "price": 350
+        }
+      ]
+    },
+    {
+      "category": "3K Budget Meal",
+      "items": [
+        { "name": "Bagnet w/ Rice", "price": 70 },
+        { "name": "Tapsilog", "price": 100 },
+        { "name": "Sisilog", "price": 90 },
+        { "name": "Porksilog", "price": 90 },
+        { "name": "Hotsilog", "price": 90 },
+        { "name": "2pc. Burger Steak w/ Rice", "price": 80 },
+        { "name": "Shanghai w/ Rice", "price": 90 },
+        { "name": "Buffalo Chicken w/ Rice", "price": 120 },
+        { "name": "Soy Garlic Chicken w/ Rice", "price": 120 },
+        { "name": "Special Sisig w/ Rice", "price": 120 },
+        { "name": "Bagnet Kare-kare w/ Rice", "price": 120 }
+      ]
+    },
+    {
+      "category": "3K Short Order",
+      "items": [
+        { "name": "Pancit Bihon", "price": 130 },
+        { "name": "Pancit Canton", "price": 140 },
+        { "name": "Canton Bihon (Mix)", "price": 130 },
+        { "name": "Miki Bihon", "price": 130 },
+        { "name": "Pancit Malabon (Makapal)", "price": 130 },
+        { "name": "Pancit Palabok (Manipis)", "price": 130 },
+        { "name": "Sotanghon Guisado", "price": 140 },
+        { "name": "Bam-I (Sotanghon-Canton)", "price": 140 },
+        { "name": "Lomi", "price": 130 },
+        { "name": "Sopas", "price": 130 },
+        { "name": "Carbonara", "price": 120 },
+        { "name": "Spaghetti", "price": 130 },
+        { "name": "Truffle Pasta (1-2 pax)", "price": 150 }
+      ]
+    },
+    {
+      "category": "3K Specials",
+      "items": [
+        { "name": "Chopseuy", "price": 135 },
+        { "name": "Steam Kangkong", "price": 80 },
+        { "name": "Chicken Curry", "price": 220 },
+        { "name": "Chicken Tinola", "price": 220 },
+        { "name": "Sinampalukang Manok", "price": 220 },
+        { "name": "Fried Chicken (5pcs)", "price": 250 },
+        { "name": "Soy Garlic Chicken Platter (5pcs)", "price": 290 },
+        { "name": "Buffalo Chicken Platter (5pcs)", "price": 290 },
+        { "name": "Binagoongang Baboy", "price": 135 },
+        { "name": "Sinigang na Bagnet", "price": 250 },
+        { "name": "Bagnet Kare-kare", "price": 250 },
+        { "name": "Nilagang Baka", "price": 250 },
+        { "name": "Beef Kare-kare", "price": 350 }
+      ]
+    },
+    {
+      "category": "Drinks",
+      "items": [
+        { "name": "Iced Tea Pitcher", "price": 45 },
+        { "name": "250ml Softdrinks" },
+        { "name": "750ml Softdrinks" },
+        { "name": "1.25L Softdrinks" },
+        { "name": "Leche Flan", "price": 85 },
+        { "name": "Mais Con Yelo", "price": 45 },
+        { "name": "Halo-halo", "price": 55 }
+      ]
+    },
+    {
+      "category": "Rice & Extras",
+      "items": [
+        {
+          "name": "Plain Rice",
+          "options": [
+            { "portion": "Single", "price": 15 },
+            { "portion": "Platter", "price": 70 }
+          ]
+        },
+        {
+          "name": "Fried Rice",
+          "options": [
+            { "portion": "Single", "price": 20 },
+            { "portion": "Platter", "price": 100 }
+          ]
+        },
+        {
+          "name": "Egg",
+          "price": 20,
+          "customizations": ["Fried", "Boiled"]
+        },
+        { "name": "Extra Sauce", "price": 10 },
+        { "name": "Tupperware", "price": 25 }
+      ]
+    },
+    {
+      "category": "Bilao",
+      "items": [
+        {
+          "name": "Bihon Bilao",
+          "sizes": [
+            { "size": "XMINI", "price": 300 },
+            { "size": "MINI", "price": 450 },
+            { "size": "SMALL", "price": 600 },
+            { "size": "MEDIUM", "price": 700 },
+            { "size": "LARGE", "price": 900 }
+          ]
+        },
+        {
+          "name": "Canton Bihon Bilao",
+          "sizes": [
+            { "size": "XMINI", "price": 300 },
+            { "size": "MINI", "price": 450 },
+            { "size": "SMALL", "price": 600 },
+            { "size": "MEDIUM", "price": 700 },
+            { "size": "LARGE", "price": 900 }
+          ]
+        },
+        {
+          "name": "Miki Bihon Bilao",
+          "sizes": [
+            { "size": "XMINI", "price": 300 },
+            { "size": "MINI", "price": 450 },
+            { "size": "SMALL", "price": 600 },
+            { "size": "MEDIUM", "price": 700 },
+            { "size": "LARGE", "price": 900 }
+          ]
+        },
+        {
+          "name": "Canton Bilao",
+          "sizes": [
+            { "size": "XMINI", "price": 350 },
+            { "size": "MINI", "price": 500 },
+            { "size": "SMALL", "price": 700 },
+            { "size": "MEDIUM", "price": 850 },
+            { "size": "LARGE", "price": 1050 }
+          ]
+        },
+        {
+          "name": "Sotanghon Bilao",
+          "sizes": [
+            { "size": "XMINI", "price": 350 },
+            { "size": "MINI", "price": 500 },
+            { "size": "SMALL", "price": 700 },
+            { "size": "MEDIUM", "price": 850 },
+            { "size": "LARGE", "price": 1050 }
+          ]
+        },
+        {
+          "name": "Bam-I Bilao",
+          "sizes": [
+            { "size": "XMINI", "price": 350 },
+            { "size": "MINI", "price": 500 },
+            { "size": "SMALL", "price": 700 },
+            { "size": "MEDIUM", "price": 850 },
+            { "size": "LARGE", "price": 1050 }
+          ]
+        },
+        {
+          "name": "Spaghetti Bilao",
+          "sizes": [
+            { "size": "XMINI", "price": 350 },
+            { "size": "MINI", "price": 500 },
+            { "size": "SMALL", "price": 700 },
+            { "size": "MEDIUM", "price": 850 },
+            { "size": "LARGE", "price": 1050 }
+          ]
+        },
+        {
+          "name": "Carbonara Bilao",
+          "sizes": [
+            { "size": "XMINI", "price": 350 },
+            { "size": "MINI", "price": 500 },
+            { "size": "SMALL", "price": 700 },
+            { "size": "MEDIUM", "price": 850 },
+            { "size": "LARGE", "price": 1050 }
+          ]
+        },
+        {
+          "name": "Palabok Bilao",
+          "sizes": [
+            { "size": "XMINI", "price": 350 },
+            { "size": "MINI", "price": 500 },
+            { "size": "SMALL", "price": 700 },
+            { "size": "MEDIUM", "price": 850 },
+            { "size": "LARGE", "price": 1050 }
+          ]
+        },
+        {
+          "name": "Pancit Malabon Bilao",
+          "sizes": [
+            { "size": "XMINI", "price": 350 },
+            { "size": "MINI", "price": 500 },
+            { "size": "SMALL", "price": 700 },
+            { "size": "MEDIUM", "price": 850 },
+            { "size": "LARGE", "price": 1050 }
+          ]
+        }
+      ]
+    }
+  ]
+}
