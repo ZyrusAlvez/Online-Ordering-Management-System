@@ -59,3 +59,24 @@ export const NEXT_STATUS = {
 
 export const lineLabel = (item) =>
   [item.product?.name, item.variant?.label && `(${item.variant.label})`].filter(Boolean).join(' ');
+
+// --- Manila calendar days -----------------------------------------------------
+// Sales are reported by the restaurant's day (Asia/Manila, UTC+8 all year), not the
+// browser's, so a phone set to another timezone still sees the same "today".
+// Days are plain 'YYYY-MM-DD' strings, the same shape the API takes.
+
+export const manilaToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date());
+
+export const addDays = (day, n) =>
+  new Date(Date.parse(`${day}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+
+export const startOfMonth = (day) => `${day.slice(0, 7)}-01`;
+
+/** "Oct 4" (or "Oct 4, 2025" when `withYear`) for a 'YYYY-MM-DD' day. */
+export const shortDay = (day, withYear = false) =>
+  new Date(`${day}T00:00:00Z`).toLocaleDateString('en-PH', {
+    month: 'short',
+    day: 'numeric',
+    ...(withYear ? { year: 'numeric' } : {}),
+    timeZone: 'UTC',
+  });

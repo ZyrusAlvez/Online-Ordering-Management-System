@@ -2,6 +2,7 @@ import { NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext.jsx';
 import { StaffBar } from '../../components/Layouts.jsx';
 import AdminOrders from './AdminOrders.jsx';
+import AdminSales from './AdminSales.jsx';
 import AdminRiders from './AdminRiders.jsx';
 import AdminKiosks from './AdminKiosks.jsx';
 import AdminBranding from './AdminBranding.jsx';
@@ -9,6 +10,7 @@ import AdminMenu from './AdminMenu.jsx';
 import AdminSettings from './AdminSettings.jsx';
 
 const LINKS = [
+  { to: 'sales', label: 'Sales' },
   { to: 'orders', label: 'Orders' },
   { to: 'menu', label: 'Menu' },
   { to: 'riders', label: 'Riders' },
@@ -48,14 +50,15 @@ export default function AdminApp() {
         </nav>
         <main className="min-w-0">
           <Routes>
-            <Route index element={<Navigate to="orders" replace />} />
+            <Route index element={<Navigate to="sales" replace />} />
+            <Route path="sales" element={<AdminSales />} />
             <Route path="orders" element={<AdminOrders />} />
             <Route path="menu" element={<AdminMenu />} />
             <Route path="riders" element={<AdminRiders />} />
             <Route path="kiosks" element={<AdminKiosks />} />
             <Route path="branding" element={<AdminBranding />} />
             <Route path="settings" element={<AdminSettings />} />
-            <Route path="*" element={<Navigate to="orders" replace />} />
+            <Route path="*" element={<Navigate to="sales" replace />} />
           </Routes>
         </main>
       </div>

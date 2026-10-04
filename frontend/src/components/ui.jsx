@@ -283,7 +283,7 @@ export function Segmented({ value, onChange, options, className = '' }) {
           onClick={() => onChange(o.value)}
           aria-pressed={value === o.value}
           className={cx(
-            'rounded-lg px-4 py-1.5 text-sm font-medium transition',
+            'shrink-0 whitespace-nowrap rounded-lg px-4 py-1.5 text-sm font-medium transition',
             value === o.value ? 'bg-white text-ink shadow-sm' : 'text-ink-soft hover:text-ink',
           )}
         >
