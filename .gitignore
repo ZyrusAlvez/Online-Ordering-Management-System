@@ -1,0 +1,20 @@
+# Dependencies and build output
+node_modules/
+dist/
+coverage/
+
+# Secrets: real values live in .env files, never in git. The *.example files are committed.
+.env
+.env.*
+!.env.example
+
+# Logs and OS/editor noise
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Per-machine Claude Code settings
+.claude/settings.local.json
