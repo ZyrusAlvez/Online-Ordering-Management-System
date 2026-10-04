@@ -49,6 +49,20 @@ The same limits are enforced in three places. The **API** (`backend/src/validato
 
 **Why 11 digits starting 09:** it is the format of Philippine mobile numbers, riders dial it from the delivery screen (`tel:` link), and one fixed format avoids duplicates such as `0917…` vs `+63917…`.
 
+## What counts as a sale
+
+The admin **Sales** page and `GET /admin/sales` use one definition everywhere:
+
+> A sale is an order with `payment_status = 'paid'` whose `status` is **not** `voided` or `cancelled`.
+
+| Question | Answer |
+| --- | --- |
+| Why not "completed"? | Money is collected before the kitchen finishes: counter cash and kiosk GCash are paid at once, online cash is paid on delivery. Waiting for "completed" would hide money already taken. A completed order cannot be voided, so a paid, live order is never reversed afterwards. |
+| Refunds? | A refunded order is `voided`, so it drops out. A voided order still waiting on a GCash refund (`refund_pending`, `refund_failed`) is shown as a separate note, not as revenue. A voided paid **cash** order also drops out (the cash goes back by hand). |
+| Which day? | The Manila day the order was **placed** (`orders.created_at`, Asia/Manila), the same day its order number belongs to. A delivery paid in cash after midnight counts on the day it was ordered. |
+| Which amount? | `orders.total_amount`, which the server always computes from live prices. The cash/GCash split uses `orders.payment_method`. Best sellers use `order_items.quantity` and the price **at the time of ordering** (`unit_price`). |
+| Where is it computed? | The SQL function `public.sales_report(from, to)`, run by the API with the secret key only (browsers cannot call it). Aggregating in the database avoids PostgREST's 1,000-row response limit. Index: `orders_created_at_idx`. |
+
 ## Enumerated values
 
 | Name | Values | Meaning |

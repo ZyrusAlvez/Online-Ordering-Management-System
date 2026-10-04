@@ -25,7 +25,7 @@ node --env-file=.env scripts/dev/seed-test-users.mjs      # customers and rider
 
 | Role | Email | Password | Where to sign in | Access |
 | --- | --- | --- | --- | --- |
-| **Admin** | `admin@3k.local` | `admin-3k-2026` | `/login` → lands on `/admin` | Everything: all orders and refunds, menu and product photos, riders, kiosk devices, site images (logo, promo), the cashier and kiosk passwords. |
+| **Admin** | `admin@3k.local` | `admin-3k-2026` | `/login` → lands on `/admin` (Sales) | Everything: sales reports, all orders and refunds, menu and product photos, riders, kiosk devices, site images (logo, promo), the cashier and kiosk passwords. |
 | **Cashier** | *(none, password only)* | `cashier123` | `/cashier` (the page asks only for the password) | Point of sale: order queue, walk-in orders, confirm and advance orders, take cash or GCash, void (GCash orders are refunded), edit items, **Messages** inbox for website chat. Cannot open `/admin` or `/driver`. |
 | **Kiosk** | *(none, password only)* | `kiosk123` | `/kiosk` (asks only for the password, once per browser) | Self-order terminal: place dine-in and take-out orders paying cash or GCash. Each unlock creates a device under Admin → Kiosks, which an admin can revoke. |
 | **Rider** | `rider1@3k.local` | `testpass12345` | `/login` → lands on `/driver` | Delivery pool, claim and release orders, mark delivered (with cash collected), chat with the customer on a claimed order. |
@@ -72,12 +72,17 @@ password of `cashier@3k.local`.)
 3. Admin → Kiosks lists the device; **revoke** it and the kiosk locks again.
 
 ### Admin
-1. `/login` as Admin. **Orders**: filter by status, payment, channel, date; retry a failed refund.
-2. **Menu**: add or rename categories; add, edit, hide ("sold out") or delete products;
+1. `/login` as Admin: you land on **Sales**. Try *Today*, *7 days*, *30 days*, *This month* and *Custom*.
+   Cards show sales, orders, average order and items sold; below are sales per day, cash vs GCash, sales by
+   channel and best sellers (*View as table* gives the daily numbers as text). To see it fill up, take a few
+   orders through to paid (cash at the counter, or a GCash kiosk order) and press *Refresh*. Voided and
+   cancelled orders never count; voided GCash orders awaiting a refund appear as a note.
+2. **Orders**: filter by status, payment, channel, date; retry a failed refund.
+3. **Menu**: add or rename categories; add, edit, hide ("sold out") or delete products;
    upload, replace or remove a product photo; edit size/price options.
-3. **Riders**: create a rider, deactivate or reactivate one.
-4. **Kiosks**: issue and revoke devices. **Site images**: replace the logo and home-page photo.
-5. **Employee passwords**: change the cashier and kiosk passwords. Remember to change them back
+4. **Riders**: create a rider, deactivate or reactivate one.
+5. **Kiosks**: issue and revoke devices. **Site images**: replace the logo and home-page photo.
+6. **Employee passwords**: change the cashier and kiosk passwords. Remember to change them back
    here (or re-run the seed command above) so this file stays accurate.
 
 ## Test data to use
