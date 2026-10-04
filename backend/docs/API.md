@@ -425,6 +425,7 @@ Role: `admin`.
 | --- | --- | --- |
 | `GET` | `/admin/orders` | All orders. `?status&payment_status&channel&from&to&page&limit` (`from`/`to` are ISO 8601) |
 | `POST` | `/admin/orders/:id/refund/retry` | Retry a refund PayMongo rejected |
+| `GET` | `/admin/sales` | Sales report for a range of **Manila days**: `?from=YYYY-MM-DD&to=YYYY-MM-DD` (both included; default is the last 7 days ending today, at most 366 days). See [Sales report](#sales-report). |
 | `GET` | `/admin/riders` | |
 | `POST` | `/admin/riders` | `{ email, password (8–72), full_name, phone? }` |
 | `PATCH` | `/admin/riders/:id` | `{ is_active?, full_name?, phone? }` |
@@ -433,6 +434,31 @@ Role: `admin`.
 | `DELETE` | `/admin/kiosks/:id` | Revoke (`204`) |
 | `PUT` | `/admin/employee-passwords/:role` | `{ password }` (min 6). `:role` is `cashier` or `kiosk`. `204`. Changing the cashier password also changes that account's login. Kiosk browsers that already unlocked keep working; revoke their devices to force a re-unlock. |
 | `PATCH` | `/admin/users/:id/role` | `{ role }` |
+
+### Sales report
+
+`GET /admin/sales?from=2026-10-01&to=2026-10-07` returns:
+
+```jsonc
+{
+  "data": {
+    "range": { "from": "2026-10-01", "to": "2026-10-07" },
+    "totals": { "orders": 42, "revenue": 18350, "average_order": 436.9, "items_sold": 97 },
+    "daily": [ { "date": "2026-10-01", "orders": 6, "revenue": 2450 }, … ],   // every day, zeros included
+    "by_method": [ { "method": "cash", "orders": 30, "revenue": 12100 }, { "method": "gcash", … } ],
+    "by_channel": [ { "channel": "pos", "orders": 20, "revenue": 8200 }, { "channel": "online" … }, { "channel": "kiosk" … } ],
+    "top_items": [ { "product_id": "…", "name": "Sizzling Sisig", "variant": null, "quantity": 18, "revenue": 2340 }, … ],   // top 10
+    "refunds_pending": { "orders": 1, "amount": 350 }
+  }
+}
+```
+
+A **sale** is an order that has been **paid** and has **not been voided or cancelled**, counted on the Manila
+day it was **placed** (so a 9pm order is today's). It is counted when it is paid, not when it is completed:
+a kiosk GCash or counter cash order is paid long before the kitchen finishes it. Voided and refunded orders
+drop out; voided orders still waiting on a GCash refund are shown in `refunds_pending` and are **not**
+revenue. Money is pesos. `400` for a reversed range, more than 366 days, or a date that is not real
+(`2026-02-30`).
 
 Issuing a kiosk key returns the raw key **once**:
 

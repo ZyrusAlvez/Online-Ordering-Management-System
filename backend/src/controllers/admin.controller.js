@@ -3,6 +3,7 @@ import * as kioskDeviceService from '../services/kioskDevice.service.js';
 import * as orderService from '../services/order.service.js';
 import * as paymentService from '../services/payment.service.js';
 import * as profileService from '../services/profile.service.js';
+import * as salesService from '../services/sales.service.js';
 import * as siteService from '../services/site.service.js';
 import { buildMeta } from '../utils/pagination.js';
 
@@ -75,6 +76,11 @@ export const setEmployeePassword = async (req, res) => {
   else await employeeService.setKioskPassword(password, req.user.id);
 
   res.status(204).send();
+};
+
+// --- Sales report ----------------------------------------------------------
+export const salesReport = async (req, res) => {
+  res.json({ data: await salesService.getSalesReport(req.query) });
 };
 
 // --- Site images (logo, promo) ---------------------------------------------

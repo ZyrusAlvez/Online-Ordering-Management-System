@@ -10,6 +10,7 @@ import {
   createRiderSchema,
   riderListQuery,
   roleSchema,
+  salesQuery,
   siteImageKeyParam,
   updateRiderSchema,
 } from '../validators/admin.validators.js';
@@ -27,6 +28,9 @@ router.post(
   validate({ params: idParam }),
   asyncHandler(admin.retryRefund),
 );
+
+// --- sales report (paid, non-voided orders by Manila day) ---
+router.get('/sales', validate({ query: salesQuery }), asyncHandler(admin.salesReport));
 
 // --- riders (created by admin, never self-registered) ---
 router.get('/riders', validate({ query: riderListQuery }), asyncHandler(admin.listRiders));
