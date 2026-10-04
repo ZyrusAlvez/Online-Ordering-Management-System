@@ -97,6 +97,7 @@ Use two different browsers, or one normal window plus one private window, so ses
 
 - **Website chat:** window A logged out on `/` sends a message. Window B on `/cashier` →
   Messages sees it within a couple of seconds and replies. A sees the reply without refreshing.
+- **Photos in chat:** in either chat, press the picture button next to the message box and choose a photo (a large phone photo is fine, it is shrunk first). It appears for the other person without reloading; tap it to open it full size. A guest can attach photos after sending their first message.
 - **Delivery chat:** window A as Customer on the order page, window B as Rider on `/driver` →
   My deliveries → Chat.
 - **Isolation:** log in as Customer 2 and confirm Customer's orders and chats are not visible.

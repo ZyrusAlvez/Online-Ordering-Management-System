@@ -43,7 +43,8 @@ The same limits are enforced in three places. The **API** (`backend/src/validato
 | Choices per product / options per product | ≤ 20 / ≤ 30 | | | yes | |
 | Sort order | whole number −9,999 to 9,999 | | yes | yes | |
 | Image link | `http(s)` only, ≤ 2,048. Uploaded images: JPEG, PNG or WebP, ≤ 5 MB. | | | yes | |
-| Chat message | 1 to 1,000 after trimming | | yes | yes | yes |
+| Chat message | 1 to 1,000 after trimming (may be empty when it carries a photo) | | yes | yes | yes |
+| Chat photo | JPEG, PNG or WebP, ≤ 5 MB (shrunk in the browser first), ≤ 30 per conversation, ≤ 10 per 10 minutes for guests | | yes | yes | yes (size, type) |
 | Chat guest name | ≤ 60 | | yes | yes | yes |
 | Search text | ≤ 120 | | yes | yes | |
 
@@ -218,7 +219,7 @@ Indexes: customer, `(status, channel)`, the rider pool, a rider's orders, `order
 `thread_id` (PK, FK → `chat_threads`, cascade) · `token_hash` (SHA-256 of the secret the guest's browser holds). Kept apart so the hash is never sent to anyone's browser. Server only.
 
 ### `chat_messages`
-`id` · `thread_id` (FK, cascade) · `sender_role` · `sender_id` (FK → auth.users, set null; never shown to guests) · `body` (1 to 1,000 after trimming) · `created_at`. Index on `(thread_id, created_at)`.
+`id` · `thread_id` (FK, cascade) · `sender_role` · `sender_id` (FK → auth.users, set null; never shown to guests) · `body` (≤ 1,000; at least 1 character unless the message is a photo) · `image_path` (where the photo is in the private `chat-images` bucket, `<thread id>/<uuid>.<ext>`; null for text; never sent to browsers, who get a temporary `image_url` instead) · `created_at`. Index on `(thread_id, created_at)`.
 
 ---
 
@@ -249,6 +250,7 @@ Cash: `{ "collected_by": "<user id>", "tendered": 500, "change": 20 }`. GCash: t
 
 | Bucket | Public | Limit | Types | Holds |
 | --- | --- | --- | --- | --- |
+| `chat-images` | **private** (no public address) | 5 MB per file | JPEG, PNG, WebP | `<chat thread id>/<uuid>.<ext>`. Only the server reads and writes; people see a photo through a link that expires after an hour, issued only to someone who can already read that conversation. Deleting a conversation does not delete its files yet (see known gaps). |
 | `menu-images` | read-only | 5 MB per file | JPEG, PNG, WebP | `products/<product id>/<uuid>.<ext>` and `site/<logo or promo>/<uuid>.<ext>`. Only the server writes. The server also checks the file's real bytes, not just its name. |
 
 ## Login accounts (Supabase Auth)
@@ -284,6 +286,7 @@ Guests chatting from the website have no login, so they never read the database:
 
 Found during review and deliberately left for later:
 
+- **Chat photos outlive their conversation.** Files in `chat-images` are not removed when a conversation is deleted (which only happens when its order is). A small periodic clean-up would remove files whose thread no longer exists.
 - **Duplicate orders on a dropped connection.** Placing an order has no idempotency key; if the reply is lost and the customer taps again, a second order is created.
 - **Looser status moves.** `ready → completed` lets a cashier finish a delivery without a rider, and nothing requires payment before `completed` (may be intended for pay-at-counter).
 - **Supabase dashboard setting:** *Authentication → Passwords → "Prevent use of leaked passwords"* is off.
