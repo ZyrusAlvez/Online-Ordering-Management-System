@@ -1,9 +1,10 @@
+# Manual testing with curl
 
 How to drive every endpoint by hand with `curl`, to explore the API or debug a
 specific call. Assumes the repo is set up and `.env` is filled in.
 
-For the automated suite — 296 tests on Node's built-in runner — see
-**[AUTOMATED-TESTING.md](./AUTOMATED-TESTING.md)**. Run that first if you only
+For the automated suite (475 tests on Node's built-in runner) see
+**[testing.md](./testing.md)**. Run that first if you only
 want to know whether something is broken; come here when you want to poke at a
 particular endpoint yourself.
 
@@ -251,6 +252,7 @@ curl -s -X POST localhost:4000/api/v1/orders \
   -d "{
     \"fulfillment_type\": \"delivery\",
     \"payment_method\": \"cash\",
+    \"customer_phone\": \"09171234567\",
     \"delivery_address\": { \"line1\": \"9 Mabini St\", \"city\": \"Davao City\" },
     \"items\": [{ \"product_id\": \"$TAPSILOG\", \"quantity\": 1 }]
   }" | python3 -m json.tool | head -20
@@ -258,8 +260,9 @@ curl -s -X POST localhost:4000/api/v1/orders \
 DELIVERY=<id>
 ```
 
-Forgetting the address is rejected — drop `delivery_address` and you get a `400`
-naming the field.
+Forgetting the address, or the mobile number, is rejected: drop `delivery_address` or `customer_phone` and you get a
+`400` naming the field. The number must be 11 digits starting `09` (`09171234567`); an optional map pin goes in the
+address as `"latitude": 14.2985, "longitude": 120.997`.
 
 ```bash
 # cashier pushes it to ready
@@ -358,7 +361,7 @@ are impractical to trigger by hand:
 npm test
 ```
 
-See **[AUTOMATED-TESTING.md](./AUTOMATED-TESTING.md)** for the layout, what is
+See **[testing.md](./testing.md)** for the layout, what is
 covered, and how to add a test.
 
 Three standalone diagnostic scripts also remain, useful on their own:
@@ -407,6 +410,8 @@ then run `supabase/seed.sql`. It is idempotent, so re-running never duplicates.
 | --- | --- |
 | First request hangs ~20s | Supabase project waking from idle. Normal; subsequent calls are fast. |
 | `429` on `/auth/register` | Supabase's signup limit. Use the seed scripts. |
+| `429` on the cashier or kiosk password | 10 wrong guesses in 15 minutes per address. Wait, or restart the server in development. |
+| `400` mentioning `customer_phone` | The number must be 11 digits starting `09`. |
 | `"Email address … is invalid"` | Supabase rejects reserved domains such as `example.com`. |
 | `403` with a valid token | Wrong role. Decode the JWT payload and check `app_metadata.role`. |
 | `409 Price not yet set` | The product or variant has a null price (e.g. Softdrinks). Set one. |

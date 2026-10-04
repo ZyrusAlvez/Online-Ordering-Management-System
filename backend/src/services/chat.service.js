@@ -1,6 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { supabaseAdmin } from '../config/supabase.js';
 import { ApiError, fromPostgrestError } from '../utils/ApiError.js';
+import { signedUrls, uploadPrivateImage } from './storage.service.js';
 
 /**
  * Chat between staff and visitors (support threads) and between an online
@@ -15,8 +16,28 @@ const MESSAGES = 'chat_messages';
 const SECRETS = 'chat_thread_secrets';
 
 // sender_id is never returned: a visitor must not learn staff user ids.
-const MESSAGE_COLUMNS = 'id, thread_id, sender_role, body, created_at';
+const MESSAGE_COLUMNS = 'id, thread_id, sender_role, body, image_path, created_at';
 const HISTORY_LIMIT = 200;
+
+// Photos live in a private bucket and are shown through links that expire. Clients
+// refetch regularly, so an hour is plenty; a stale link just gets replaced on the next load.
+export const CHAT_IMAGE_BUCKET = 'chat-images';
+const IMAGE_LINK_SECONDS = 3600;
+// Bounds what one conversation (in particular an anonymous guest's) can store.
+export const MAX_IMAGES_PER_THREAD = 30;
+
+/** Replaces each message's internal `image_path` with a temporary `image_url` (null for text). */
+const withImageUrls = async (rows) => {
+  const urls = await signedUrls(
+    CHAT_IMAGE_BUCKET,
+    rows.map((r) => r.image_path),
+    IMAGE_LINK_SECONDS,
+  );
+  return rows.map(({ image_path: path, ...message }) => ({
+    ...message,
+    image_url: path ? (urls.get(path) ?? null) : null,
+  }));
+};
 
 const hashToken = (token) => createHash('sha256').update(token, 'utf8').digest('hex');
 
@@ -48,13 +69,13 @@ export const listMessages = async (threadId) => {
     .limit(HISTORY_LIMIT);
 
   if (error) throw fromPostgrestError(error);
-  return data.reverse();
+  return withImageUrls(data.reverse());
 };
 
-const addMessage = async (threadId, { senderRole, senderId = null, body }) => {
+const addMessage = async (threadId, { senderRole, senderId = null, body = '', imagePath = null }) => {
   const { data, error } = await supabaseAdmin
     .from(MESSAGES)
-    .insert({ thread_id: threadId, sender_role: senderRole, sender_id: senderId, body })
+    .insert({ thread_id: threadId, sender_role: senderRole, sender_id: senderId, body, image_path: imagePath })
     .select(MESSAGE_COLUMNS)
     .single();
   if (error) throw fromPostgrestError(error);
@@ -64,14 +85,40 @@ const addMessage = async (threadId, { senderRole, senderId = null, body }) => {
     // The inbox preview lives on the thread, so listing threads never has to scan messages.
     .update({
       last_message_at: data.created_at,
-      last_message: body.slice(0, 200),
+      last_message: body ? body.slice(0, 200) : '📷 Photo',
       last_sender_role: senderRole,
     })
     .eq('id', threadId);
   if (touchError) throw fromPostgrestError(touchError);
 
   await ping(threadId);
-  return data;
+  return (await withImageUrls([data]))[0];
+};
+
+/**
+ * Sends a photo into a conversation the caller has already been authorised for.
+ * The bytes are checked (a mislabelled file is refused), the conversation's photo
+ * count is capped, and the file is stored privately under the thread's own folder.
+ */
+const addImage = async (threadId, { senderRole, senderId = null, file }) => {
+  const { count, error } = await supabaseAdmin
+    .from(MESSAGES)
+    .select('id', { count: 'exact', head: true })
+    .eq('thread_id', threadId)
+    .not('image_path', 'is', null);
+  if (error) throw fromPostgrestError(error);
+  if (count >= MAX_IMAGES_PER_THREAD) {
+    throw ApiError.conflict(`This conversation has reached its limit of ${MAX_IMAGES_PER_THREAD} photos`);
+  }
+
+  const imagePath = await uploadPrivateImage(CHAT_IMAGE_BUCKET, threadId, file);
+  try {
+    return await addMessage(threadId, { senderRole, senderId, imagePath });
+  } catch (err) {
+    // Do not leave a file behind for a message that was never saved.
+    await supabaseAdmin.storage.from(CHAT_IMAGE_BUCKET).remove([imagePath]);
+    throw err;
+  }
 };
 
 // ---------------------------------------------------------------------------
@@ -138,6 +185,11 @@ export const postVisitorMessage = async (threadId, token, body) => {
   return addMessage(threadId, { senderRole: 'visitor', body });
 };
 
+export const postVisitorImage = async (threadId, token, file) => {
+  await requireVisitor(threadId, token);
+  return addImage(threadId, { senderRole: 'visitor', file });
+};
+
 // --- cashier side ---
 
 const requireSupportThread = async (threadId) => {
@@ -178,6 +230,11 @@ export const getSupportMessages = async (threadId) => {
 export const postStaffMessage = async (threadId, staffId, body) => {
   await requireSupportThread(threadId);
   return addMessage(threadId, { senderRole: 'cashier', senderId: staffId, body });
+};
+
+export const postStaffImage = async (threadId, staffId, file) => {
+  await requireSupportThread(threadId);
+  return addImage(threadId, { senderRole: 'cashier', senderId: staffId, file });
 };
 
 export const markSupportThreadRead = async (threadId) => {
@@ -270,13 +327,22 @@ export const getOrderChat = async (orderId, userId, as) => {
   };
 };
 
-export const postOrderMessage = async (orderId, userId, as, body) => {
+/** Loads the order, checks the caller is its customer or rider and the chat is open, and returns the thread id. */
+const openDeliveryThread = async (orderId, userId, as) => {
   const order = await loadDeliveryOrder(orderId);
   requireParticipant(order, userId, as);
   if (!isOpen(order)) {
     throw ApiError.conflict('Chat is only open while the order is out for delivery');
   }
+  return findOrCreateDeliveryThread(orderId);
+};
 
-  const threadId = await findOrCreateDeliveryThread(orderId);
+export const postOrderMessage = async (orderId, userId, as, body) => {
+  const threadId = await openDeliveryThread(orderId, userId, as);
   return addMessage(threadId, { senderRole: as, senderId: userId, body });
+};
+
+export const postOrderImage = async (orderId, userId, as, file) => {
+  const threadId = await openDeliveryThread(orderId, userId, as);
+  return addImage(threadId, { senderRole: as, senderId: userId, file });
 };

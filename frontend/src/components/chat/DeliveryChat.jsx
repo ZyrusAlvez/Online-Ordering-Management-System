@@ -39,6 +39,17 @@ export default function DeliveryChat({ orderId, as, orderKey, className = '' }) 
     }
   };
 
+  const sendImage = async (blob) => {
+    try {
+      await api.post(`${path}/images`, blob, { auth: true });
+      await chat.refresh();
+      return true;
+    } catch (err) {
+      chat.refresh(); // the chat may have just closed
+      throw err;
+    }
+  };
+
   if (chat.loading && !info) {
     return (
       <div className="flex justify-center py-10 text-brand">
@@ -68,6 +79,7 @@ export default function DeliveryChat({ orderId, as, orderKey, className = '' }) 
         mine={(m) => m.sender_role === as}
         sending={sending}
         onSend={send}
+        onSendImage={sendImage}
         closedNote={closedNote}
         emptyText={as === 'customer' ? 'Say hi to your rider — tell them where to find you.' : 'Message the customer about the delivery.'}
       />

@@ -22,6 +22,45 @@ const sniff = (b) => {
   return null;
 };
 
+/** Checks an upload really is a JPEG, PNG or WebP (by its bytes) and returns its type, or throws a 400. */
+export const requireImage = (body) => {
+  if (!Buffer.isBuffer(body) || body.length === 0) {
+    throw ApiError.badRequest(
+      'Send the image as the raw request body with Content-Type image/jpeg, image/png or image/webp',
+    );
+  }
+  const type = sniff(body);
+  if (!type) throw ApiError.badRequest('Unsupported image. Use JPEG, PNG or WebP.');
+  return type;
+};
+
+/**
+ * Stores an image in a PRIVATE bucket and returns its path (not a URL: nothing in a
+ * private bucket has a public address). Read it back with `signedUrls`.
+ */
+export const uploadPrivateImage = async (bucketName, folder, body) => {
+  const type = requireImage(body);
+  const path = `${folder}/${randomUUID()}.${type.ext}`;
+  const { error } = await supabaseAdmin.storage
+    .from(bucketName)
+    .upload(path, body, { contentType: type.mime, cacheControl: '3600' });
+  if (error) throw new ApiError(500, `Image upload failed: ${error.message}`);
+  return path;
+};
+
+/** Short-lived links for private files: a Map of path -> URL (paths that cannot be signed are left out). */
+export const signedUrls = async (bucketName, paths, expiresInSeconds = 3600) => {
+  const unique = [...new Set(paths.filter(Boolean))];
+  if (unique.length === 0) return new Map();
+
+  const { data, error } = await supabaseAdmin.storage.from(bucketName).createSignedUrls(unique, expiresInSeconds);
+  if (error) {
+    console.error('[storage] could not sign URLs', error.message);
+    return new Map();
+  }
+  return new Map(data.filter((row) => row.signedUrl).map((row) => [row.path, row.signedUrl]));
+};
+
 /** Uploads under `folder/` with a fresh name each time, so replaced images are never served stale from a CDN. */
 export const uploadImage = async (folder, body) => {
   if (!Buffer.isBuffer(body) || body.length === 0) {

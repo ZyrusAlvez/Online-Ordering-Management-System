@@ -4,6 +4,7 @@ import * as pos from '../controllers/pos.controller.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { idParam } from '../validators/common.validators.js';
+import { imageBody } from '../middleware/upload.js';
 import { messageBody } from '../validators/chat.validators.js';
 import { statusBody } from '../validators/order.validators.js';
 import {
@@ -61,6 +62,12 @@ router.post(
   '/chat/threads/:id/messages',
   validate({ params: idParam, body: messageBody }),
   asyncHandler(chat.staffSend),
+);
+router.post(
+  '/chat/threads/:id/images',
+  validate({ params: idParam }),
+  imageBody,
+  asyncHandler(chat.staffSendImage),
 );
 router.post('/chat/threads/:id/read', validate({ params: idParam }), asyncHandler(chat.markRead));
 

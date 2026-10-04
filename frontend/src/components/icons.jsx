@@ -107,3 +107,11 @@ export function ChefHat({ size = 24, className = '' }) {
 
 export const Chat = make(<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z" />);
 export const Send = make(<path d="m22 2-7 20-4-9-9-4 20-7ZM22 2 11 13" />);
+
+export const Photo = make(
+  <>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <circle cx="9" cy="10" r="1.8" />
+    <path d="m21 16-5-5-9 9" />
+  </>,
+);

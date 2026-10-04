@@ -22,6 +22,11 @@ export const visitorSend = async (req, res) => {
   res.status(201).json({ data });
 };
 
+export const visitorSendImage = async (req, res) => {
+  const data = await chatService.postVisitorImage(req.params.id, req.get(CHAT_TOKEN_HEADER), req.body);
+  res.status(201).json({ data });
+};
+
 // --- cashier inbox ---
 export const listThreads = async (_req, res) => {
   res.json({ data: await chatService.listSupportThreads() });
@@ -37,6 +42,12 @@ export const staffSend = async (req, res) => {
   });
 };
 
+export const staffSendImage = async (req, res) => {
+  res.status(201).json({
+    data: await chatService.postStaffImage(req.params.id, req.user.id, req.body),
+  });
+};
+
 export const markRead = async (req, res) => {
   await chatService.markSupportThreadRead(req.params.id);
   res.status(204).send();
@@ -49,5 +60,10 @@ export const orderChat = (as) => async (req, res) => {
 
 export const orderSend = (as) => async (req, res) => {
   const data = await chatService.postOrderMessage(req.params.id, req.user.id, as, req.body.body);
+  res.status(201).json({ data });
+};
+
+export const orderSendImage = (as) => async (req, res) => {
+  const data = await chatService.postOrderImage(req.params.id, req.user.id, as, req.body);
   res.status(201).json({ data });
 };

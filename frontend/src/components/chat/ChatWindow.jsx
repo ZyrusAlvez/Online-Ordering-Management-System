@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { timeAgo } from '../../lib/format.js';
+import { prepareImage } from '../../lib/image.js';
 import { Spinner } from '../ui.jsx';
-import { Send } from '../icons.jsx';
+import { Photo, Send } from '../icons.jsx';
 
 const WHO = { visitor: 'Guest', customer: 'Customer', cashier: 'Cashier', rider: 'Rider' };
 
@@ -14,10 +15,59 @@ const WHO = { visitor: 'Guest', customer: 'Customer', cashier: 'Cashier', rider:
  *   labels         optional { role: 'text' } overriding the default sender names,
  *                  e.g. { visitor: 'Guest-1023' } in the cashier inbox
  *   closedNote     when set, replaces the composer (chat closed / not open yet)
+ *   onSendImage    (blob) => Promise<boolean>; adds a photo button. Photos are shrunk in
+ *                  the browser first, so a phone picture stays well under the 5 MB limit.
+ *   imageNote      shown on a disabled photo button when photos are not available yet
  */
-export default function ChatWindow({ messages, mine, onSend, sending, closedNote, emptyText, labels, className = '' }) {
+export default function ChatWindow({
+  messages,
+  mine,
+  onSend,
+  onSendImage,
+  imageNote,
+  sending,
+  closedNote,
+  emptyText,
+  labels,
+  className = '',
+}) {
   const [draft, setDraft] = useState('');
+  const [photoError, setPhotoError] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const end = useRef(null);
+  const fileInput = useRef(null);
+
+  // Photo links are signed and change on every fetch. Keep the first link for each
+  // message, or every refresh would reload (and flicker) every picture. If a kept link
+  // has expired the image fails to load and the latest link is swapped in.
+  const links = useRef(new Map());
+  const [, repaint] = useState(0);
+  const srcOf = (m) => {
+    if (!m.image_url) return null;
+    if (!links.current.has(m.id)) links.current.set(m.id, m.image_url);
+    return links.current.get(m.id);
+  };
+  const refreshLink = (m) => {
+    if (m.image_url && links.current.get(m.id) !== m.image_url) {
+      links.current.set(m.id, m.image_url);
+      repaint((n) => n + 1);
+    }
+  };
+
+  const pickPhoto = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !onSendImage) return;
+    setPhotoError(null);
+    setUploading(true);
+    try {
+      await onSendImage(await prepareImage(file));
+    } catch (err) {
+      setPhotoError(err.message || 'Could not send that photo.');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   useEffect(() => {
     end.current?.scrollIntoView({ block: 'end' });
@@ -41,10 +91,21 @@ export default function ChatWindow({ messages, mine, onSend, sending, closedNote
           return (
             <li key={m.id} className={`flex flex-col ${own ? 'items-end' : 'items-start'}`}>
               <div
-                className={`max-w-[85%] whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2 text-sm ${
+                className={`max-w-[85%] whitespace-pre-wrap break-words rounded-2xl text-sm ${m.image_url ? 'w-56 p-1.5' : 'px-3.5 py-2'} ${
                   own ? 'rounded-br-md bg-brand text-white' : 'rounded-bl-md bg-cream-deep text-ink'
                 }`}
               >
+                {m.image_url && (
+                  <a href={srcOf(m)} target="_blank" rel="noopener noreferrer" className="block">
+                    <img
+                      src={srcOf(m)}
+                      alt={`Photo from ${own ? 'you' : (labels?.[m.sender_role] ?? WHO[m.sender_role] ?? 'the other person')}`}
+                      loading="lazy"
+                      onError={() => refreshLink(m)}
+                      className="max-h-60 w-full rounded-lg bg-white/20 object-cover"
+                    />
+                  </a>
+                )}
                 {m.body}
               </div>
               <span className="mt-0.5 px-1 text-[11px] text-ink-soft">
@@ -60,7 +121,22 @@ export default function ChatWindow({ messages, mine, onSend, sending, closedNote
       {closedNote ? (
         <p className="rounded-2xl bg-cream-deep px-4 py-3 text-center text-sm text-ink-soft">{closedNote}</p>
       ) : (
-        <form onSubmit={submit} className="flex gap-2 pt-2">
+        <form onSubmit={submit} className="flex flex-wrap items-center gap-2 pt-2">
+          {(onSendImage || imageNote) && (
+            <>
+              <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={pickPhoto} />
+              <button
+                type="button"
+                onClick={() => fileInput.current?.click()}
+                disabled={!onSendImage || uploading || sending}
+                title={onSendImage ? 'Send a photo' : imageNote}
+                aria-label="Send a photo"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line bg-white text-ink-soft transition hover:text-brand disabled:opacity-40"
+              >
+                {uploading ? <Spinner size={18} /> : <Photo size={18} />}
+              </button>
+            </>
+          )}
           <input
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
@@ -77,6 +153,12 @@ export default function ChatWindow({ messages, mine, onSend, sending, closedNote
           >
             {sending ? <Spinner size={18} /> : <Send size={18} />}
           </button>
+          {photoError && (
+            <p role="alert" className="basis-full text-xs font-semibold text-brand-dark">
+              {photoError}
+            </p>
+          )}
+          {!onSendImage && imageNote && <p className="basis-full text-[11px] text-ink-soft">{imageNote}</p>}
         </form>
       )}
     </div>

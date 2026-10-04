@@ -117,6 +117,15 @@ export function useVisitorChat() {
     }
   };
 
+  /** Sends a photo (already shrunk). Only possible once the conversation exists. */
+  const sendImage = async (blob) => {
+    if (!threadId) return false;
+    // A failure throws to the chat window, which shows it next to the photo button.
+    await api.post(`/chat/visitor/threads/${threadId}/images`, blob, { headers });
+    await refresh();
+    return true;
+  };
+
   const fromStaff = messages.filter((m) => m.sender_role !== 'visitor').length;
   const unread = Math.max(0, fromStaff - (conv?.seen ?? 0));
 
@@ -127,5 +136,5 @@ export function useVisitorChat() {
     setConv(next);
   };
 
-  return { started: Boolean(threadId), messages, send, sending, error, unread, markSeen };
+  return { started: Boolean(threadId), messages, send, sendImage, sending, error, unread, markSeen };
 }

@@ -51,7 +51,7 @@ Schema-level errors that belong to no single field appear under `details._errors
 
 **Field rules.** The same limits apply on every endpoint (and are repeated in the
 forms and as database constraints). The full list, with the reason for each, is in
-[`docs/DATA-DICTIONARY.md`](../../docs/DATA-DICTIONARY.md#input-rules-the-same-everywhere).
+[the data dictionary](./data-dictionary.md#input-rules-the-same-everywhere).
 The ones that most often trip a client up:
 
 - **Phone numbers are exactly 11 digits starting `09`**, digits only (`09171234567`). No spaces, dashes or `+63`.
@@ -133,7 +133,7 @@ Admins change both passwords with `PUT /admin/employee-passwords/:role`.
 
 > Supabase rate-limits signups per IP. In development you will hit `429` after
 > a handful of registrations; create test users with the admin API instead
-> (see [TESTING.md](./TESTING.md)).
+> (see [testing-manual.md](./testing-manual.md)).
 
 ---
 
@@ -502,8 +502,16 @@ clear it. Seed the logo and promo from `frontend/public/brand` with
 ## Chat
 
 Two kinds of conversation, one message shape
-`{ id, thread_id, sender_role: visitor|customer|cashier|rider, body, created_at }`.
-Bodies are 1–1000 characters. `sender_id` is never returned.
+`{ id, thread_id, sender_role: visitor|customer|cashier|rider, body, image_url, created_at }`.
+A text message has a `body` of 1–1000 characters and `image_url: null`; a **photo** message has `body: ""`
+and a temporary `image_url`. `sender_id` is never returned.
+
+**Photos.** Send the picture as the **raw request body** (not multipart) to the `…/images` route of the
+conversation, with `Content-Type: image/jpeg`, `image/png` or `image/webp`, at most **5 MB** (`413` above that).
+The bytes are checked, so a mislabelled file is `400`. Each conversation holds at most **30 photos** (`409`
+after that). They are stored in a **private** bucket and shown through links that expire after an hour, so
+refetch the messages to renew them; the storage path is never exposed. The clients shrink photos in the browser
+first. A guest can send a photo only after their first text message (the thread must exist).
 
 **Support — anyone on the landing page, no account.** Talks to the cashier.
 
@@ -512,8 +520,10 @@ Bodies are 1–1000 characters. `sender_id` is never returned.
 | `POST` | `/chat/visitor/threads` | `{ body, name? }`. `201 { data: { thread_id, token, messages } }`. Keep both in localStorage: the `token` is shown once and only its hash is stored. Max 5 per hour per IP. |
 | `GET` | `/chat/visitor/threads/:id/messages` | Header `X-Chat-Token`. `401` for a missing/wrong token or unknown thread (indistinguishable). |
 | `POST` | `/chat/visitor/threads/:id/messages` | `{ body }` with `X-Chat-Token`. Max 20 per minute. |
+| `POST` | `/chat/visitor/threads/:id/images` | Raw image with `X-Chat-Token` → `201 { data: message }`. Max 10 photos per 10 minutes. |
 | `GET` | `/pos/chat/threads` | Cashier/admin inbox, newest first: `{ id, guest_number, display_name, visitor_name, last_message, last_sender_role, last_message_at, unread }`. `display_name` is `Guest-1023`, or `Maria (Guest-1023)` when the visitor gave a name. |
 | `GET` / `POST` | `/pos/chat/threads/:id/messages` | Read history / reply (`{ body }`). |
+| `POST` | `/pos/chat/threads/:id/images` | Reply with a photo (raw image). |
 | `POST` | `/pos/chat/threads/:id/read` | `204`. Clears `unread`. |
 
 **Delivery — online customer ↔ the rider holding the order.**
@@ -522,6 +532,7 @@ Bodies are 1–1000 characters. `sender_id` is never returned.
 | --- | --- | --- |
 | `GET` / `POST` | `/orders/:id/chat` | The customer who placed it. |
 | `GET` / `POST` | `/rider/orders/:id/chat` | The rider currently holding it. |
+| `POST` | `/orders/:id/chat/images`, `/rider/orders/:id/chat/images` | A photo from the customer / the rider (raw image). Same rules as text: `409` when the chat is closed. |
 
 `GET` returns `{ thread_id, open, order, with: { role, name }, messages }`.
 `open` is true only while the order is `out_for_delivery` with a rider; `thread_id` is
@@ -591,3 +602,14 @@ rules.
 | Finish a delivery | `POST /rider/orders/:id/delivered` |
 | Add a kiosk terminal | `POST /admin/kiosks` |
 | Watch the queue live | Supabase Realtime on `orders` |
+| Sign in as the cashier / unlock a kiosk | `POST /employee/cashier/login` / `POST /employee/kiosk/unlock` |
+| Read or edit my profile, change password | `GET` / `PATCH /auth/profile`, `POST /auth/password` |
+| Pin a delivery address on the map | `delivery_address.latitude` and `.longitude` on `POST /orders` (optional, together) |
+| Start a guest chat, then reply | `POST /chat/visitor/threads`, then `POST …/messages` with `X-Chat-Token` |
+| Read the cashier's chat inbox | `GET /pos/chat/threads`, then `GET …/:id/messages` |
+| Chat on a delivery | `GET` / `POST /orders/:id/chat` (customer), `/rider/orders/:id/chat` (rider) |
+| Send a photo in a chat | `POST` the raw image to the conversation's `…/images` route |
+| Upload a dish photo | `PUT /products/:id/image` (raw image); remove with `DELETE` |
+| Replace the logo or promo | `PUT /admin/site-images/:key` (`logo` or `promo`) |
+| Get sales figures | `GET /admin/sales?from=YYYY-MM-DD&to=YYYY-MM-DD` |
+| Change the cashier or kiosk password | `PUT /admin/employee-passwords/:role` |

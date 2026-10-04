@@ -4,6 +4,7 @@ import * as orders from '../controllers/orders.controller.js';
 import { requireAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { idParam } from '../validators/common.validators.js';
+import { imageBody } from '../middleware/upload.js';
 import { messageBody } from '../validators/chat.validators.js';
 import {
   createOnlineOrderSchema,
@@ -30,6 +31,12 @@ router.post(
   '/:id/chat',
   validate({ params: idParam, body: messageBody }),
   asyncHandler(chat.orderSend('customer')),
+);
+router.post(
+  '/:id/chat/images',
+  validate({ params: idParam }),
+  imageBody,
+  asyncHandler(chat.orderSendImage('customer')),
 );
 
 export default router;
