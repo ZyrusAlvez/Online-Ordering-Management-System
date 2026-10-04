@@ -1,4 +1,5 @@
 import * as authService from '../services/auth.service.js';
+import * as profileService from '../services/profile.service.js';
 
 export const register = async (req, res) => {
   const result = await authService.register(req.body);
@@ -20,4 +21,20 @@ export const logout = async (req, res) => {
 
 export const me = (req, res) => {
   res.json({ user: req.user });
+};
+
+export const getProfile = async (req, res) => {
+  res.json({ data: await profileService.getOwnProfile(req.user) });
+};
+
+export const updateProfile = async (req, res) => {
+  res.json({ data: await profileService.updateOwnProfile(req.user, req.body) });
+};
+
+export const changePassword = async (req, res) => {
+  await profileService.changeOwnPassword(req.user, {
+    currentPassword: req.body.current_password,
+    newPassword: req.body.new_password,
+  });
+  res.status(204).send();
 };

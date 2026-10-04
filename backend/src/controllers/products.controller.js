@@ -30,3 +30,11 @@ export const remove = async (req, res) => {
   await catalog.deleteProduct(req.params.id);
   res.status(204).send();
 };
+
+export const setImage = async (req, res) => {
+  res.json({ data: await catalog.setProductImage(req.params.id, req.body) });
+};
+
+export const clearImage = async (req, res) => {
+  res.json({ data: await catalog.clearProductImage(req.params.id) });
+};

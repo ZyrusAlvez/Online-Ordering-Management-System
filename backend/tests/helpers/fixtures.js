@@ -113,6 +113,8 @@ export const placeOnlineOrder = async (role = 'customer', overrides = {}) => {
       fulfillment_type: 'pickup',
       payment_method: 'cash',
       items: [{ product_id: product.id, quantity: 1 }],
+      // Delivery needs a number the rider can call.
+      ...(overrides.fulfillment_type === 'delivery' ? { customer_phone: '09171234567' } : {}),
       ...overrides,
     },
     { token },

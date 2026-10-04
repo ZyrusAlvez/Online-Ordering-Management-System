@@ -2,6 +2,7 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { ALLOWED_TRANSITIONS, WITH_ITEMS } from '../constants/orders.js';
 import { ApiError, fromPostgrestError } from '../utils/ApiError.js';
 import { applyRange } from '../utils/pagination.js';
+import { anyColumnContains } from '../utils/postgrest.js';
 
 export { WITH_ITEMS };
 
@@ -71,7 +72,7 @@ export const listOrders = async ({
   if (createdAfter) query = query.gte('created_at', createdAfter);
   if (createdBefore) query = query.lte('created_at', createdBefore);
   if (search) {
-    query = query.or(`order_number.ilike.%${search}%,customer_name.ilike.%${search}%`);
+    query = query.or(anyColumnContains(['order_number', 'customer_name'], search));
   }
 
   const { data, error, count } = await query;
@@ -214,8 +215,24 @@ export const replaceOrderItems = async (orderId, items) => {
   if (!['pending', 'confirmed'].includes(order.status)) {
     throw ApiError.conflict(`Cannot modify an order that is ${order.status}`);
   }
+  // Once money is moving the total is fixed: a GCash intent for PHP 100 on an
+  // order edited up to PHP 500 would mark it paid in full.
+  if (!['unpaid', 'failed'].includes(order.payment_status)) {
+    throw ApiError.conflict(`Cannot modify an order whose payment is ${order.payment_status}`);
+  }
 
   const { lines, totalCentavos } = await priceOrder(items);
+
+  // Remember the current lines so a failed insert can put them back instead of
+  // leaving an order with no items and a stale total.
+  const previous = (order.order_items ?? []).map((line) => ({
+    order_id: orderId,
+    product_id: line.product_id,
+    variant_id: line.variant_id,
+    quantity: line.quantity,
+    unit_price: line.unit_price,
+    notes: line.notes,
+  }));
 
   const { error: deleteError } = await supabaseAdmin
     .from('order_items')
@@ -226,7 +243,10 @@ export const replaceOrderItems = async (orderId, items) => {
   const { error: insertError } = await supabaseAdmin
     .from('order_items')
     .insert(lines.map((line) => ({ ...line, order_id: orderId })));
-  if (insertError) throw fromPostgrestError(insertError);
+  if (insertError) {
+    if (previous.length) await supabaseAdmin.from('order_items').insert(previous);
+    throw fromPostgrestError(insertError);
+  }
 
   const { error: updateError } = await supabaseAdmin
     .from('orders')
@@ -284,17 +304,19 @@ export const advanceStatus = async (orderId, nextStatus) => {
 };
 
 /**
- * Customer-initiated cancel. Runs on the caller-scoped client so RLS confirms
- * ownership, and only applies while the order is unstarted and unpaid —
- * cancelling a paid order is a void, which carries a refund.
+ * Customer-initiated cancel. Ownership is checked here (`customer_id`), since
+ * customers have no write access to orders at all: it only applies while the
+ * order is unstarted and not paid. Cancelling a paid order is a void, which
+ * carries a refund. A failed GCash attempt counts as unpaid.
  */
-export const cancelOwnOrder = async (orderId, client) => {
-  const { data, error } = await client
+export const cancelOwnOrder = async (orderId, customerId) => {
+  const { data, error } = await supabaseAdmin
     .from('orders')
     .update({ status: 'cancelled', updated_at: now() })
     .eq('id', orderId)
+    .eq('customer_id', customerId)
     .in('status', ['pending', 'confirmed'])
-    .eq('payment_status', 'unpaid')
+    .in('payment_status', ['unpaid', 'failed'])
     .select(WITH_ITEMS)
     .maybeSingle();
 
@@ -348,7 +370,9 @@ export const voidOrder = async (orderId, { reason, voidedBy }) => {
 export const settleCash = async (orderId, { tenderedAmount = null, collectedBy = null } = {}) => {
   const order = await getOrderOrFail(orderId);
 
-  if (order.payment_status === 'paid') throw ApiError.conflict('Order is already paid');
+  if (['paid', 'refund_pending', 'refunded', 'refund_failed'].includes(order.payment_status)) {
+    throw ApiError.conflict(`Order payment is already ${order.payment_status}`);
+  }
   if (['voided', 'cancelled'].includes(order.status)) {
     throw ApiError.conflict(`Cannot take payment on a ${order.status} order`);
   }
@@ -361,23 +385,39 @@ export const settleCash = async (orderId, { tenderedAmount = null, collectedBy =
     );
   }
 
+  // Claim the payment with a conditional update, so two simultaneous requests
+  // (a double-tap, two cashiers) cannot both succeed.
   const { data, error } = await supabaseAdmin
     .from('orders')
     .update({ payment_status: 'paid', payment_method: 'cash', updated_at: now() })
     .eq('id', orderId)
+    .eq('payment_status', order.payment_status)
     .select(WITH_ITEMS)
     .maybeSingle();
 
   if (error) throw fromPostgrestError(error);
+  if (!data) throw ApiError.conflict('This order was just paid or changed; check it and retry');
 
   const { error: paymentError } = await supabaseAdmin.from('payments').insert({
     order_id: orderId,
     provider: 'cash',
     amount_centavos: totalCentavos,
     status: 'paid',
-    ...(collectedBy ? { raw: { collected_by: collectedBy, collected_amount: tenderedAmount } } : {}),
+    // Who took the money and how much was handed over, for the end-of-day count.
+    raw: {
+      collected_by: collectedBy,
+      tendered: tenderedAmount,
+      change: tenderedAmount != null ? toPesos(toCentavos(tenderedAmount) - totalCentavos) : null,
+    },
   });
-  if (paymentError) throw fromPostgrestError(paymentError);
+  if (paymentError) {
+    // Do not leave an order marked paid with no payment behind it.
+    await supabaseAdmin
+      .from('orders')
+      .update({ payment_status: order.payment_status, updated_at: now() })
+      .eq('id', orderId);
+    throw fromPostgrestError(paymentError);
+  }
 
   return {
     order: data,

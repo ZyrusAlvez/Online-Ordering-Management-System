@@ -17,6 +17,7 @@
 
 import { randomBytes } from 'node:crypto';
 import { supabaseAdmin } from '../src/config/supabase.js';
+import { setKioskPassword } from '../src/services/employee.service.js';
 import { createStaffUser } from '../src/services/profile.service.js';
 import { upsertEnv } from './lib/env-file.mjs';
 
@@ -62,6 +63,21 @@ for (const account of accounts) {
   );
   if (source === 'generated') generated.push({ email: account.email, password });
 }
+
+// The kiosk gate password lives in employee_credentials, not in Supabase Auth.
+// (The cashier gate password is the cashier account's password, set above.)
+const kioskExisting = process.env.TEST_KIOSK_PASSWORD;
+const kioskPassword = process.env.SEED_KIOSK_PASSWORD || kioskExisting || generatePassword();
+const kioskSource = process.env.SEED_KIOSK_PASSWORD
+  ? 'explicit'
+  : kioskExisting
+    ? 'kept from .env'
+    : 'generated';
+
+await setKioskPassword(kioskPassword);
+upsertEnv('TEST_KIOSK_PASSWORD', kioskPassword);
+console.log(`✓ ${'Kiosk gate password'.padEnd(28)} ${''.padEnd(20)} (${kioskSource})`);
+if (kioskSource === 'generated') generated.push({ email: 'kiosk gate', password: kioskPassword });
 
 console.log('\nPasswords saved to .env — `npm test` will pick them up automatically.');
 

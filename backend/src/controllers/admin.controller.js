@@ -1,7 +1,10 @@
+import * as employeeService from '../services/employee.service.js';
 import * as kioskDeviceService from '../services/kioskDevice.service.js';
 import * as orderService from '../services/order.service.js';
 import * as paymentService from '../services/payment.service.js';
 import * as profileService from '../services/profile.service.js';
+import * as salesService from '../services/sales.service.js';
+import * as siteService from '../services/site.service.js';
 import { buildMeta } from '../utils/pagination.js';
 
 // --- Orders ----------------------------------------------------------------
@@ -62,6 +65,31 @@ export const createKiosk = async (req, res) => {
 export const revokeKiosk = async (req, res) => {
   await kioskDeviceService.revokeKioskDevice(req.params.id);
   res.status(204).send();
+};
+
+// --- Employee gate passwords -----------------------------------------------
+export const setEmployeePassword = async (req, res) => {
+  const { role } = req.params;
+  const { password } = req.body;
+
+  if (role === 'cashier') await employeeService.setCashierPassword(password);
+  else await employeeService.setKioskPassword(password, req.user.id);
+
+  res.status(204).send();
+};
+
+// --- Sales report ----------------------------------------------------------
+export const salesReport = async (req, res) => {
+  res.json({ data: await salesService.getSalesReport(req.query) });
+};
+
+// --- Site images (logo, promo) ---------------------------------------------
+export const setSiteImage = async (req, res) => {
+  res.json({ data: await siteService.setSiteImage(req.params.key, req.body) });
+};
+
+export const clearSiteImage = async (req, res) => {
+  res.json({ data: await siteService.clearSiteImage(req.params.key) });
 };
 
 // --- Roles -----------------------------------------------------------------

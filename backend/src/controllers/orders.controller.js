@@ -54,5 +54,5 @@ export const startPayment = async (req, res) => {
 };
 
 export const cancel = async (req, res) => {
-  res.json({ data: await orderService.cancelOwnOrder(req.params.id, req.supabase) });
+  res.json({ data: await orderService.cancelOwnOrder(req.params.id, req.user.id) });
 };

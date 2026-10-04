@@ -59,6 +59,7 @@ const { data: product } = await admin
   .from('products').select('id, price').not('price', 'is', null).limit(1).single();
 
 const created = [];
+const createdThreads = [];
 const makeOrder = async (fields) => {
   const { data, error } = await admin
     .from('orders')
@@ -113,11 +114,50 @@ try {
   await admin.from('orders').update({ status: 'out_for_delivery', rider_id: rider.id }).eq('id', delivery.id);
   expect('rider still sees it after claiming', await visible(rider.client), delivery.order_number);
 
+  // --- chat: what Realtime delivers for threads and messages ---
+  const chatVisible = async (client) => {
+    const [threads, messages] = await Promise.all([
+      client.from('chat_threads').select('id'),
+      client.from('chat_messages').select('id'),
+    ]);
+    if (threads.error || messages.error) return `ERROR ${(threads.error ?? messages.error).message}`;
+    return `${threads.data.length} threads, ${messages.data.length} messages`;
+  };
+
+  const { data: deliveryThread } = await admin
+    .from('chat_threads').insert({ kind: 'delivery', order_id: delivery.id }).select('id').single();
+  const { data: supportThread } = await admin
+    .from('chat_threads').insert({ kind: 'support', visitor_name: 'RLS Visitor' }).select('id').single();
+  createdThreads.push(deliveryThread.id, supportThread.id);
+  await admin.from('chat_messages').insert([
+    { thread_id: deliveryThread.id, sender_role: 'customer', body: 'rls delivery' },
+    { thread_id: supportThread.id, sender_role: 'visitor', body: 'rls support' },
+  ]);
+
+  // Other threads may already exist, so staff expectations come from the database.
+  const [{ count: threadTotal }, { count: messageTotal }] = await Promise.all([
+    admin.from('chat_threads').select('*', { count: 'exact', head: true }),
+    admin.from('chat_messages').select('*', { count: 'exact', head: true }),
+  ]);
+
+  console.log('--- chat ---');
+  expect('cashier sees every thread and message', await chatVisible(cashier.client), `${threadTotal} threads, ${messageTotal} messages`);
+  expect('admin sees every thread and message', await chatVisible(adminUser.client), `${threadTotal} threads, ${messageTotal} messages`);
+  expect('anonymous sees no chat', await chatVisible(anon), '0 threads, 0 messages');
+  expect('order owner sees only their delivery chat', await chatVisible(c1.client), '1 threads, 1 messages');
+  expect('another customer sees no chat', await chatVisible(c2.client), '0 threads, 0 messages');
+  expect('rider holding the order sees its chat', await chatVisible(rider.client), '1 threads, 1 messages');
+
+  await admin.from('orders').update({ rider_id: null, status: 'ready' }).eq('id', delivery.id);
+  expect('rider loses the chat once the order is released', await chatVisible(rider.client), '0 threads, 0 messages');
+  await admin.from('orders').update({ status: 'out_for_delivery', rider_id: rider.id }).eq('id', delivery.id);
+
   await admin.from('orders').update({ status: 'completed' }).eq('id', delivery.id);
   expect('rider keeps it in their history', await visible(rider.client), delivery.order_number);
 
   expect('customer 1 unaffected throughout', await visible(c1.client), c1Own);
 } finally {
+  if (createdThreads.length) await admin.from('chat_threads').delete().in('id', createdThreads);
   if (created.length) await admin.from('orders').delete().in('id', created);
 }
 

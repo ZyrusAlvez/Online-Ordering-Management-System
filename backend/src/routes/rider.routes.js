@@ -1,14 +1,16 @@
 import { Router } from 'express';
+import * as chat from '../controllers/chat.controller.js';
 import * as rider from '../controllers/rider.controller.js';
-import { requireAuth, requireRole } from '../middleware/auth.js';
+import { requireActive, requireAuth, requireRole } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { idParam } from '../validators/common.validators.js';
+import { messageBody } from '../validators/chat.validators.js';
 import { deliveredSchema, riderOrdersQuery } from '../validators/rider.validators.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 
 const router = Router();
 
-router.use(requireAuth, requireRole('rider'));
+router.use(requireAuth, requireRole('rider'), requireActive);
 
 router.get('/pool', asyncHandler(rider.pool));
 router.get('/orders', validate({ query: riderOrdersQuery }), asyncHandler(rider.listMine));
@@ -19,6 +21,13 @@ router.post(
   '/orders/:id/delivered',
   validate({ params: idParam, body: deliveredSchema }),
   asyncHandler(rider.delivered),
+);
+
+router.get('/orders/:id/chat', validate({ params: idParam }), asyncHandler(chat.orderChat('rider')));
+router.post(
+  '/orders/:id/chat',
+  validate({ params: idParam, body: messageBody }),
+  asyncHandler(chat.orderSend('rider')),
 );
 
 export default router;

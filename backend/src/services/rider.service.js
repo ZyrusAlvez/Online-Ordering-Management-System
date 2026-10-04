@@ -3,6 +3,7 @@ import { WITH_ITEMS } from '../constants/orders.js';
 import { ApiError, fromPostgrestError } from '../utils/ApiError.js';
 import { applyRange } from '../utils/pagination.js';
 import { getOrderOrFail, settleCash } from './order.service.js';
+import { cancelPendingGcash } from './payment.service.js';
 
 const now = () => new Date().toISOString();
 
@@ -114,6 +115,8 @@ export const markDelivered = async (orderId, riderId, { collectedAmount = null }
 
   // settleCash validates the amount covers the total and records the payment.
   if (isCod) {
+    // An abandoned GCash attempt must not be able to charge the customer as well.
+    await cancelPendingGcash(orderId);
     await settleCash(orderId, { tenderedAmount: collectedAmount, collectedBy: riderId });
   }
 

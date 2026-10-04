@@ -54,6 +54,49 @@ const paymongo = async (path, { method = 'POST', attributes } = {}) => {
 };
 
 /**
+ * Cancels any GCash attempt still open for an order, so a new attempt (or a
+ * cash payment, or a void) cannot also be paid by the old one. If PayMongo says
+ * the old attempt is actually going through, nothing is replaced: the caller
+ * gets a 409 instead of a customer who has paid twice.
+ */
+export const cancelPendingGcash = async (orderId) => {
+  const { data: pending, error } = await supabaseAdmin
+    .from('payments')
+    .select('id, intent_id')
+    .eq('order_id', orderId)
+    .eq('provider', 'paymongo')
+    .eq('status', 'processing');
+  if (error) throw fromPostgrestError(error);
+
+  for (const attempt of pending) {
+    if (attempt.intent_id) {
+      try {
+        await paymongo(`/payment_intents/${attempt.intent_id}/cancel`);
+      } catch {
+        // Could not cancel. Find out why before deciding it is safe to move on.
+        const intent = await paymongo(`/payment_intents/${attempt.intent_id}`, { method: 'GET' }).catch(
+          () => null,
+        );
+        const state = intent?.attributes?.status;
+        if (state === 'succeeded' || state === 'processing') {
+          throw ApiError.conflict(
+            'A GCash payment for this order is still going through. Wait a moment, then check the order again.',
+          );
+        }
+      }
+    }
+    await supabaseAdmin
+      .from('payments')
+      .update({
+        status: 'failed',
+        failure_reason: 'Replaced by a newer payment',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', attempt.id);
+  }
+};
+
+/**
  * Starts a GCash charge for an order and returns the URL the customer must be
  * sent to. Safe to call again for a retry: a fresh intent is created and
  * recorded as another attempt.
@@ -67,6 +110,9 @@ export const startGcashPayment = async (orderId, { returnUrl } = {}) => {
   if (['voided', 'cancelled'].includes(order.status)) {
     throw ApiError.conflict(`Cannot take payment on a ${order.status} order`);
   }
+
+  // A retry replaces the earlier attempt rather than leaving two live charges.
+  if (order.payment_status === 'processing') await cancelPendingGcash(order.id);
 
   const amountCentavos = toCentavos(order.total_amount);
   // PayMongo rejects anything under PHP 20.00.
@@ -138,7 +184,8 @@ export const refundOrder = async (orderId, reason = 'others') => {
     .from('payments')
     .select('*')
     .eq('order_id', orderId)
-    .eq('status', 'paid')
+    // A refund that failed leaves its payment in refund_failed; that is the one to retry.
+    .in('status', ['paid', 'refund_failed'])
     .not('payment_id', 'is', null)
     .order('created_at', { ascending: false })
     .limit(1)
@@ -276,6 +323,9 @@ export const applyWebhookEvent = async (eventType, resource) => {
       .eq(intentId ? 'intent_id' : 'order_id', intentId ?? orderId);
 
     const order = await fetchOrder(orderId);
+    // Money arrived for an order that was voided or cancelled while the customer
+    // was still in GCash: record it, then hand it straight back.
+    const dead = ['voided', 'cancelled'].includes(order?.status);
 
     await supabaseAdmin
       .from('orders')
@@ -284,12 +334,34 @@ export const applyWebhookEvent = async (eventType, resource) => {
         payment_method: 'gcash',
         // A kiosk order that has paid for itself needs no cashier: send it
         // straight to the kitchen, which is the point of the kiosk.
-        ...(order?.channel === 'kiosk' && order?.status === 'pending'
+        ...(!dead && order?.channel === 'kiosk' && order?.status === 'pending'
           ? { status: 'confirmed' }
           : {}),
         updated_at: now,
       })
       .eq('id', orderId);
+
+    if (dead) {
+      try {
+        await refundOrder(orderId, 'others');
+        return `order ${orderId} was ${order.status}; refund started for the late payment`;
+      } catch (err) {
+        await supabaseAdmin
+          .from('orders')
+          .update({ payment_status: 'refund_failed', updated_at: now })
+          .eq('id', orderId);
+        return `order ${orderId} was ${order.status}; automatic refund failed (${err.message}), needs an admin retry`;
+      }
+    }
+
+    const paidCentavos = resource.attributes?.amount;
+    if (order && paidCentavos != null && paidCentavos !== toCentavos(order.total_amount)) {
+      // The order was edited after the charge started. Keep the evidence visible.
+      console.warn(
+        `[paymongo] order ${orderId}: paid ${paidCentavos} centavos but the total is ${toCentavos(order.total_amount)}`,
+      );
+      return `order ${orderId} marked paid, AMOUNT MISMATCH (paid ${paidCentavos}, total ${toCentavos(order.total_amount)})`;
+    }
 
     return `order ${orderId} marked paid`;
   }

@@ -32,6 +32,18 @@ export const supabaseAnon = createClient(
 );
 
 /**
+ * A throwaway publishable-key client for ONE sign-in/refresh/verify call.
+ *
+ * Signing in stores the session on the client that did it, even with
+ * persistSession off (it lives in memory). On the shared `supabaseAnon` that
+ * would leave the last person to log in attached to every later "anonymous"
+ * read, which then runs with their JWT instead of none. Anything that signs a
+ * user in goes through this instead.
+ */
+export const createAnonClient = () =>
+  createClient(env.SUPABASE_URL, env.SUPABASE_PUBLISHABLE_KEY, baseOptions);
+
+/**
  * Client that acts as the caller, so Row Level Security policies apply to the
  * user behind `accessToken`. Prefer this for anything request-scoped.
  */

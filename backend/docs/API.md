@@ -45,9 +45,22 @@ Schema-level errors that belong to no single field appear under `details._errors
 | `401` | Missing/invalid token or kiosk key |
 | `403` | Authenticated but the wrong role |
 | `404` | Not found — or not visible to you, which is deliberately indistinguishable |
-| `409` | Conflict: illegal state transition, already paid, already claimed, item unavailable |
+| `409` | Conflict: illegal state transition, already paid (or paid twice at once), already claimed, item unavailable, a product or option that appears in past orders can't be deleted/removed, chat closed |
 | `429` | Rate limited |
 | `503` | GCash requested but PayMongo is not configured |
+
+**Field rules.** The same limits apply on every endpoint (and are repeated in the
+forms and as database constraints). The full list, with the reason for each, is in
+[`docs/DATA-DICTIONARY.md`](../../docs/DATA-DICTIONARY.md#input-rules-the-same-everywhere).
+The ones that most often trip a client up:
+
+- **Phone numbers are exactly 11 digits starting `09`**, digits only (`09171234567`). No spaces, dashes or `+63`.
+  This applies to `customer_phone` on orders, `phone` on profiles and on riders.
+  A rider's `phone` may be `null` on update to clear it.
+- Text is **trimmed**, so a name made only of spaces is rejected. Emails are lower-cased.
+- Prices and amounts are pesos with **at most 2 decimals** and at most `999999.99`; quantity is a whole number `1`–`99`;
+  an order has at most 50 different items.
+- `delivery_address.latitude` / `longitude` (the map pin) are **optional but must come together**, inside the Philippines.
 
 **Money.** `total_amount`, `price` and `unit_price` are pesos as JSON numbers
 (`260`, `144.50`). The server computes every total from live menu prices — a
@@ -101,6 +114,22 @@ back to login.
 | `POST` | `/auth/refresh` | `{ refreshToken }` | |
 | `POST` | `/auth/logout` | — | Requires a token. `204`. |
 | `GET` | `/auth/me` | — | Current user. |
+| `GET` | `/auth/profile` | — | `{ data: { id, email, full_name, phone, default_address, role, sign_in_method: 'email'\|'google', can_change_password, avatar_url } }`. |
+| `PATCH` | `/auth/profile` | `{ full_name?, phone?, default_address? }` | At least one field. `phone` and `default_address` accept `null` to clear. `default_address` has the same shape as an order's `delivery_address`. Sending `role` or `is_active` is a `400`. |
+| `POST` | `/auth/password` | `{ current_password, new_password }` | `204`. A wrong current password is `400` (not `401`, which the frontend reads as an expired session). `400` for Google accounts, `403` for the shared cashier login. 10 attempts per 15 minutes. |
+
+### Employee gates — `/employee`
+
+`/cashier` and `/kiosk` in the frontend sit behind a shared employee password
+instead of a personal login. Both endpoints are limited to 10 attempts per IP
+per 15 minutes (`429` after that). A wrong password is always `401`.
+
+| Method | Path | Body | Notes |
+| --- | --- | --- | --- |
+| `POST` | `/employee/cashier/login` | `{ password }` | Returns `{ user, session }` exactly like `/auth/login`, for the shared cashier account (`CASHIER_EMAIL`). Use the token on `/pos/*`. |
+| `POST` | `/employee/kiosk/unlock` | `{ password, device_name? }` | `201 { data: { id, name, key } }`. Provisions a new kiosk device and returns its raw key once — store it and send it as `X-Kiosk-Key`. It appears in `/admin/kiosks` and can be revoked there. |
+
+Admins change both passwords with `PUT /admin/employee-passwords/:role`.
 
 > Supabase rate-limits signups per IP. In development you will hit `429` after
 > a handful of registrations; create test users with the admin API instead
@@ -308,13 +337,15 @@ POST /orders
 {
   "fulfillment_type": "delivery",       // or "pickup"
   "payment_method": "gcash",            // or "cash" (COD / pay at pickup)
-  "customer_phone": "09171234567",
+  "customer_phone": "09171234567",      // 11 digits starting 09; REQUIRED when delivery
   "delivery_address": {                 // REQUIRED when delivery
     "line1": "123 Rizal St",
     "barangay": "Poblacion",
     "city": "Davao City",
     "landmark": "beside the pharmacy",
-    "notes": "gate is blue"
+    "notes": "gate is blue",
+    "latitude": 14.2985,                // optional map pin: both or neither
+    "longitude": 120.997
   },
   "items": [ … ],
   "notes": "Ring the bell"
@@ -394,13 +425,40 @@ Role: `admin`.
 | --- | --- | --- |
 | `GET` | `/admin/orders` | All orders. `?status&payment_status&channel&from&to&page&limit` (`from`/`to` are ISO 8601) |
 | `POST` | `/admin/orders/:id/refund/retry` | Retry a refund PayMongo rejected |
+| `GET` | `/admin/sales` | Sales report for a range of **Manila days**: `?from=YYYY-MM-DD&to=YYYY-MM-DD` (both included; default is the last 7 days ending today, at most 366 days). See [Sales report](#sales-report). |
 | `GET` | `/admin/riders` | |
-| `POST` | `/admin/riders` | `{ email, password, full_name, phone? }` |
+| `POST` | `/admin/riders` | `{ email, password (8–72), full_name, phone? }` |
 | `PATCH` | `/admin/riders/:id` | `{ is_active?, full_name?, phone? }` |
 | `GET` | `/admin/kiosks` | Devices; never returns key hashes |
 | `POST` | `/admin/kiosks` | `{ name }` |
 | `DELETE` | `/admin/kiosks/:id` | Revoke (`204`) |
+| `PUT` | `/admin/employee-passwords/:role` | `{ password }` (min 6). `:role` is `cashier` or `kiosk`. `204`. Changing the cashier password also changes that account's login. Kiosk browsers that already unlocked keep working; revoke their devices to force a re-unlock. |
 | `PATCH` | `/admin/users/:id/role` | `{ role }` |
+
+### Sales report
+
+`GET /admin/sales?from=2026-10-01&to=2026-10-07` returns:
+
+```jsonc
+{
+  "data": {
+    "range": { "from": "2026-10-01", "to": "2026-10-07" },
+    "totals": { "orders": 42, "revenue": 18350, "average_order": 436.9, "items_sold": 97 },
+    "daily": [ { "date": "2026-10-01", "orders": 6, "revenue": 2450 }, … ],   // every day, zeros included
+    "by_method": [ { "method": "cash", "orders": 30, "revenue": 12100 }, { "method": "gcash", … } ],
+    "by_channel": [ { "channel": "pos", "orders": 20, "revenue": 8200 }, { "channel": "online" … }, { "channel": "kiosk" … } ],
+    "top_items": [ { "product_id": "…", "name": "Sizzling Sisig", "variant": null, "quantity": 18, "revenue": 2340 }, … ],   // top 10
+    "refunds_pending": { "orders": 1, "amount": 350 }
+  }
+}
+```
+
+A **sale** is an order that has been **paid** and has **not been voided or cancelled**, counted on the Manila
+day it was **placed** (so a 9pm order is today's). It is counted when it is paid, not when it is completed:
+a kiosk GCash or counter cash order is paid long before the kitchen finishes it. Voided and refunded orders
+drop out; voided orders still waiting on a GCash refund are shown in `refunds_pending` and are **not**
+revenue. Money is pesos. `400` for a reversed range, more than 366 days, or a date that is not real
+(`2026-02-30`).
 
 Issuing a kiosk key returns the raw key **once**:
 
@@ -419,6 +477,64 @@ hash is stored; a lost key means issuing a new device.
 
 Menu management uses `POST`/`PATCH`/`DELETE` on `/categories` and `/products`.
 Sending `variants` on a product **replaces the entire variant list**.
+
+### Images
+
+Images live in the public Supabase Storage bucket `menu-images`; browsers never
+write to it. Send the file as the **raw request body** (not multipart) with
+`Content-Type: image/jpeg`, `image/png` or `image/webp`, max 5 MB. The bytes are
+checked, not just the header.
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| `PUT` | `/products/:id/image` | Admin or cashier. Stores the file, sets `image_url`, deletes the previous upload. Returns `{ data: product }`. |
+| `DELETE` | `/products/:id/image` | Admin or cashier. Clears `image_url` and deletes the stored file. |
+| `PUT` | `/admin/site-images/:key` | `key` is `logo` or `promo`. Returns `{ data: { logo, promo } }`. |
+| `DELETE` | `/admin/site-images/:key` | Back to the bundled default (`null`). |
+| `GET` | `/site/images` | Public. `{ data: { logo, promo } }`; `null` means use the bundled `/brand/*.jpg`. |
+
+`image_url` on `PATCH /products/:id` also accepts an external URL, or `null` to
+clear it. Seed the logo and promo from `frontend/public/brand` with
+`npm run seed:brand`.
+
+---
+
+## Chat
+
+Two kinds of conversation, one message shape
+`{ id, thread_id, sender_role: visitor|customer|cashier|rider, body, created_at }`.
+Bodies are 1–1000 characters. `sender_id` is never returned.
+
+**Support — anyone on the landing page, no account.** Talks to the cashier.
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| `POST` | `/chat/visitor/threads` | `{ body, name? }`. `201 { data: { thread_id, token, messages } }`. Keep both in localStorage: the `token` is shown once and only its hash is stored. Max 5 per hour per IP. |
+| `GET` | `/chat/visitor/threads/:id/messages` | Header `X-Chat-Token`. `401` for a missing/wrong token or unknown thread (indistinguishable). |
+| `POST` | `/chat/visitor/threads/:id/messages` | `{ body }` with `X-Chat-Token`. Max 20 per minute. |
+| `GET` | `/pos/chat/threads` | Cashier/admin inbox, newest first: `{ id, guest_number, display_name, visitor_name, last_message, last_sender_role, last_message_at, unread }`. `display_name` is `Guest-1023`, or `Maria (Guest-1023)` when the visitor gave a name. |
+| `GET` / `POST` | `/pos/chat/threads/:id/messages` | Read history / reply (`{ body }`). |
+| `POST` | `/pos/chat/threads/:id/read` | `204`. Clears `unread`. |
+
+**Delivery — online customer ↔ the rider holding the order.**
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| `GET` / `POST` | `/orders/:id/chat` | The customer who placed it. |
+| `GET` / `POST` | `/rider/orders/:id/chat` | The rider currently holding it. |
+
+`GET` returns `{ thread_id, open, order, with: { role, name }, messages }`.
+`open` is true only while the order is `out_for_delivery` with a rider; `thread_id` is
+`null` until a rider takes it. `POST` is `409` when closed; history stays readable
+afterwards. Anyone else gets `404`. If a rider releases the order the thread stays with
+the order, so the next rider sees the earlier messages.
+
+**Live updates.** Logged-in users subscribe to `postgres_changes` on `chat_messages`
+(`thread_id=eq.<id>`); the cashier inbox also subscribes to `chat_threads`. RLS scopes
+each role to its own conversations. Visitors have no JWT, so they subscribe to the
+Broadcast channel `chat:<thread_id>` instead. Its `message` event is only a ping
+(`{ thread_id }`, no text): refetch the messages over the API. Poll every ~20 s as a
+fallback.
 
 ---
 
