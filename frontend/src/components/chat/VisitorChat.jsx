@@ -63,6 +63,8 @@ export default function VisitorChat() {
           mine={(m) => m.sender_role === 'visitor'}
           sending={chat.sending}
           onSend={(body) => chat.send(body, name.trim())}
+          onSendImage={chat.started ? chat.sendImage : undefined}
+          imageNote="Send a message first, then you can attach photos."
           emptyText="Hi! Questions about the menu, delivery or your order? Send us a message and the cashier will reply here."
         />
         {!chat.started && (

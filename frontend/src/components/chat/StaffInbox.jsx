@@ -39,6 +39,13 @@ function Conversation({ thread, onChanged }) {
     }
   };
 
+  const sendImage = async (blob) => {
+    await api.post(`/pos/chat/threads/${thread.id}/images`, blob, { auth: true });
+    await refresh();
+    onChanged();
+    return true;
+  };
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <ErrorNote error={error} />
@@ -49,6 +56,7 @@ function Conversation({ thread, onChanged }) {
         labels={{ visitor: thread.display_name }}
         sending={sending}
         onSend={send}
+        onSendImage={sendImage}
       />
     </div>
   );
