@@ -51,7 +51,7 @@ Schema-level errors that belong to no single field appear under `details._errors
 
 **Field rules.** The same limits apply on every endpoint (and are repeated in the
 forms and as database constraints). The full list, with the reason for each, is in
-[`docs/DATA-DICTIONARY.md`](../../docs/DATA-DICTIONARY.md#input-rules-the-same-everywhere).
+[the data dictionary](./data-dictionary.md#input-rules-the-same-everywhere).
 The ones that most often trip a client up:
 
 - **Phone numbers are exactly 11 digits starting `09`**, digits only (`09171234567`). No spaces, dashes or `+63`.
@@ -133,7 +133,7 @@ Admins change both passwords with `PUT /admin/employee-passwords/:role`.
 
 > Supabase rate-limits signups per IP. In development you will hit `429` after
 > a handful of registrations; create test users with the admin API instead
-> (see [TESTING.md](./TESTING.md)).
+> (see [testing-manual.md](./testing-manual.md)).
 
 ---
 
@@ -602,3 +602,14 @@ rules.
 | Finish a delivery | `POST /rider/orders/:id/delivered` |
 | Add a kiosk terminal | `POST /admin/kiosks` |
 | Watch the queue live | Supabase Realtime on `orders` |
+| Sign in as the cashier / unlock a kiosk | `POST /employee/cashier/login` / `POST /employee/kiosk/unlock` |
+| Read or edit my profile, change password | `GET` / `PATCH /auth/profile`, `POST /auth/password` |
+| Pin a delivery address on the map | `delivery_address.latitude` and `.longitude` on `POST /orders` (optional, together) |
+| Start a guest chat, then reply | `POST /chat/visitor/threads`, then `POST …/messages` with `X-Chat-Token` |
+| Read the cashier's chat inbox | `GET /pos/chat/threads`, then `GET …/:id/messages` |
+| Chat on a delivery | `GET` / `POST /orders/:id/chat` (customer), `/rider/orders/:id/chat` (rider) |
+| Send a photo in a chat | `POST` the raw image to the conversation's `…/images` route |
+| Upload a dish photo | `PUT /products/:id/image` (raw image); remove with `DELETE` |
+| Replace the logo or promo | `PUT /admin/site-images/:key` (`logo` or `promo`) |
+| Get sales figures | `GET /admin/sales?from=YYYY-MM-DD&to=YYYY-MM-DD` |
+| Change the cashier or kiosk password | `PUT /admin/employee-passwords/:role` |

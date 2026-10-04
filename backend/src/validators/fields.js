@@ -4,7 +4,7 @@ import { z } from 'zod';
  * The one definition of each kind of field the app accepts. Every validator
  * builds on these, the forms in the frontend mirror them (frontend/src/lib/
  * validation.js), and the database enforces the same limits with CHECK
- * constraints. The full list lives in docs/DATA-DICTIONARY.md — change a rule
+ * constraints. The full list lives in docs/data-dictionary.md — change a rule
  * in all of those places together.
  */
 
