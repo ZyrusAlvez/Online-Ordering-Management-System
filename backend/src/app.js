@@ -13,7 +13,7 @@ export const createApp = () => {
   const app = express();
 
   app.disable('x-powered-by');
-  app.set('trust proxy', 1);
+  app.set('trust proxy', env.TRUST_PROXY);
 
   app.use(helmet());
   app.use(cors({ origin: env.corsOrigins, credentials: true }));
@@ -39,6 +39,9 @@ export const createApp = () => {
       max: env.RATE_LIMIT_MAX,
       standardHeaders: true,
       legacyHeaders: false,
+      // A kiosk polls its payment status every 2 seconds; a restaurant's whole
+      // LAN shares one IP, so that polling must not eat everyone's budget.
+      skip: (req) => req.method === 'GET' && /\/kiosk\/orders\//.test(req.originalUrl),
     }),
   );
 

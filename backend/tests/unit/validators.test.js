@@ -111,15 +111,26 @@ describe('createOnlineOrderSchema', () => {
     ]);
   });
 
-  it('accepts delivery with an address', () => {
+  it('accepts delivery with an address and a phone number', () => {
     assert.equal(
       createOnlineOrderSchema.safeParse({
         ...base,
         fulfillment_type: 'delivery',
         delivery_address: address,
+        customer_phone: '09171234567',
       }).success,
       true,
     );
+  });
+
+  it('rejects delivery without a phone number, since the rider has to call', () => {
+    const result = createOnlineOrderSchema.safeParse({
+      ...base,
+      fulfillment_type: 'delivery',
+      delivery_address: address,
+    });
+    assert.equal(result.success, false);
+    assert.ok(result.error.flatten().fieldErrors.customer_phone);
   });
 
   it('rejects counter fulfillment types — those belong to the kiosk and POS', () => {

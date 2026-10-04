@@ -2,6 +2,8 @@ import { Router } from 'express';
 import adminRoutes from './admin.routes.js';
 import authRoutes from './auth.routes.js';
 import categoriesRoutes from './categories.routes.js';
+import chatRoutes from './chat.routes.js';
+import employeeRoutes from './employee.routes.js';
 import healthRoutes from './health.routes.js';
 import kioskRoutes from './kiosk.routes.js';
 import menuRoutes from './menu.routes.js';
@@ -9,15 +11,19 @@ import ordersRoutes from './orders.routes.js';
 import posRoutes from './pos.routes.js';
 import productsRoutes from './products.routes.js';
 import riderRoutes from './rider.routes.js';
+import siteRoutes from './site.routes.js';
 
 const router = Router();
 
 router.use('/health', healthRoutes);
 router.use('/auth', authRoutes);
+router.use('/employee', employeeRoutes);
+router.use('/chat', chatRoutes);
 router.use('/menu', menuRoutes);
 router.use('/categories', categoriesRoutes);
 router.use('/products', productsRoutes);
 router.use('/orders', ordersRoutes);
+router.use('/site', siteRoutes);
 
 // Role-namespaced surfaces: one router per frontend.
 router.use('/kiosk', kioskRoutes);

@@ -44,11 +44,12 @@ export const paymongo = async (req, res) => {
     const outcome = await applyWebhookEvent(eventType, resource);
     console.log(`[paymongo] ${eventType} ${eventId}: ${outcome}`);
   } catch (err) {
-    // The event is stored, so this is recoverable by hand. Returning non-2xx
-    // would make PayMongo retry an event we have already recorded, which the
-    // idempotency guard above would then skip silently — worse than surfacing
-    // the failure in the log.
+    // Forget the event and answer 5xx, so PayMongo redelivers it. Keeping the
+    // row would make the retry look like a duplicate and be skipped, leaving a
+    // customer charged for an order that never learned it was paid.
     console.error(`[paymongo] failed to apply ${eventType} ${eventId}:`, err.message);
+    await supabaseAdmin.from('webhook_events').delete().eq('event_id', eventId);
+    return res.status(500).json({ received: false, error: 'processing failed, will retry' });
   }
 
   res.status(200).json({ received: true });

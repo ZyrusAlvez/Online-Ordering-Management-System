@@ -39,6 +39,7 @@ export const fromPostgrestError = (error, fallbackMessage = 'Database error') =>
       '23505': 409, // unique violation
       '23503': 409, // foreign key violation
       '42501': 403, // insufficient privilege / RLS
+      PGRST103: 400, // requested page is past the end of the results
     }[error.code] ?? 500;
 
   return new ApiError(status, error.message || fallbackMessage, { code: error.code });

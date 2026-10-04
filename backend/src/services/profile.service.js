@@ -1,6 +1,7 @@
-import { supabaseAdmin } from '../config/supabase.js';
+import { createAnonClient, supabaseAdmin } from '../config/supabase.js';
 import { ROLES } from '../constants/orders.js';
 import { ApiError, fromPostgrestError } from '../utils/ApiError.js';
+import { findUserByEmail } from '../utils/findUser.js';
 
 /**
  * A user's role lives in two places and both must agree:
@@ -55,8 +56,7 @@ export const createStaffUser = async ({ email, password, role, fullName, phone }
     if (!/already|registered|exists/i.test(error.message)) {
       throw new ApiError(error.status ?? 400, error.message);
     }
-    const { data: list } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
-    userId = list?.users?.find((u) => u.email?.toLowerCase() === email.toLowerCase())?.id;
+    userId = (await findUserByEmail(email))?.id;
     if (!userId) throw new ApiError(error.status ?? 400, error.message);
   }
 
@@ -109,4 +109,83 @@ export const updateRider = async (riderId, payload) => {
   if (!data) throw ApiError.notFound('Rider not found');
 
   return data;
+};
+
+// ---------------------------------------------------------------------------
+// Self-service profile
+// ---------------------------------------------------------------------------
+
+const PROFILE_COLUMNS = 'id, full_name, phone, default_address';
+
+/** Accounts created through Google have no email/password identity, so no password to change. */
+const hasPassword = (user) => (user.identities ?? []).some((i) => i.provider === 'email');
+
+const shape = (user, profile) => ({
+  id: user.id,
+  email: user.email,
+  full_name: profile?.full_name ?? null,
+  phone: profile?.phone ?? null,
+  default_address: profile?.default_address ?? null,
+  role: user.app_metadata?.role ?? 'customer',
+  sign_in_method: hasPassword(user) ? 'email' : 'google',
+  can_change_password: hasPassword(user),
+  avatar_url: user.user_metadata?.avatar_url ?? user.user_metadata?.picture ?? null,
+});
+
+export const getOwnProfile = async (user) => {
+  const { data, error } = await supabaseAdmin
+    .from('profiles')
+    .select(PROFILE_COLUMNS)
+    .eq('id', user.id)
+    .maybeSingle();
+  if (error) throw fromPostgrestError(error);
+
+  return shape(user, data);
+};
+
+/**
+ * Edits the caller's own name, phone and saved address. The columns are
+ * whitelisted by the validator, and the update is keyed to the caller's id, so
+ * nobody edits anyone else or their own role.
+ */
+export const updateOwnProfile = async (user, payload) => {
+  const { data, error } = await supabaseAdmin
+    .from('profiles')
+    .update({ ...payload, updated_at: new Date().toISOString() })
+    .eq('id', user.id)
+    .select(PROFILE_COLUMNS)
+    .maybeSingle();
+  if (error) throw fromPostgrestError(error);
+  if (!data) throw ApiError.notFound('Profile not found');
+
+  // Orders read the customer's name from user_metadata, so keep it in step.
+  // Merge rather than replace: Google stores the avatar there too.
+  if (payload.full_name) {
+    const { error: metaError } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
+      user_metadata: { ...user.user_metadata, full_name: payload.full_name },
+    });
+    if (metaError) throw new ApiError(metaError.status ?? 500, metaError.message);
+  }
+
+  return shape({ ...user, user_metadata: { ...user.user_metadata, full_name: payload.full_name } }, data);
+};
+
+export const changeOwnPassword = async (user, { currentPassword, newPassword }) => {
+  if (!hasPassword(user)) {
+    throw ApiError.badRequest('This account signs in with Google, so it has no password to change');
+  }
+  // The shared cashier login is the employee password; admins change it from Settings.
+  if (user.app_metadata?.role === 'cashier') {
+    throw ApiError.forbidden('The cashier password is changed by an admin');
+  }
+
+  // 400, not 401: the frontend treats any 401 as an expired session and signs the user out.
+  const { error: verifyError } = await createAnonClient().auth.signInWithPassword({
+    email: user.email,
+    password: currentPassword,
+  });
+  if (verifyError) throw ApiError.badRequest('Current password is incorrect');
+
+  const { error } = await supabaseAdmin.auth.admin.updateUserById(user.id, { password: newPassword });
+  if (error) throw new ApiError(error.status ?? 400, error.message);
 };

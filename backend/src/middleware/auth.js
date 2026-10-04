@@ -1,4 +1,4 @@
-import { supabaseAnon, supabaseForToken } from '../config/supabase.js';
+import { supabaseAdmin, supabaseAnon, supabaseForToken } from '../config/supabase.js';
 import { ApiError } from '../utils/ApiError.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 
@@ -28,17 +28,37 @@ export const requireAuth = asyncHandler(async (req, _res, next) => {
 });
 
 /**
- * Restricts a route to the given roles. Reads the role from the user's
- * app_metadata.role (set server-side) and falls back to user_metadata.role.
+ * Restricts a route to the given roles. The role is read ONLY from
+ * app_metadata.role, which only the server can write. user_metadata is
+ * editable by the user themself (supabase.auth.updateUser), so trusting it
+ * would let anyone promote their own account to admin. No role means customer,
+ * the same default as the auth_role() SQL helper that RLS uses.
  */
 export const requireRole =
   (...roles) =>
   (req, _res, next) => {
     if (!req.user) return next(ApiError.unauthorized());
 
-    const role = req.user.app_metadata?.role ?? req.user.user_metadata?.role;
-    if (!role || !roles.includes(role)) {
+    const role = req.user.app_metadata?.role ?? 'customer';
+    if (!roles.includes(role)) {
       return next(ApiError.forbidden(`Requires role: ${roles.join(', ')}`));
     }
     next();
   };
+
+/**
+ * Refuses accounts an admin has switched off. A rider's session keeps working
+ * until it expires, so deactivating one must be checked on every request, not
+ * just at login.
+ */
+export const requireActive = asyncHandler(async (req, _res, next) => {
+  const { data, error } = await supabaseAdmin
+    .from('profiles')
+    .select('is_active')
+    .eq('id', req.user.id)
+    .maybeSingle();
+
+  if (error) throw ApiError.internal('Could not verify the account');
+  if (data && data.is_active === false) throw ApiError.forbidden('This account has been deactivated');
+  next();
+});

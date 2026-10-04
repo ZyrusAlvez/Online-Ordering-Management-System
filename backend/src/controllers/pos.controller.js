@@ -54,8 +54,13 @@ export const advanceStatus = async (req, res) => {
 
 /** Settle in cash at the counter; `meta.change` is what the drawer owes back. */
 export const payCash = async (req, res) => {
+  // A customer who gave up on GCash at the kiosk can still pay at the counter,
+  // but the abandoned GCash attempt must not be able to charge them as well.
+  await paymentService.cancelPendingGcash(req.params.id);
+
   const { order, tendered, change } = await orderService.settleCash(req.params.id, {
     tenderedAmount: req.body.tendered_amount ?? null,
+    collectedBy: req.user.id,
   });
 
   res.json({ data: order, meta: { tendered, change } });
@@ -77,8 +82,13 @@ export const voidOrder = async (req, res) => {
   const order = await orderService.getOrderOrFail(req.params.id);
   orderService.assertVoidable(order);
 
+  // A GCash order whose payment is still open must not complete behind our back.
+  if (order.payment_status === 'processing') await paymentService.cancelPendingGcash(req.params.id);
+
+  // refund_failed means the money is still with us: voiding again must retry the
+  // refund, not skip it and keep the customer's payment.
   const refund =
-    order.payment_status === 'paid' && order.payment_method === 'gcash'
+    ['paid', 'refund_failed'].includes(order.payment_status) && order.payment_method === 'gcash'
       ? await paymentService.refundOrder(req.params.id, 'others')
       : null;
 

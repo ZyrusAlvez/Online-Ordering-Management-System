@@ -17,7 +17,9 @@
     "test:e2e": "node scripts/run-tests.mjs --dir=tests/e2e",
     "test:coverage": "node scripts/run-tests.mjs --coverage",
     "seed:accounts": "node --env-file=.env scripts/seed-accounts.mjs",
-    "seed:menu": "node supabase/generate-seed.mjs"
+    "seed:menu": "node supabase/generate-seed.mjs",
+    "seed:product-images": "node --env-file=.env scripts/seed-product-images.mjs",
+    "seed:brand": "node --env-file=.env scripts/upload-brand-images.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

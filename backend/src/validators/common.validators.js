@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { optionalText, quantity } from './fields.js';
 
 export const idParam = z.object({ id: z.string().uuid() });
 
@@ -12,10 +13,11 @@ export const orderItemSchema = z.object({
   product_id: z.string().uuid(),
   // Required when the product's price lives on a variant (e.g. size).
   variant_id: z.string().uuid().optional(),
-  quantity: z.number().int().positive(),
-  notes: z.string().max(500).optional(),
+  quantity,
+  notes: optionalText(500).optional(),
 });
 
 export const itemsSchema = z
   .array(orderItemSchema)
-  .min(1, 'An order needs at least one item');
+  .min(1, 'An order needs at least one item')
+  .max(50, 'An order can have at most 50 different items');

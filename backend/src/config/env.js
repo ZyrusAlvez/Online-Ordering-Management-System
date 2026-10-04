@@ -16,6 +16,12 @@ const schema = z.object({
 
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(300),
+  // How many reverse proxies sit in front of the API (0 = none: never trust
+  // X-Forwarded-For, or a client could fake its IP and dodge the rate limits).
+  TRUST_PROXY: z
+    .string()
+    .default('1')
+    .transform((v) => (/^\d+$/.test(v) ? Number(v) : v === 'false' ? false : v)),
 
   SUPABASE_URL: z.string().url('SUPABASE_URL must be your project URL, e.g. https://xyz.supabase.co'),
   SUPABASE_PUBLISHABLE_KEY: z.string().min(1, 'SUPABASE_PUBLISHABLE_KEY is required'),
@@ -29,7 +35,10 @@ const schema = z.object({
   PAYMONGO_WEBHOOK_SECRET: z.string().optional(),
   PAYMONGO_API_URL: z.string().url().default('https://api.paymongo.com/v1'),
   PUBLIC_APP_URL: z.string().url().default('http://localhost:5173'),
-  KIOSK_RETURN_URL: z.string().url().default('http://localhost:5174/payment-result'),
+  KIOSK_RETURN_URL: z.string().url().default('http://localhost:5173/kiosk/payment-result'),
+
+  // The shared cashier account that /employee/cashier/login signs in to.
+  CASHIER_EMAIL: z.string().email().default('cashier@3k.local'),
 });
 
 const parsed = schema.safeParse(process.env);

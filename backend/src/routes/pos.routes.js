@@ -1,8 +1,10 @@
 import { Router } from 'express';
+import * as chat from '../controllers/chat.controller.js';
 import * as pos from '../controllers/pos.controller.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { idParam } from '../validators/common.validators.js';
+import { messageBody } from '../validators/chat.validators.js';
 import { statusBody } from '../validators/order.validators.js';
 import {
   cashPaymentSchema,
@@ -51,5 +53,15 @@ router.post(
   validate({ params: idParam, body: voidSchema }),
   asyncHandler(pos.voidOrder),
 );
+
+// --- chat inbox (visitors messaging from the landing page) ---
+router.get('/chat/threads', asyncHandler(chat.listThreads));
+router.get('/chat/threads/:id/messages', validate({ params: idParam }), asyncHandler(chat.threadMessages));
+router.post(
+  '/chat/threads/:id/messages',
+  validate({ params: idParam, body: messageBody }),
+  asyncHandler(chat.staffSend),
+);
+router.post('/chat/threads/:id/read', validate({ params: idParam }), asyncHandler(chat.markRead));
 
 export default router;
