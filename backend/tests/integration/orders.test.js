@@ -3,7 +3,7 @@ import { after, before, describe, it } from 'node:test';
 import { get, post } from '../helpers/client.js';
 import { tokenFor } from '../helpers/auth.js';
 import { setOrderState } from '../helpers/db.js';
-import { branchId, cleanup, flatPricedProduct, placeOnlineOrder } from '../helpers/fixtures.js';
+import { branchId, cleanup, flatPricedProduct, orderTime, placeOnlineOrder } from '../helpers/fixtures.js';
 
 let customer;
 let otherCustomer;
@@ -78,6 +78,7 @@ describe('POST /orders', () => {
       '/orders',
       {
         branch_id: await branchId(),
+        ...(await orderTime()),
         fulfillment_type: 'delivery',
         payment_method: 'cash',
         items: [{ product_id: flat.id, quantity: 1 }],
@@ -103,6 +104,7 @@ describe('POST /orders', () => {
         '/orders',
         {
           branch_id: await branchId(),
+          ...(await orderTime()),
           fulfillment_type: type,
           payment_method: 'cash',
           items: [{ product_id: flat.id, quantity: 1 }],

@@ -280,10 +280,12 @@ export function Segmented({ value, onChange, options, className = '' }) {
         <button
           key={o.value}
           type="button"
+          disabled={o.disabled}
+          title={o.title}
           onClick={() => onChange(o.value)}
           aria-pressed={value === o.value}
           className={cx(
-            'shrink-0 whitespace-nowrap rounded-lg px-4 py-1.5 text-sm font-medium transition',
+            'shrink-0 whitespace-nowrap rounded-lg px-4 py-1.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-40',
             value === o.value ? 'bg-white text-ink shadow-sm' : 'text-ink-soft hover:text-ink',
           )}
         >

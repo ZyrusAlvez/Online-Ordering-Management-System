@@ -3,7 +3,7 @@ import { after, before, describe, it } from 'node:test';
 import { del, get, post, put } from '../helpers/client.js';
 import { tokenFor } from '../helpers/auth.js';
 import { db } from '../helpers/db.js';
-import { branchId, cleanup, flatPricedProduct, placeOnlineOrder } from '../helpers/fixtures.js';
+import { branchId, cleanup, flatPricedProduct, orderTime, placeOnlineOrder } from '../helpers/fixtures.js';
 
 let superAdmin;
 let imusAdmin;
@@ -46,6 +46,7 @@ describe('sold out at one branch', () => {
   it('refuses an order for it at that branch, but not at another', async () => {
     const body = {
       branch_id: imus,
+      ...(await orderTime(imus)),
       fulfillment_type: 'pickup',
       payment_method: 'cash',
       items: [{ product_id: product.id, quantity: 1 }],

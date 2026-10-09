@@ -7,7 +7,7 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import { useToast } from '../../context/ToastContext.jsx';
 import { StaffBar } from '../../components/Layouts.jsx';
 import DeliveryChat from '../../components/chat/DeliveryChat.jsx';
-import { MapLink, OrderLines, addressLine } from '../../components/OrderParts.jsx';
+import { MapLink, OrderLines, ScheduledBadge, addressLine } from '../../components/OrderParts.jsx';
 import {
   Badge,
   Button,
@@ -31,6 +31,7 @@ function DeliveryCard({ order, children }) {
           <p className="text-2xl font-extrabold leading-none">{order.order_number}</p>
           <p className="mt-1 text-sm font-medium">{order.customer_name || 'Customer'}</p>
           <p className="text-xs text-ink-soft">{timeAgo(order.created_at)}</p>
+          {order.scheduled_for && <ScheduledBadge at={order.scheduled_for} className="mt-1" />}
         </div>
         <div className="text-right">
           <p className="text-xl font-bold text-brand">{money(order.total_amount)}</p>

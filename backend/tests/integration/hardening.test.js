@@ -8,6 +8,7 @@ import {
   allProducts,
   branchId,
   cleanup,
+  orderTime,
   flatPricedProduct,
   placeOnlineOrder,
   placeWalkInOrder,
@@ -371,8 +372,12 @@ describe('deactivated riders', () => {
 
 describe('phone numbers and field limits through the API', () => {
   const base = { fulfillment_type: 'pickup', payment_method: 'cash', items: [{ product_id: null, quantity: 1 }] };
-  const order = (extra) =>
-    post('/orders', { ...base, branch_id: gma, items: [{ product_id: flat.id, quantity: 1 }], ...extra }, { token: customer });
+  const order = async (extra) =>
+    post(
+      '/orders',
+      { ...base, branch_id: gma, ...(await orderTime(gma)), items: [{ product_id: flat.id, quantity: 1 }], ...extra },
+      { token: customer },
+    );
 
   it('requires exactly 11 digits starting 09', async () => {
     for (const bad of ['0917123456', '091712345678', '19171234567', '0917-123-4567', '+639171234567']) {

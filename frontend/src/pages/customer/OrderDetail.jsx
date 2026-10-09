@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { api } from '../../lib/api.js';
 import { useFetch } from '../../lib/hooks.js';
 import { subscribeToOrders } from '../../lib/supabase.js';
-import { dateTime, money } from '../../lib/format.js';
+import { dateTime, money, scheduleLabel } from '../../lib/format.js';
 import { useToast } from '../../context/ToastContext.jsx';
 import { Button, Card, ErrorNote, PageLoader } from '../../components/ui.jsx';
 import {
@@ -132,7 +132,15 @@ export default function OrderDetail() {
         <div className="flex items-start justify-between gap-3">
           <div>
             <h1 className="font-display text-4xl">{order.order_number}</h1>
-            <p className="text-xs text-ink-soft">Placed {dateTime(order.created_at)}</p>
+            <p className="text-xs text-ink-soft">
+              Placed {dateTime(order.created_at)}
+              {order.branch?.name ? ` · ${order.branch.name} branch` : ''}
+            </p>
+            {order.scheduled_for && (
+              <p className="mt-1 inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">
+                Scheduled for {scheduleLabel(order.scheduled_for)}
+              </p>
+            )}
             <MethodLabel order={order} />
           </div>
           <div className="flex flex-col items-end gap-1.5">

@@ -179,6 +179,7 @@ export const createOrder = async ({
   kioskDeviceId = null,
   deliveryAddress = null,
   notes = null,
+  scheduledFor = null,
 }) => {
   const { lines, totalCentavos } = await priceOrder(items, branchId);
 
@@ -198,6 +199,7 @@ export const createOrder = async ({
       kiosk_device_id: kioskDeviceId,
       delivery_address: deliveryAddress,
       notes,
+      scheduled_for: scheduledFor,
     })
     .select()
     .single();

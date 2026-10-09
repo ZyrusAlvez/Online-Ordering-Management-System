@@ -3,7 +3,7 @@ import { api } from '../../lib/api.js';
 import { useFetch } from '../../lib/hooks.js';
 import { CHANNEL, FULFILLMENT, PAYMENT, STATUS, dateTime, money } from '../../lib/format.js';
 import { useToast } from '../../context/ToastContext.jsx';
-import { MapLink, MethodLabel, OrderLines, PaymentBadge, StatusBadge, addressLine } from '../../components/OrderParts.jsx';
+import { MapLink, MethodLabel, OrderLines, PaymentBadge, ScheduledBadge, StatusBadge, addressLine } from '../../components/OrderParts.jsx';
 import { Button, Empty, ErrorNote, Input, Modal, PageLoader, Pagination, Select } from '../../components/ui.jsx';
 import { useStaffBranch } from '../../components/StaffBranch.jsx';
 
@@ -132,7 +132,14 @@ export default function AdminOrders() {
                   <td className="px-4 py-3"><StatusBadge status={o.status} /></td>
                   <td className="px-4 py-3"><PaymentBadge status={o.payment_status} /></td>
                   <td className="px-4 py-3 text-right font-semibold">{money(o.total_amount)}</td>
-                  <td className="px-4 py-3 text-ink-soft">{dateTime(o.created_at)}</td>
+                  <td className="px-4 py-3 text-ink-soft">
+                    {dateTime(o.created_at)}
+                    {o.scheduled_for && (
+                      <span className="mt-1 block">
+                        <ScheduledBadge at={o.scheduled_for} />
+                      </span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -148,6 +155,7 @@ export default function AdminOrders() {
               <StatusBadge status={open.status} />
               <PaymentBadge status={open.payment_status} />
               <MethodLabel order={open} />
+              <ScheduledBadge at={open.scheduled_for} />
             </div>
             <p className="text-sm text-ink-soft">
               {open.customer_name || 'Guest'} · {dateTime(open.created_at)}

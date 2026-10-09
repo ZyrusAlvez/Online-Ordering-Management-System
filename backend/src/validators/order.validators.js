@@ -40,6 +40,9 @@ export const createOnlineOrderSchema = z
     customer_phone: phone.optional(),
     items: itemsSchema,
     notes: optionalText(1000).optional(),
+    // Omitted = as soon as possible. Otherwise a 15-minute slot within the
+    // branch's hours, up to two days ahead (checked against the branch).
+    scheduled_for: z.string().datetime({ offset: true }).optional(),
   })
   .refine((body) => body.fulfillment_type !== 'delivery' || body.delivery_address, {
     message: 'delivery_address is required when fulfillment_type is "delivery"',

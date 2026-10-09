@@ -1,6 +1,7 @@
 import { db } from './db.js';
 import { get, patch, post } from './client.js';
 import { tokenFor } from './auth.js';
+import { isOpenAt, nextOpenSlot } from '../../src/utils/schedule.js';
 
 /**
  * Test data lives in the same database as everything else, so every order this
@@ -41,6 +42,18 @@ export const branchId = async (code = 'gma') => {
   if (error) throw new Error(`Branch ${code} not found: ${error.message}`);
   branchIds.set(code, data.id);
   return data.id;
+};
+
+/**
+ * Online orders are refused "as soon as possible" while a branch is closed, so
+ * the suite would pass by day and fail by night. This is the order time to send:
+ * nothing while the branch is open, else its next open slot. Spread it into an
+ * online order body.
+ */
+export const orderTime = async (id) => {
+  const { data, error } = await db.from('branches').select('name, opens_at, closes_at').eq('id', id ?? (await branchId())).single();
+  if (error) throw error;
+  return isOpenAt(data, new Date()) ? {} : { scheduled_for: nextOpenSlot(data) };
 };
 
 // --- menu -----------------------------------------------------------------
@@ -120,10 +133,12 @@ export const placeOnlineOrder = async (role = 'customer', overrides = {}) => {
   const product = await flatPricedProduct();
   const token = await tokenFor(role);
 
+  const branch = overrides.branch_id ?? (await branchId());
   const res = await post(
     '/orders',
     {
-      branch_id: await branchId(),
+      branch_id: branch,
+      ...(await orderTime(branch)),
       fulfillment_type: 'pickup',
       payment_method: 'cash',
       items: [{ product_id: product.id, quantity: 1 }],

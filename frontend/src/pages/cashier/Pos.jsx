@@ -2,13 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { api } from '../../lib/api.js';
 import { useInbox } from '../../lib/chat.js';
-import { useDebounced, useFetch } from '../../lib/hooks.js';
+import { useDebounced, useFetch, useTick } from '../../lib/hooks.js';
 import { subscribeToOrders } from '../../lib/supabase.js';
 import {
   CHANNEL,
   FULFILLMENT,
   NEXT_STATUS,
   STATUS,
+  minutesUntil,
   money,
   timeAgo,
 } from '../../lib/format.js';
@@ -18,7 +19,17 @@ import { StaffBar } from '../../components/Layouts.jsx';
 import { BranchPicker, StaffBranchProvider, useStaffBranch } from '../../components/StaffBranch.jsx';
 import StaffInbox from '../../components/chat/StaffInbox.jsx';
 import ItemsEditor, { linesFromOrder } from '../../components/ItemsEditor.jsx';
-import { MapLink, MethodLabel, OrderLines, PaymentBadge, StatusBadge, addressLine } from '../../components/OrderParts.jsx';
+import {
+  DUE_SOON_MINUTES,
+  MapLink,
+  MethodLabel,
+  OrderLines,
+  PaymentBadge,
+  ScheduledBadge,
+  ScheduledBanner,
+  StatusBadge,
+  addressLine,
+} from '../../components/OrderParts.jsx';
 import {
   Button,
   Empty,
@@ -52,13 +63,24 @@ const useMedia = (query) => {
   return match;
 };
 
+/** When an order should be worked on: its slot if scheduled, else when it came in. */
+const dueAt = (o) => o.scheduled_for ?? o.created_at;
+
+// A scheduled order still waiting on the kitchen gets a coloured edge: amber,
+// then orange once it is close, so it is neither started too early nor missed.
+const scheduleEdge = (order) => {
+  if (!order.scheduled_for || !['pending', 'confirmed'].includes(order.status)) return '';
+  return minutesUntil(order.scheduled_for) <= DUE_SOON_MINUTES ? 'border-l-4 border-l-orange-600' : 'border-l-4 border-l-amber-400';
+};
+
 function QueueRow({ order, selected, onSelect }) {
+  useTick(); // the edge turns orange as the slot comes due
   return (
     <button
       onClick={() => onSelect(order.id)}
       className={`w-full rounded-xl border p-3 text-left transition ${
         selected ? 'border-brand bg-brand/5' : 'border-line bg-paper hover:border-ink/25'
-      }`}
+      } ${scheduleEdge(order)}`}
     >
       <div className="flex items-start justify-between gap-2">
         <div>
@@ -71,6 +93,7 @@ function QueueRow({ order, selected, onSelect }) {
         </div>
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        <ScheduledBadge at={order.scheduled_for} />
         <StatusBadge status={order.status} />
         <PaymentBadge status={order.payment_status} />
         <span className="text-xs text-ink-soft">
@@ -326,6 +349,10 @@ function OrderPanel({ orderId, onChanged, onClose }) {
         </div>
       </div>
 
+      {order.scheduled_for && !['completed', 'cancelled', 'voided'].includes(order.status) && (
+        <ScheduledBanner at={order.scheduled_for} />
+      )}
+
       {isDelivery && (
         <div className="rounded-2xl bg-cream-deep/60 p-3 text-sm">
           <p className="font-semibold">Delivery</p>
@@ -532,15 +559,18 @@ function Register() {
 
   useEffect(() => subscribeToOrders(() => refresh()), [refresh]);
 
+  // Scheduled orders queue by their slot, not by when they were placed.
+  const [scheduledOnly, setScheduledOnly] = useState(false);
+  const scheduledCount = (data?.data ?? []).filter((o) => o.scheduled_for && ACTIVE.includes(o.status)).length;
   const orders = useMemo(() => {
     const all = data?.data ?? [];
     if (tab === 'active') {
       return all
-        .filter((o) => ACTIVE.includes(o.status))
-        .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+        .filter((o) => ACTIVE.includes(o.status) && (!scheduledOnly || o.scheduled_for))
+        .sort((a, b) => new Date(dueAt(a)) - new Date(dueAt(b)));
     }
     return all.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  }, [data, tab]);
+  }, [data, tab, scheduledOnly]);
 
   const counts = useMemo(() => {
     const c = {};
@@ -606,6 +636,18 @@ function Register() {
                   {STATUS[s].label} {counts[s] ?? 0}
                 </span>
               ))}
+              {scheduledCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setScheduledOnly((v) => !v)}
+                  aria-pressed={scheduledOnly}
+                  className={`rounded-full px-2.5 py-1 font-semibold ring-1 ring-amber-300 ${
+                    scheduledOnly ? 'bg-amber-400 text-ink' : 'bg-amber-50 text-amber-900'
+                  }`}
+                >
+                  Scheduled {scheduledCount}
+                </button>
+              )}
             </div>
           )}
 

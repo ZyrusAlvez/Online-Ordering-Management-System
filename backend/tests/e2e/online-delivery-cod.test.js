@@ -3,7 +3,7 @@ import { after, before, describe, it } from 'node:test';
 import { get, patch, post } from '../helpers/client.js';
 import { tokenFor, userIdFor } from '../helpers/auth.js';
 import { orderRow, paymentsFor } from '../helpers/db.js';
-import { branchId, cleanup, flatPricedProduct, track } from '../helpers/fixtures.js';
+import { branchId, cleanup, flatPricedProduct, orderTime, track } from '../helpers/fixtures.js';
 
 /**
  * JOURNEY: online customer orders delivery and pays the rider in cash.
@@ -45,6 +45,7 @@ describe('E2E: online delivery, cash on delivery', () => {
       '/orders',
       {
         branch_id: await branchId(),
+        ...(await orderTime()),
         fulfillment_type: 'delivery',
         payment_method: 'cash',
         customer_phone: '09171234567',

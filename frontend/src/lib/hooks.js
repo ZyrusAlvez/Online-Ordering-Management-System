@@ -45,3 +45,12 @@ export function useDebounced(value, ms = 300) {
   }, [value, ms]);
   return debounced;
 }
+
+/** Re-renders every `ms` (default a minute), for countdowns like "due in 12 min". */
+export function useTick(ms = 60_000) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setTick((n) => n + 1), ms);
+    return () => clearInterval(timer);
+  }, [ms]);
+}

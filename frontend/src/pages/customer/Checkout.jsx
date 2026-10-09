@@ -4,7 +4,8 @@ import { api } from '../../lib/api.js';
 import { useFetch } from '../../lib/hooks.js';
 import { useSelectedBranch } from '../../lib/branches.js';
 import OrderBranchPicker from '../../components/OrderBranchPicker.jsx';
-import { money } from '../../lib/format.js';
+import ScheduleField from '../../components/ScheduleField.jsx';
+import { money, scheduleLabel } from '../../lib/format.js';
 import { useCart } from '../../context/CartContext.jsx';
 import { useToast } from '../../context/ToastContext.jsx';
 import PhoneInput from '../../components/PhoneInput.jsx';
@@ -23,6 +24,8 @@ export default function Checkout() {
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState(blankAddress);
   const [notes, setNotes] = useState('');
+  // null = as soon as possible; otherwise the ISO time of the chosen slot.
+  const [scheduledFor, setScheduledFor] = useState(null);
   const [saveAddress, setSaveAddress] = useState(true);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -80,6 +83,7 @@ export default function Checkout() {
         customer_phone: clean(phone),
         notes: clean(notes),
         items: cart.toOrderItems(),
+        ...(scheduledFor ? { scheduled_for: scheduledFor } : {}),
         ...(delivery ? { delivery_address: cleanAddress(address) } : {}),
       };
 
@@ -108,7 +112,9 @@ export default function Checkout() {
           toast.error(`Order placed, but GCash couldn't start: ${err.friendly}`);
         }
       } else {
-        toast.success(`Order ${order.order_number} placed!`);
+        toast.success(
+          `Order ${order.order_number} placed${scheduledFor ? ` for ${scheduleLabel(scheduledFor)}` : ''}!`,
+        );
       }
       navigate(`/orders/${order.id}`, { replace: true });
     } catch (err) {
@@ -128,6 +134,13 @@ export default function Checkout() {
           <h2 className="text-lg font-bold">Which branch?</h2>
           <OrderBranchPicker />
         </Card>
+
+        {branch && (
+          <Card className="space-y-4">
+            <h2 className="text-lg font-bold">When?</h2>
+            <ScheduleField key={branch.id} branch={branch} value={scheduledFor} onChange={setScheduledFor} />
+          </Card>
+        )}
 
         <Card className="space-y-4">
           <h2 className="text-lg font-bold">How would you like it?</h2>
@@ -223,6 +236,14 @@ export default function Checkout() {
               </li>
             ))}
           </ul>
+          {branch && (
+            <p className="border-t border-ink/10 pt-3 text-sm text-ink-soft">
+              {branch.name} ·{' '}
+              <span className={scheduledFor ? 'font-semibold text-amber-800' : ''}>
+                {scheduledFor ? scheduleLabel(scheduledFor) : 'As soon as possible'}
+              </span>
+            </p>
+          )}
           <div className="flex items-center justify-between border-t border-ink/10 pt-3 text-lg font-bold">
             <span>Estimated total</span>
             <span className="text-brand">{money(cart.estimate)}</span>
