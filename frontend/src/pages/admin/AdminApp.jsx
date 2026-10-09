@@ -10,6 +10,7 @@ import AdminBranding from './AdminBranding.jsx';
 import AdminMenu from './AdminMenu.jsx';
 import AdminSettings from './AdminSettings.jsx';
 import AdminAdmins from './AdminAdmins.jsx';
+import AdminBranches from './AdminBranches.jsx';
 
 // `superOnly` pages manage what every branch shares.
 const LINKS = [
@@ -19,6 +20,7 @@ const LINKS = [
   { to: 'riders', label: 'Riders' },
   { to: 'kiosks', label: 'Kiosks' },
   { to: 'settings', label: 'Employee passwords' },
+  { to: 'branches', label: 'Branches', superOnly: true },
   { to: 'admins', label: 'Admins', superOnly: true },
   { to: 'branding', label: 'Site images', superOnly: true },
 ];
@@ -78,6 +80,7 @@ function AdminShell() {
             <Route path="branding" element={superRoute(<AdminBranding />)} />
             <Route path="settings" element={<AdminSettings />} />
             <Route path="admins" element={superRoute(<AdminAdmins />)} />
+            <Route path="branches" element={superRoute(<AdminBranches />)} />
             <Route path="*" element={<Navigate to="sales" replace />} />
           </Routes>
         </main>

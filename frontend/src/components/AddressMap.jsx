@@ -178,19 +178,24 @@ export default function AddressMap({ value, onChange, onSuggest }) {
 
   return (
     <div className="space-y-3">
-      <form onSubmit={search} className="flex gap-2">
+      {/* Not a <form>: this map sits inside the checkout and branch forms, and a
+          nested form is invalid HTML (Enter could submit the outer one). */}
+      <div role="search" className="flex gap-2">
         <Input
           type="search"
           value={query}
           maxLength={200}
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') search(e);
+          }}
           placeholder="Search your street or barangay"
           aria-label="Search for your address"
         />
-        <Button type="submit" tone="outline" disabled={busy || query.trim().length < 3}>
+        <Button type="button" tone="outline" onClick={search} disabled={busy || query.trim().length < 3}>
           Search
         </Button>
-      </form>
+      </div>
 
       {results.length > 0 && (
         <ul className="overflow-hidden rounded-xl border border-line bg-white text-sm" role="listbox" aria-label="Matching places">

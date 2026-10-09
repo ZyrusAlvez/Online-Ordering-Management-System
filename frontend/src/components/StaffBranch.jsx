@@ -48,6 +48,8 @@ export function StaffBranchProvider({ storageKey, allowAll = false, children }) 
     isSuper: role === 'super_admin',
     loading: profile.loading,
     error: profile.error,
+    // After a branch is added or renamed, so the switcher and pickers show it.
+    reloadBranches: profile.refresh,
     // Spread into a request's query: narrows a list to the chosen branch, if any.
     query: branchId ? { branch_id: branchId } : {},
   };

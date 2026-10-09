@@ -1,3 +1,4 @@
+import * as branchService from '../services/branch.service.js';
 import * as employeeService from '../services/employee.service.js';
 import * as kioskDeviceService from '../services/kioskDevice.service.js';
 import * as orderService from '../services/order.service.js';
@@ -98,6 +99,20 @@ export const salesReport = async (req, res) => {
     branchIds: branchFilter(req.branchScope, branchId),
   });
   res.json({ data });
+};
+
+// --- Branches (super admin) -------------------------------------------------
+/** Every branch, including deactivated ones, for the management screen. */
+export const listBranches = async (_req, res) => {
+  res.json({ data: await branchService.listBranches({ activeOnly: false }) });
+};
+
+export const createBranch = async (req, res) => {
+  res.status(201).json({ data: await branchService.createBranch(req.body) });
+};
+
+export const updateBranch = async (req, res) => {
+  res.json({ data: await branchService.updateBranch(req.params.id, req.body) });
 };
 
 // --- Admin accounts (super admin) ------------------------------------------

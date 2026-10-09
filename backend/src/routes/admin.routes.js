@@ -20,6 +20,7 @@ import {
   updateAdminSchema,
   updateRiderSchema,
 } from '../validators/admin.validators.js';
+import { createBranchSchema, updateBranchSchema } from '../validators/branch.validators.js';
 import { employeePasswordSchema, employeeRoleParam } from '../validators/employee.validators.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 
@@ -62,6 +63,16 @@ router.put(
   '/employee-passwords/:role',
   validate({ params: employeeRoleParam, body: employeePasswordSchema }),
   asyncHandler(admin.setEmployeePassword),
+);
+
+// --- branches (super admin; deactivated rather than deleted) ---
+router.get('/branches', superAdmin, asyncHandler(admin.listBranches));
+router.post('/branches', superAdmin, validate({ body: createBranchSchema }), asyncHandler(admin.createBranch));
+router.patch(
+  '/branches/:id',
+  superAdmin,
+  validate({ params: idParam, body: updateBranchSchema }),
+  asyncHandler(admin.updateBranch),
 );
 
 // --- admin accounts (super admin) ---

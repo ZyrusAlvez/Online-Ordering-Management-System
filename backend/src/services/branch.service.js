@@ -47,6 +47,32 @@ export const getActiveBranchOrFail = async (id) => {
 };
 
 // ---------------------------------------------------------------------------
+// Managing branches (super admin)
+// ---------------------------------------------------------------------------
+
+export const createBranch = async (fields) => {
+  const { data, error } = await supabaseAdmin.from(TABLE).insert(fields).select(BRANCH_COLUMNS).single();
+  if (error) throw fromPostgrestError(error);
+  return shapeBranch(data);
+};
+
+/**
+ * Edits a branch. There is no delete: orders, kiosks and staff reference it, so
+ * a branch that closes is deactivated (it leaves the map and takes no orders).
+ */
+export const updateBranch = async (id, fields) => {
+  const { data, error } = await supabaseAdmin
+    .from(TABLE)
+    .update({ ...fields, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select(BRANCH_COLUMNS)
+    .maybeSingle();
+  if (error) throw fromPostgrestError(error);
+  if (!data) throw ApiError.notFound('Branch not found');
+  return shapeBranch(data);
+};
+
+// ---------------------------------------------------------------------------
 // Staff assignments
 // ---------------------------------------------------------------------------
 
