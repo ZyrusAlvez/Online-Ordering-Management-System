@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from './api.js';
+import { nearestBranch, useUserPosition } from './geo.js';
 
 // ---------------------------------------------------------------------------
 // The branch list: active branches with location and hours (GET /branches).
@@ -90,22 +91,32 @@ if (typeof window !== 'undefined') {
 }
 
 /**
- * The branch the customer orders from. Falls back to the first branch until one
- * is chosen, so there is always somewhere to order from.
+ * The branch the customer orders from. Until they pick one themselves it is the
+ * nearest branch, if the browser shares their location, else the first one, so
+ * there is always somewhere to order from. `locate` asks for the location
+ * (once per page load); without it a location another screen got is still used.
  */
-export function useSelectedBranch() {
+export function useSelectedBranch({ locate = false } = {}) {
   const { branches: list, loading } = useBranches();
+  const { position } = useUserPosition({ ask: locate });
   const chosen = list.find((b) => b.id === choice?.id) ?? null;
+  const explicit = Boolean(chosen && choice?.explicit);
+  const nearest = nearestBranch(list, position);
 
   useEffect(() => {
-    if (!loading && !chosen && list.length) setSelectedBranch(list[0].id, { explicit: false });
-  }, [loading, chosen, list]);
+    if (loading || explicit || list.length === 0) return;
+    const fallback = nearest ?? chosen ?? list[0];
+    if (fallback.id !== choice?.id) setSelectedBranch(fallback.id, { explicit: false });
+  }, [loading, explicit, list, nearest, chosen]);
 
   const branch = chosen ?? list[0] ?? null;
   return {
     branch,
     branchId: branch?.id ?? null,
-    explicit: Boolean(chosen && choice?.explicit),
+    explicit,
+    // Whether the current branch was picked for them as the nearest one.
+    isNearest: Boolean(nearest && branch && nearest.id === branch.id),
+    position,
     select: (id) => setSelectedBranch(id),
     branches: list,
     loading,

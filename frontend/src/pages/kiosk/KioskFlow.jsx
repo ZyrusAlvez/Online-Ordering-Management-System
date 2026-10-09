@@ -386,7 +386,7 @@ export default function KioskFlow({ onLock }) {
             Change: {FULFILLMENT[type]}
           </Button>
         </div>
-        <MenuBrowser size="kiosk" onAdd={cart.add} />
+        <MenuBrowser size="kiosk" onAdd={cart.add} branchId={device?.branch?.id} />
       </div>
       <div className="h-[42vh] shrink-0 lg:h-full">
         <CartPanel type={type} onReview={() => setStep('review')} onCancel={reset} />

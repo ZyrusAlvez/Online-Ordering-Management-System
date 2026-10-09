@@ -416,6 +416,7 @@ function OrderPanel({ orderId, onChanged, onClose }) {
       {modal === 'edit' && (
         <Modal open onClose={() => setModal(null)} title={`Edit ${order.order_number}`} wide>
           <ItemsEditor
+            branchId={order.branch_id}
             initialItems={linesFromOrder(order)}
             submitLabel="Save changes"
             onSubmit={async (items) => {
@@ -441,6 +442,7 @@ function WalkInModal({ branch, onClose, onCreated }) {
   return (
     <Modal open onClose={onClose} title={`New walk-in order · ${branch.name}`} wide>
       <ItemsEditor
+        branchId={branch.id}
         submitLabel="Create order"
         canSubmit={Boolean(name.trim())}
         extra={

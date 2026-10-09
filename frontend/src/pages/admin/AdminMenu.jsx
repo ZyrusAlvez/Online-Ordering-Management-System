@@ -3,6 +3,7 @@ import { api } from '../../lib/api.js';
 import { useFetch } from '../../lib/hooks.js';
 import { money } from '../../lib/format.js';
 import { useToast } from '../../context/ToastContext.jsx';
+import { useStaffBranch } from '../../components/StaffBranch.jsx';
 import {
   Badge,
   Button,
@@ -188,18 +189,35 @@ const priceText = (p) => {
 
 export default function AdminMenu() {
   const toast = useToast();
+  // The menu is shared: only the super admin edits it. Every admin can mark a
+  // dish sold out at the branch chosen in the switcher.
+  const { isSuper, branch, branchId } = useStaffBranch();
   const { data, error, loading, reload, refresh } = useFetch(
-    () => api.get('/menu', { query: { include_unavailable: 'true' } }),
-    [],
+    () => api.get('/menu', { query: { include_unavailable: 'true', ...(branchId ? { branch_id: branchId } : {}) } }),
+    [branchId],
   );
   const [catModal, setCatModal] = useState(null); // {} for new, category for edit
   const [prodModal, setProdModal] = useState(null); // {product?, categoryId?}
 
   const categories = data?.data ?? [];
 
+  const everywhere = (p) => p.available_everywhere ?? p.is_available;
+
   const toggle = async (p) => {
     try {
-      await api.patch(`/products/${p.id}`, { is_available: !p.is_available }, { auth: true });
+      await api.patch(`/products/${p.id}`, { is_available: !everywhere(p) }, { auth: true });
+      refresh();
+    } catch (err) {
+      toast.error(err.friendly);
+    }
+  };
+
+  const toggleHere = async (p) => {
+    const path = `/admin/branches/${branchId}/sold-out/${p.id}`;
+    try {
+      if (p.sold_out_here) await api.del(path, { auth: true });
+      else await api.put(path, undefined, { auth: true });
+      toast.success(`${p.name} ${p.sold_out_here ? 'is back on' : 'is sold out'} at ${branch.name}`);
       refresh();
     } catch (err) {
       toast.error(err.friendly);
@@ -232,11 +250,20 @@ export default function AdminMenu() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <h1 className="font-display text-4xl">Menu</h1>
-        <div className="flex gap-2">
-          <Button tone="outline" onClick={() => setCatModal({})}><Plus size={16} /> Category</Button>
-          <Button onClick={() => setProdModal({})}><Plus size={16} /> Product</Button>
-        </div>
+        {isSuper && (
+          <div className="flex gap-2">
+            <Button tone="outline" onClick={() => setCatModal({})}><Plus size={16} /> Category</Button>
+            <Button onClick={() => setProdModal({})}><Plus size={16} /> Product</Button>
+          </div>
+        )}
       </div>
+      <p className="max-w-2xl text-sm text-ink-soft">
+        {branch
+          ? `Every branch shares one menu and price list. Mark a dish sold out to hide it at ${branch.name} only.`
+          : isSuper
+            ? 'Every branch shares this menu and its prices. Choose a branch at the top to mark dishes sold out there.'
+            : 'Choose one of your branches at the top to mark dishes sold out there.'}
+      </p>
 
       <ErrorNote error={error} onRetry={reload} />
       {loading && !data && <PageLoader />}
@@ -246,11 +273,13 @@ export default function AdminMenu() {
         <section key={c.id} className="rounded-3xl border border-ink/10 bg-paper">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink/10 px-4 py-3">
             <h2 className="font-display text-2xl">{c.name}</h2>
-            <div className="flex gap-2">
-              <Button tone="outline" size="sm" onClick={() => setProdModal({ categoryId: c.id })}>Add product</Button>
-              <Button tone="ghost" size="sm" onClick={() => setCatModal(c)}>Rename</Button>
-              <Button tone="danger" size="sm" onClick={() => removeCategory(c)}>Delete</Button>
-            </div>
+            {isSuper && (
+              <div className="flex gap-2">
+                <Button tone="outline" size="sm" onClick={() => setProdModal({ categoryId: c.id })}>Add product</Button>
+                <Button tone="ghost" size="sm" onClick={() => setCatModal(c)}>Rename</Button>
+                <Button tone="danger" size="sm" onClick={() => removeCategory(c)}>Delete</Button>
+              </div>
+            )}
           </div>
           {c.products.length === 0 && <p className="px-4 py-5 text-sm text-ink-soft">No products in this category.</p>}
           <ul className="divide-y divide-ink/5">
@@ -270,12 +299,30 @@ export default function AdminMenu() {
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => toggle(p)} title="Toggle availability">
-                    <Badge tone={p.is_available ? 'green' : 'gray'}>{p.is_available ? 'Available' : 'Sold out'}</Badge>
-                  </button>
-                  <Button tone="outline" size="sm" onClick={() => setProdModal({ product: { ...p, category_id: c.id } })}>Edit</Button>
-                  <Button tone="danger" size="sm" onClick={() => removeProduct(p)}>Delete</Button>
+                <div className="flex flex-wrap items-center gap-2">
+                  {branch && everywhere(p) && (
+                    p.sold_out_here ? (
+                      <>
+                        <Badge tone="red">Sold out at {branch.name}</Badge>
+                        <Button size="sm" tone="green" onClick={() => toggleHere(p)}>Back on</Button>
+                      </>
+                    ) : (
+                      <Button size="sm" tone="outline" onClick={() => toggleHere(p)}>Mark sold out</Button>
+                    )
+                  )}
+                  {isSuper ? (
+                    <>
+                      <button onClick={() => toggle(p)} title="Switch on or off at every branch">
+                        <Badge tone={everywhere(p) ? 'green' : 'gray'}>
+                          {everywhere(p) ? 'On the menu' : 'Off everywhere'}
+                        </Badge>
+                      </button>
+                      <Button tone="outline" size="sm" onClick={() => setProdModal({ product: { ...p, category_id: c.id } })}>Edit</Button>
+                      <Button tone="danger" size="sm" onClick={() => removeProduct(p)}>Delete</Button>
+                    </>
+                  ) : (
+                    !everywhere(p) && <Badge tone="gray">Off everywhere</Badge>
+                  )}
                 </div>
               </li>
             ))}

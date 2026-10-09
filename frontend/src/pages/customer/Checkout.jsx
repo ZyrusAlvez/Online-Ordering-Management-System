@@ -3,19 +3,20 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api.js';
 import { useFetch } from '../../lib/hooks.js';
 import { useSelectedBranch } from '../../lib/branches.js';
+import OrderBranchPicker from '../../components/OrderBranchPicker.jsx';
 import { money } from '../../lib/format.js';
 import { useCart } from '../../context/CartContext.jsx';
 import { useToast } from '../../context/ToastContext.jsx';
 import PhoneInput from '../../components/PhoneInput.jsx';
 import AddressFields, { blankAddress, cleanAddress, fromSaved } from '../../components/AddressFields.jsx';
-import { Button, Card, Empty, ErrorNote, Field, Input, Segmented, Select, Textarea } from '../../components/ui.jsx';
+import { Button, Card, Empty, ErrorNote, Field, Input, Segmented, Textarea } from '../../components/ui.jsx';
 import { Minus, Plus, Trash } from '../../components/icons.jsx';
 
 export default function Checkout() {
   const cart = useCart();
   const toast = useToast();
   const navigate = useNavigate();
-  const { branch, branches, select: selectBranch } = useSelectedBranch();
+  const { branch } = useSelectedBranch();
 
   const [fulfillment, setFulfillment] = useState('pickup');
   const [payment, setPayment] = useState('cash');
@@ -125,15 +126,7 @@ export default function Checkout() {
 
         <Card className="space-y-4">
           <h2 className="text-lg font-bold">Which branch?</h2>
-          <Field label="Order from">
-            <Select required value={branch?.id ?? ''} onChange={(e) => selectBranch(e.target.value)}>
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
+          <OrderBranchPicker />
         </Card>
 
         <Card className="space-y-4">

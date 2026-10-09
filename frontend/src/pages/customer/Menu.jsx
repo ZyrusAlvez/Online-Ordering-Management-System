@@ -1,4 +1,6 @@
 import MenuBrowser from '../../components/MenuBrowser.jsx';
+import OrderBranchPicker from '../../components/OrderBranchPicker.jsx';
+import { useSelectedBranch } from '../../lib/branches.js';
 import { BottomDock, CartBar } from '../../components/BottomDock.jsx';
 import { useCart } from '../../context/CartContext.jsx';
 import { useToast } from '../../context/ToastContext.jsx';
@@ -6,6 +8,7 @@ import { useToast } from '../../context/ToastContext.jsx';
 export default function Menu() {
   const cart = useCart();
   const toast = useToast();
+  const { branchId } = useSelectedBranch();
 
   return (
     <>
@@ -14,9 +17,13 @@ export default function Menu() {
           Our menu
         </h1>
         <p className="mt-2 text-ink-soft">Tap a dish to add it to your order.</p>
+        <div className="mt-3">
+          <OrderBranchPicker compact />
+        </div>
       </div>
 
       <MenuBrowser
+        branchId={branchId}
         stickyTop="top-[69px]"
         onAdd={(line) => {
           cart.add(line);

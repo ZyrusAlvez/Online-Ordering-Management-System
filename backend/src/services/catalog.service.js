@@ -2,6 +2,7 @@ import { supabaseAdmin, supabaseAnon } from '../config/supabase.js';
 import { ApiError, fromPostgrestError } from '../utils/ApiError.js';
 import { applyRange } from '../utils/pagination.js';
 import { containsPattern } from '../utils/postgrest.js';
+import { soldOutAt } from './branch.service.js';
 import { removeImage, uploadImage } from './storage.service.js';
 
 /**
@@ -238,7 +239,12 @@ const FULL_MENU =
   'products(id, name, description, price, image_url, is_available, customizations, sort_order, ' +
   'variants:product_variants(id, label, price, sort_order))';
 
-export const getFullMenu = async ({ includeUnavailable = false } = {}) => {
+/**
+ * The menu, as one branch sees it when `branchId` is given: a product that
+ * branch has sold out comes back with is_available false (and sold_out_here
+ * true), exactly like one switched off everywhere.
+ */
+export const getFullMenu = async ({ includeUnavailable = false, branchId = null } = {}) => {
   let query = supabaseAnon
     .from(CATEGORIES)
     .select(FULL_MENU)
@@ -248,7 +254,20 @@ export const getFullMenu = async ({ includeUnavailable = false } = {}) => {
 
   if (!includeUnavailable) query = query.eq('products.is_available', true);
 
-  const { data, error } = await query;
+  const [{ data, error }, soldOut] = await Promise.all([query, soldOutAt(branchId)]);
   if (error) throw fromPostgrestError(error);
-  return data;
+  if (!branchId) return data;
+
+  return data.map((category) => ({
+    ...category,
+    products: category.products
+      .map((p) => ({
+        ...p,
+        // The switch the super admin controls, separately from this branch's own.
+        available_everywhere: p.is_available,
+        sold_out_here: soldOut.has(p.id),
+        is_available: p.is_available && !soldOut.has(p.id),
+      }))
+      .filter((p) => includeUnavailable || p.is_available),
+  }));
 };

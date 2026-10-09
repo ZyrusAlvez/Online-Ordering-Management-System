@@ -17,6 +17,7 @@ import {
   roleSchema,
   salesQuery,
   siteImageKeyParam,
+  soldOutParams,
   updateAdminSchema,
   updateRiderSchema,
 } from '../validators/admin.validators.js';
@@ -73,6 +74,18 @@ router.patch(
   superAdmin,
   validate({ params: idParam, body: updateBranchSchema }),
   asyncHandler(admin.updateBranch),
+);
+
+// --- sold out at one branch (the menu itself is the super admin's) ---
+router.put(
+  '/branches/:id/sold-out/:productId',
+  validate({ params: soldOutParams }),
+  asyncHandler(admin.markSoldOut(true)),
+);
+router.delete(
+  '/branches/:id/sold-out/:productId',
+  validate({ params: soldOutParams }),
+  asyncHandler(admin.markSoldOut(false)),
 );
 
 // --- admin accounts (super admin) ---

@@ -28,7 +28,7 @@ const BranchMap = lazy(() => import('../components/BranchMap.jsx'));
  * checkout below.
  */
 function BranchesSection() {
-  const { branches, branch, select } = useSelectedBranch();
+  const { branches, branch, select } = useSelectedBranch({ locate: true });
   const { position, status } = useUserPosition();
   const list = byDistance(branches, position);
 
@@ -92,6 +92,7 @@ function LandingPage() {
   const toast = useToast();
   const promo = useSiteImage('promo');
   const { branches } = useBranches();
+  const { branch } = useSelectedBranch();
   const where = branches.length > 1 ? `${branches.length} branches across ${REGION}` : REGION;
   const home = HOME_FOR_ROLE[role] ?? '/menu';
 
@@ -168,8 +169,15 @@ function LandingPage() {
         <p className="mt-2 text-ink-soft">
           Tap a dish to add it to your order. You'll log in or sign up when you check out.
         </p>
+        {branch && (
+          <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-cream-deep px-3 py-1.5 text-sm">
+            <Store size={15} /> Ordering from <strong>{branch.name}</strong>
+            <a href="#branches" className="font-semibold text-brand hover:underline">Change</a>
+          </p>
+        )}
         <div className="mt-6">
           <MenuBrowser
+            branchId={branch?.id}
             stickyTop="top-0"
             onAdd={(line) => {
               cart.add(line);

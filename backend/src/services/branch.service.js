@@ -73,6 +73,32 @@ export const updateBranch = async (id, fields) => {
 };
 
 // ---------------------------------------------------------------------------
+// Per-branch sold out (the menu itself is shared)
+// ---------------------------------------------------------------------------
+
+const SOLD_OUT = 'branch_unavailable_products';
+
+/** Ids of the products a branch has marked sold out, from those given (or all). */
+export const soldOutAt = async (branchId, productIds = null) => {
+  if (!branchId) return new Set();
+  let query = supabaseAdmin.from(SOLD_OUT).select('product_id').eq('branch_id', branchId);
+  if (productIds) query = query.in('product_id', productIds);
+
+  const { data, error } = await query;
+  if (error) throw fromPostgrestError(error);
+  return new Set(data.map((row) => row.product_id));
+};
+
+export const setSoldOut = async (branchId, productId, soldOut) => {
+  const { error } = soldOut
+    ? await supabaseAdmin
+        .from(SOLD_OUT)
+        .upsert({ branch_id: branchId, product_id: productId }, { onConflict: 'branch_id,product_id', ignoreDuplicates: true })
+    : await supabaseAdmin.from(SOLD_OUT).delete().eq('branch_id', branchId).eq('product_id', productId);
+  if (error) throw fromPostgrestError(error);
+};
+
+// ---------------------------------------------------------------------------
 // Staff assignments
 // ---------------------------------------------------------------------------
 

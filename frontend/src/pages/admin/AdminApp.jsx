@@ -16,7 +16,7 @@ import AdminBranches from './AdminBranches.jsx';
 const LINKS = [
   { to: 'sales', label: 'Sales' },
   { to: 'orders', label: 'Orders' },
-  { to: 'menu', label: 'Menu', superOnly: true },
+  { to: 'menu', label: 'Menu' },
   { to: 'riders', label: 'Riders' },
   { to: 'kiosks', label: 'Kiosks' },
   { to: 'settings', label: 'Employee passwords' },
@@ -74,7 +74,7 @@ function AdminShell() {
             <Route index element={<Navigate to="sales" replace />} />
             <Route path="sales" element={<AdminSales />} />
             <Route path="orders" element={<AdminOrders />} />
-            <Route path="menu" element={superRoute(<AdminMenu />)} />
+            <Route path="menu" element={<AdminMenu />} />
             <Route path="riders" element={<AdminRiders />} />
             <Route path="kiosks" element={<AdminKiosks />} />
             <Route path="branding" element={superRoute(<AdminBranding />)} />

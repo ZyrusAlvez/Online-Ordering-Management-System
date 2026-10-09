@@ -115,6 +115,13 @@ export const updateBranch = async (req, res) => {
   res.json({ data: await branchService.updateBranch(req.params.id, req.body) });
 };
 
+// --- Sold out at a branch (any admin of that branch) ------------------------
+export const markSoldOut = (soldOut) => async (req, res) => {
+  assertBranchAccess(req.branchScope, req.params.id);
+  await branchService.setSoldOut(req.params.id, req.params.productId, soldOut);
+  res.status(204).send();
+};
+
 // --- Admin accounts (super admin) ------------------------------------------
 export const listAdmins = async (req, res) => {
   const { page, limit } = req.query;

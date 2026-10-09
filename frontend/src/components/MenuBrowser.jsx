@@ -161,12 +161,13 @@ function ProductModal({ product, onClose, onAdd, big }) {
 /**
  * The menu used by every ordering surface (customer, kiosk, POS).
  * `onAdd(line)` receives a cart line; the host decides what to do with it.
+ * `branchId` shows what that branch has sold out as sold out.
  */
-export default function MenuBrowser({ onAdd, size = 'normal', stickyTop = 'top-0' }) {
+export default function MenuBrowser({ onAdd, branchId = null, size = 'normal', stickyTop = 'top-0' }) {
   const big = size === 'kiosk';
   const { data, error, loading, reload } = useFetch(
-    () => api.get('/menu', { query: { include_unavailable: 'true' } }),
-    [],
+    () => api.get('/menu', { query: { include_unavailable: 'true', ...(branchId ? { branch_id: branchId } : {}) } }),
+    [branchId],
   );
   const [active, setActive] = useState('all');
   const [search, setSearch] = useState('');

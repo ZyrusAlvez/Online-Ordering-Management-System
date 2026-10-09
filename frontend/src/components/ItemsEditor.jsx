@@ -18,7 +18,7 @@ export const linesFromOrder = (order) =>
     notes: i.notes ?? null,
   }));
 
-function Inner({ onSubmit, submitLabel, extra, canSubmit }) {
+function Inner({ onSubmit, submitLabel, extra, canSubmit, branchId }) {
   const cart = useCart();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -37,7 +37,7 @@ function Inner({ onSubmit, submitLabel, extra, canSubmit }) {
   return (
     <div className="grid gap-4 md:grid-cols-[1fr_340px]">
       <div className="scroll-thin max-h-[58vh] overflow-y-auto rounded-2xl bg-cream px-4 pb-4">
-        <MenuBrowser onAdd={cart.add} />
+        <MenuBrowser onAdd={cart.add} branchId={branchId} />
       </div>
 
       <div className="flex flex-col gap-3">

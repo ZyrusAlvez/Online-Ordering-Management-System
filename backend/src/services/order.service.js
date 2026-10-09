@@ -2,6 +2,7 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { ALLOWED_TRANSITIONS, WITH_ITEMS } from '../constants/orders.js';
 import { ApiError, fromPostgrestError } from '../utils/ApiError.js';
 import { canAccessBranch } from '../utils/branchScope.js';
+import { soldOutAt } from './branch.service.js';
 import { applyRange } from '../utils/pagination.js';
 import { anyColumnContains } from '../utils/postgrest.js';
 
@@ -104,16 +105,15 @@ export const listOrders = async ({
 /**
  * Resolves cart lines against live menu prices. A client-supplied total is
  * never trusted — only product/variant ids and quantities come from the
- * request. Throws if anything is unknown, unavailable, or unpriced.
+ * request. Throws if anything is unknown, unavailable (everywhere, or sold out
+ * at `branchId`), or unpriced.
  */
-export const priceOrder = async (items) => {
-  const { data: products, error } = await supabaseAdmin
-    .from('products')
-    .select('id, name, price, is_available, product_variants(id, price)')
-    .in(
-      'id',
-      items.map((item) => item.product_id),
-    );
+export const priceOrder = async (items, branchId = null) => {
+  const ids = items.map((item) => item.product_id);
+  const [{ data: products, error }, soldOut] = await Promise.all([
+    supabaseAdmin.from('products').select('id, name, price, is_available, product_variants(id, price)').in('id', ids),
+    soldOutAt(branchId, ids),
+  ]);
 
   if (error) throw fromPostgrestError(error);
 
@@ -124,6 +124,9 @@ export const priceOrder = async (items) => {
     if (!product) throw ApiError.badRequest(`Unknown product: ${item.product_id}`);
     if (product.is_available === false) {
       throw ApiError.conflict(`Product is unavailable: ${product.name}`);
+    }
+    if (soldOut.has(product.id)) {
+      throw ApiError.conflict(`Sold out at this branch: ${product.name}`);
     }
 
     let unitPrice = product.price;
@@ -177,7 +180,7 @@ export const createOrder = async ({
   deliveryAddress = null,
   notes = null,
 }) => {
-  const { lines, totalCentavos } = await priceOrder(items);
+  const { lines, totalCentavos } = await priceOrder(items, branchId);
 
   const { data: order, error: orderError } = await supabaseAdmin
     .from('orders')
@@ -239,7 +242,7 @@ export const replaceOrderItems = async (orderId, items) => {
     throw ApiError.conflict(`Cannot modify an order whose payment is ${order.payment_status}`);
   }
 
-  const { lines, totalCentavos } = await priceOrder(items);
+  const { lines, totalCentavos } = await priceOrder(items, order.branch_id);
 
   // Remember the current lines so a failed insert can put them back instead of
   // leaving an order with no items and a stale total.

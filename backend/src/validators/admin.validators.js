@@ -34,6 +34,8 @@ export const updateRiderSchema = z
 
 export const createKioskSchema = z.object({ name: personName(), branch_id: branchId });
 
+export const soldOutParams = z.object({ id: branchId, productId: z.string().uuid() });
+
 export const kioskListQuery = z.object({ branch_id: branchId.optional() });
 
 // --- admin accounts (super admin only) ---
