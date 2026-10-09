@@ -62,7 +62,7 @@ Every order belongs to one branch: the kiosk's, the cashier's, or the one the on
    └───┬───────────┬───┘         │  Realtime (postgres_changes,     │
        │           │             │            broadcast)            │
        ▼           ▼             └──────────────────────────────────┘
-   PayMongo    OpenStreetMap (map tiles, address lookup: from the browser)
+   PayMongo    CARTO map tiles, OpenStreetMap address lookup (from the browser)
    (GCash)
 ```
 
@@ -83,7 +83,7 @@ More in [architecture.md](./architecture.md) and [security.md](./security.md).
 | Backend | Node ≥ 20, Express 4 (ES modules), zod (validation), helmet, cors, express-rate-limit |
 | Database and platform | Supabase: Postgres, Row Level Security, Auth, Storage, Realtime |
 | Payments | PayMongo (GCash), via payment intents and signed webhooks |
-| Maps | OpenStreetMap tiles and Nominatim address search (no API key) |
+| Maps | Leaflet with CARTO light tiles (OpenStreetMap data) and Nominatim address search (no API key) |
 | Tests | Node's built-in test runner against the real database |
 
 ## Repository layout

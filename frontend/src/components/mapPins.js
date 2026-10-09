@@ -16,6 +16,14 @@ export const pinIcon = (color = '#e8202a', scale = 1) => {
   });
 };
 
-export const OSM_TILES = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-export const OSM_ATTRIBUTION =
-  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+// Every map uses CARTO's light basemap: OpenStreetMap data in a quiet style that
+// lets the red pins stand out. No API key. `{r}` asks for sharp tiles on
+// high-density screens.
+export const BASEMAP_URL = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+export const BASEMAP_OPTIONS = {
+  subdomains: 'abcd',
+  maxZoom: 20,
+  attribution:
+    '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors ' +
+    '&copy; <a href="https://carto.com/attributions">CARTO</a>',
+};

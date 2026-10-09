@@ -9,7 +9,7 @@ between guests and a branch's cashier and between customers and riders, and a sa
 | --- | --- |
 | **Frontend** | React + Vite + Tailwind, one app for every screen (`frontend/`) |
 | **Backend** | Node + Express REST API (`backend/`) |
-| **Platform** | Supabase (Postgres, Auth, Storage, Realtime), PayMongo for GCash, OpenStreetMap for maps |
+| **Platform** | Supabase (Postgres, Auth, Storage, Realtime), PayMongo for GCash, OpenStreetMap data with CARTO light tiles for maps |
 
 ## Quick start
 

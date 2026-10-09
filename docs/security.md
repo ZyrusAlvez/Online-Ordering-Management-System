@@ -180,7 +180,7 @@ Found in review or testing, each now covered by a test. Recorded because they ex
 | **Guests are anonymous** | Spam is limited only by rate limits and the 30-photo cap | Tighten limits, add a challenge, or require a name |
 | **A chat photo link works for up to an hour** for anyone who is given it | A person in the conversation could share it | Short expiry; only conversation members receive links |
 | **Chat photos outlive a deleted conversation** | Orphaned files remain in storage | A periodic clean-up (see [operations.md](./operations.md#maintenance)) |
-| **Map lookups go to OpenStreetMap from the browser** | OSM sees the searched address and the pinned coordinates | Disclose it; self-host a geocoder if privacy requires |
+| **Map lookups go to OpenStreetMap, and map tiles to CARTO, from the browser** | OSM sees the searched address and the pinned coordinates; CARTO sees which map area is viewed | Disclose it; self-host a geocoder or tile server if privacy requires |
 | **Rate limits are per process** | Several server instances each count separately | A shared store (e.g. Redis) when scaling out |
 | **GCash is untested against live PayMongo** | Behaviour with real money is unproven | Test in PayMongo's test mode before go-live ([deployment.md](./deployment.md#gcash-paymongo)) |
 | **Orders have no duplicate protection** | A dropped connection plus a second tap can create two orders | An idempotency key on order creation |

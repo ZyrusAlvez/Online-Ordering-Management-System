@@ -10,7 +10,7 @@ import {
   toFormAddress,
 } from '../lib/geocode.js';
 import { getPosition } from '../lib/geo.js';
-import { OSM_ATTRIBUTION, OSM_TILES, pinIcon } from './mapPins.js';
+import { BASEMAP_OPTIONS, BASEMAP_URL, pinIcon } from './mapPins.js';
 import { Button, Input } from './ui.jsx';
 
 const pin = pinIcon();
@@ -78,7 +78,7 @@ export default function AddressMap({ value, onChange, onSuggest }) {
       hasPin ? [lat, lng] : DEFAULT_CENTER,
       hasPin ? 17 : 13,
     );
-    L.tileLayer(OSM_TILES, { maxZoom: 19, attribution: OSM_ATTRIBUTION }).addTo(m);
+    L.tileLayer(BASEMAP_URL, BASEMAP_OPTIONS).addTo(m);
     m.on('click', (e) => place(e.latlng.lat, e.latlng.lng));
     map.current = m;
     // The container may be laid out after mounting (a modal, a card that just appeared).

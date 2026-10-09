@@ -46,7 +46,7 @@ How each screen is used: [user-guide](../docs/user-guide.md).
 - **All writes go through the API.** The Supabase client here is for live updates and Google sign-in only.
 - Staff screens are code-split, and the map library loads only with a map: the landing-page branch map, a delivery
   address, or a branch's location.
-- The maps use OpenStreetMap (no key). Address lookups are debounced to respect its fair-use limit. The branch map
+- The maps use CARTO's light tiles over OpenStreetMap data (no key; set in `src/components/mapPins.js`). Address lookups are debounced to respect its fair-use limit. The branch map
   frames all branches, so it is centred on the middle of them whatever branches exist.
 - The customer's location is asked once per page load, only to pick and sort branches; it is never sent to the API.
 - The customer's branch is remembered in `localStorage` (`3k.branch`); until they choose, it is the nearest branch.

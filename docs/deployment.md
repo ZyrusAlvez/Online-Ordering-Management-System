@@ -136,8 +136,12 @@ npm run build                        # produces frontend/dist
 Upload `frontend/dist` to a static host and configure the SPA fallback. Cache `assets/*` for a long time (file names
 contain a content hash) and `index.html` not at all. Also set security headers there, in particular a
 **Content-Security-Policy** (the app sets none itself); it needs to allow the API, Supabase (including websockets),
-OpenStreetMap tiles (`tile.openstreetmap.org`) and Nominatim (`nominatim.openstreetmap.org`), Google Fonts, and images
+CARTO map tiles (`*.basemaps.cartocdn.com`) and Nominatim (`nominatim.openstreetmap.org`), Google Fonts, and images
 from Supabase Storage.
+
+**Map tiles.** Every map uses CARTO's free *Positron* ("light") basemap. It needs no key, but CARTO's free use is meant for
+modest, non-commercial traffic: check their basemap terms before launch, and if they do not fit, switch to a paid tile
+plan or another provider by changing `BASEMAP_URL` / `BASEMAP_OPTIONS` in `frontend/src/components/mapPins.js` (one place).
 
 **One address or two:** serving the website and API from different origins needs `CORS_ORIGIN` set to the website's
 origin. Serving both from one domain (the proxy sending `/api` to Node) avoids CORS entirely.

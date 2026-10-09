@@ -115,7 +115,7 @@ scheduled.
 
 - **Mobile numbers must be 11 digits starting `09`**, digits only, e.g. `09171234567`. Anything else is rejected by the form, the API and the database.
 - **Delivery needs a mobile number and an address.** On the checkout map, tap anywhere (or *Use my location*) to drop a pin; the street, barangay and city fill in. Try typing your own street afterwards: it is kept when you move the pin. The rider sees an **Open in Maps** link on the delivery card.
-- The map needs internet access (it loads OpenStreetMap tiles and address lookups).
+- The maps need internet access (they load CARTO map tiles and OpenStreetMap address lookups).
 
 ## Two-browser recipes
 

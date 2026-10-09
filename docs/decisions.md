@@ -210,10 +210,19 @@ label and the daily figures are available as a table, so nothing depends on colo
 
 ## Frontend and design
 
-### OpenStreetMap with Leaflet, not Google Maps
+### OpenStreetMap data with Leaflet, not Google Maps
 **Why.** No API key, account or billing card; works immediately. Plain Leaflet because the React wrapper requires React 19
-and the app is on 18; the pin is inline SVG so no marker image files need bundling. The map loads only when delivery is chosen.
-**Trade-off.** The free address lookup is rate-limited (the app debounces) and sends the searched address to OpenStreetMap.
+and the app is on 18; the pin is inline SVG so no marker image files need bundling. The map loads only when it is shown.
+**Trade-off.** The free address lookup (Nominatim) is rate-limited (the app debounces) and sends the searched address to
+OpenStreetMap.
+
+### CARTO light tiles on every map
+**Decision.** All maps draw CARTO's light basemap (OpenStreetMap data, *Positron* style), set once in
+`frontend/src/components/mapPins.js`.
+**Why.** A quiet, pale map keeps attention on the red branch pins and fits the warm, minimal design; the default
+OpenStreetMap style is busy and colourful.
+**Trade-off.** CARTO's free tiles are meant for modest non-commercial use, and CARTO sees which area is viewed. Swapping
+providers is a one-file change ([deployment.md](./deployment.md)).
 
 ### The pin is optional, and typed addresses always win
 **Why.** Plenty of addresses are better typed; a pin is a precision aid for the rider. A field the customer typed is never

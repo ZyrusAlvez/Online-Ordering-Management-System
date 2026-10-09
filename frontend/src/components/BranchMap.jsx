@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { formatKm, haversineKm, hoursLabel, isOpenNow } from '../lib/geo.js';
-import { OSM_ATTRIBUTION, OSM_TILES, pinIcon } from './mapPins.js';
+import { BASEMAP_OPTIONS, BASEMAP_URL, pinIcon } from './mapPins.js';
 
 const BRAND = '#e8202a';
 const INK = '#3a2a22';
@@ -60,7 +60,7 @@ export default function BranchMap({ branches, selectedId, userPos, onSelect, cla
   // Build the map once.
   useEffect(() => {
     const m = L.map(box.current, { scrollWheelZoom: false, zoomControl: true });
-    L.tileLayer(OSM_TILES, { maxZoom: 19, attribution: OSM_ATTRIBUTION }).addTo(m);
+    L.tileLayer(BASEMAP_URL, BASEMAP_OPTIONS).addTo(m);
     layer.current = L.layerGroup().addTo(m);
     map.current = m;
     setTimeout(() => m.invalidateSize(), 0);
