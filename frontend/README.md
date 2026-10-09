@@ -47,7 +47,8 @@ How each screen is used: [user-guide](../docs/user-guide.md).
 - Staff screens are code-split, and the map library loads only with a map: the landing-page branch map, a delivery
   address, or a branch's location.
 - The maps use CARTO's light tiles over OpenStreetMap data when `VITE_CARTO_BASEMAPS_KEY` is set (a free key from
-  carto.com), and standard OpenStreetMap tiles otherwise (`src/components/mapPins.js`). Address lookups are debounced to respect its fair-use limit. The branch map
+  carto.com), and standard OpenStreetMap tiles, greyed out to match, otherwise (`src/components/mapPins.js`). The
+  minimal map look (dot markers, quiet controls, popups) is in `src/index.css`. Address lookups are debounced to respect its fair-use limit. The branch map
   frames all branches, so it is centred on the middle of them whatever branches exist.
 - The customer's location is asked once per page load, only to pick and sort branches; it is never sent to the API.
 - The customer's branch is remembered in `localStorage` (`3k.branch`); until they choose, it is the nearest branch.

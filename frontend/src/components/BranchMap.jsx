@@ -2,16 +2,16 @@ import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { formatKm, haversineKm, hoursLabel, isOpenNow } from '../lib/geo.js';
-import { BASEMAP_OPTIONS, BASEMAP_URL, pinIcon } from './mapPins.js';
+import { BASEMAP_OPTIONS, BASEMAP_URL, dotIcon, minimalControls } from './mapPins.js';
 
 const BRAND = '#e8202a';
 const INK = '#3a2a22';
-const pins = { idle: pinIcon(INK, 0.85), selected: pinIcon(BRAND, 1.1) };
+const dots = { idle: dotIcon(false), selected: dotIcon(true) };
 
 /** Popup body, built as DOM so the "Order here" button can carry a handler. */
 const popupFor = (branch, { selected, userPos, onSelect }) => {
   const root = L.DomUtil.create('div', 'branch-popup');
-  root.style.minWidth = '190px';
+  root.style.minWidth = '180px';
 
   const title = L.DomUtil.create('p', '', root);
   title.style.cssText = 'margin:0;font-weight:700;font-size:15px';
@@ -30,7 +30,7 @@ const popupFor = (branch, { selected, userPos, onSelect }) => {
   const button = L.DomUtil.create('button', '', root);
   button.type = 'button';
   button.textContent = selected ? 'Your branch ✓' : 'Order here';
-  button.style.cssText = `margin-top:8px;width:100%;border:0;border-radius:10px;padding:7px 10px;font-weight:600;cursor:pointer;color:#fff;background:${selected ? INK : BRAND}`;
+  button.style.cssText = `margin-top:10px;width:100%;border:0;border-radius:8px;padding:6px 10px;font:inherit;font-size:13px;font-weight:600;cursor:pointer;color:#fff;background:${selected ? INK : BRAND}`;
   L.DomEvent.on(button, 'click', (e) => {
     L.DomEvent.stop(e);
     onSelect?.(branch.id);
@@ -59,8 +59,9 @@ export default function BranchMap({ branches, selectedId, userPos, onSelect, cla
 
   // Build the map once.
   useEffect(() => {
-    const m = L.map(box.current, { scrollWheelZoom: false, zoomControl: true });
+    const m = L.map(box.current, { scrollWheelZoom: false, zoomControl: false });
     L.tileLayer(BASEMAP_URL, BASEMAP_OPTIONS).addTo(m);
+    minimalControls(m);
     layer.current = L.layerGroup().addTo(m);
     map.current = m;
     setTimeout(() => m.invalidateSize(), 0);
@@ -76,8 +77,8 @@ export default function BranchMap({ branches, selectedId, userPos, onSelect, cla
     const m = map.current;
     if (!m || branches.length === 0) return;
     const bounds = L.latLngBounds(branches.map((b) => [b.latitude, b.longitude]));
-    // Extra room at the top: a pin stands above its point, and the selected one is taller.
-    m.fitBounds(bounds, { paddingTopLeft: [40, 72], paddingBottomRight: [40, 32], maxZoom: 15 });
+    // A little more room at the top for the selected branch's name label.
+    m.fitBounds(bounds, { paddingTopLeft: [48, 64], paddingBottomRight: [48, 40], maxZoom: 15 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [framing]);
 
@@ -89,15 +90,18 @@ export default function BranchMap({ branches, selectedId, userPos, onSelect, cla
     for (const branch of branches) {
       const selected = branch.id === selectedId;
       const marker = L.marker([branch.latitude, branch.longitude], {
-        icon: selected ? pins.selected : pins.idle,
+        icon: selected ? dots.selected : dots.idle,
+        riseOnHover: true,
         title: branch.name,
         zIndexOffset: selected ? 1000 : 0,
         keyboard: true,
       });
       marker.bindPopup(() => popupFor(branch, { selected, userPos, onSelect: (id) => handlers.current.onSelect?.(id) }));
-      marker.bindTooltip(branch.name, { direction: 'top', offset: [0, -34], opacity: 0.9 });
-      // The name tooltip would sit on top of the open popup.
+      // Names stay out of the way: only the selected branch is labelled; the rest on hover.
+      marker.bindTooltip(branch.name, { direction: 'top', permanent: selected, opacity: 1 });
+      // The name label would sit on top of the open popup.
       marker.on('popupopen', () => marker.closeTooltip());
+      if (selected) marker.on('popupclose', () => marker.openTooltip());
       group.addLayer(marker);
     }
   }, [branches, selectedId, userPos]);
@@ -109,9 +113,9 @@ export default function BranchMap({ branches, selectedId, userPos, onSelect, cla
     me.current?.remove();
     me.current = userPos
       ? L.circleMarker([userPos.latitude, userPos.longitude], {
-          radius: 8,
+          radius: 6,
           color: '#fff',
-          weight: 3,
+          weight: 2,
           fillColor: '#2563eb',
           fillOpacity: 1,
         })
@@ -120,5 +124,5 @@ export default function BranchMap({ branches, selectedId, userPos, onSelect, cla
       : null;
   }, [userPos]);
 
-  return <div ref={box} className={`z-0 overflow-hidden rounded-2xl border border-line ${className}`} />;
+  return <div ref={box} className={`branch-map z-0 overflow-hidden rounded-2xl border border-line ${className}`} />;
 }

@@ -163,18 +163,13 @@ function LandingPage() {
             }
           >
             <BranchMap
-              className="h-80 rounded-3xl shadow-md md:h-[540px]"
+              className="h-80 rounded-3xl md:h-[540px]"
               branches={branches}
               selectedId={branch?.id}
               userPos={position}
               onSelect={choose}
             />
           </Suspense>
-          {count > 0 && (
-            <p className="pointer-events-none absolute right-4 top-4 z-[500] rounded-full bg-paper/95 px-3 py-1.5 text-xs font-semibold shadow-sm ring-1 ring-line">
-              {count} branches · tap a pin
-            </p>
-          )}
         </div>
       </section>
 

@@ -10,7 +10,7 @@ import {
   toFormAddress,
 } from '../lib/geocode.js';
 import { getPosition } from '../lib/geo.js';
-import { BASEMAP_OPTIONS, BASEMAP_URL, pinIcon } from './mapPins.js';
+import { BASEMAP_OPTIONS, BASEMAP_URL, minimalControls, pinIcon } from './mapPins.js';
 import { Button, Input } from './ui.jsx';
 
 const pin = pinIcon();
@@ -74,11 +74,12 @@ export default function AddressMap({ value, onChange, onSuggest }) {
 
   // Build the map once.
   useEffect(() => {
-    const m = L.map(box.current, { zoomControl: true, scrollWheelZoom: false }).setView(
+    const m = L.map(box.current, { zoomControl: false, scrollWheelZoom: false }).setView(
       hasPin ? [lat, lng] : DEFAULT_CENTER,
       hasPin ? 17 : 13,
     );
     L.tileLayer(BASEMAP_URL, BASEMAP_OPTIONS).addTo(m);
+    minimalControls(m);
     m.on('click', (e) => place(e.latlng.lat, e.latlng.lng));
     map.current = m;
     // The container may be laid out after mounting (a modal, a card that just appeared).

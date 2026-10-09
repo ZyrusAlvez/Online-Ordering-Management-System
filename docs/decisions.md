@@ -216,6 +216,13 @@ and the app is on 18; the pin is inline SVG so no marker image files need bundli
 **Trade-off.** The free address lookup (Nominatim) is rate-limited (the app debounces) and sends the searched address to
 OpenStreetMap.
 
+### Minimal maps
+**Decision.** Every map is pared down: pale tiles (CARTO light, or the OpenStreetMap fallback greyed out with a CSS filter),
+zoom buttons tucked bottom-right, credits without the Leaflet prefix, and the app's own font in popups and labels. On the
+branch map each branch is a small dot; only the customer's branch is red and labelled, the rest show their name on hover.
+The delivery map keeps a full pin, since its point must be precise. All of it lives in `index.css` and `mapPins.js`.
+**Why.** The map is the landing page's hero; the branches should be the only thing that stands out on it.
+
 ### CARTO light tiles on every map
 **Decision.** All maps draw CARTO's light basemap (OpenStreetMap data, *Positron* style), set once in
 `frontend/src/components/mapPins.js`.

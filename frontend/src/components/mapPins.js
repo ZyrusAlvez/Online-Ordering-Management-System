@@ -29,6 +29,27 @@ export const BASEMAP_URL = CARTO_KEY
   ? `https://basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}{r}.png?key=${encodeURIComponent(CARTO_KEY)}`
   : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 
+// The standard OpenStreetMap style is busy and colourful, so without the CARTO key
+// it is greyed out (`map-tiles-muted` in index.css) to keep the same quiet look.
 export const BASEMAP_OPTIONS = CARTO_KEY
   ? { maxZoom: 20, attribution: `${OSM_ATTRIBUTION} &copy; <a href="https://carto.com/attributions">CARTO</a>` }
-  : { maxZoom: 19, attribution: OSM_ATTRIBUTION };
+  : { maxZoom: 19, attribution: OSM_ATTRIBUTION, className: 'map-tiles-muted' };
+
+/** A small round marker for the branch map; the selected branch is larger and red. Styled in index.css. */
+export const dotIcon = (selected = false) => {
+  const size = selected ? 20 : 14;
+  return L.divIcon({
+    className: '',
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    popupAnchor: [0, -size / 2 - 2],
+    tooltipAnchor: [0, -size / 2 - 2],
+    html: `<span class="map-dot${selected ? ' map-dot--selected' : ''}"></span>`,
+  });
+};
+
+/** Quiet controls shared by every map: zoom bottom-right, and only the data credits (no Leaflet prefix). */
+export const minimalControls = (map) => {
+  L.control.zoom({ position: 'bottomright' }).addTo(map);
+  map.attributionControl.setPrefix(false);
+};

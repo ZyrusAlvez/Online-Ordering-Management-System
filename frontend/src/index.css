@@ -70,3 +70,85 @@ body {
   scrollbar-width: thin;
   scrollbar-color: var(--color-line) transparent;
 }
+
+/* --- Maps: quiet and minimal --------------------------------------------------
+   One look for every Leaflet map: pale tiles, flat controls, small dot markers on
+   the branch map, and plain popups and labels in the app's own font. Each rule is
+   scoped under .leaflet-container so it outranks leaflet.css, which a map chunk
+   loads after this file. */
+.leaflet-container.leaflet-container {
+  font-family: var(--font-sans);
+  background: #f4f1ec;
+}
+
+/* The OpenStreetMap fallback (no CARTO key), greyed out to match the light style. */
+.map-tiles-muted {
+  filter: grayscale(1) sepia(0.12) brightness(1.16) contrast(0.7);
+}
+
+.leaflet-container .leaflet-control-zoom.leaflet-bar {
+  border: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+}
+.leaflet-container .leaflet-control-zoom.leaflet-bar a {
+  width: 30px;
+  height: 30px;
+  line-height: 30px;
+  font-weight: 400;
+  color: var(--color-ink);
+  border-bottom-color: var(--color-line);
+}
+
+.leaflet-container .leaflet-control-attribution.leaflet-control {
+  background: rgb(255 255 255 / 0.7);
+  font-size: 10px;
+  color: var(--color-ink-soft);
+  border-top-left-radius: 6px;
+}
+.leaflet-container .leaflet-control-attribution a {
+  color: inherit;
+}
+
+.leaflet-container .leaflet-popup-content-wrapper {
+  border-radius: 14px;
+  box-shadow: var(--shadow-lg);
+}
+.leaflet-container .leaflet-popup-content {
+  margin: 14px 16px;
+  font-family: var(--font-sans);
+}
+
+.leaflet-container .leaflet-tooltip {
+  border: 0;
+  border-radius: 8px;
+  padding: 3px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-ink);
+  box-shadow: var(--shadow-md);
+}
+.leaflet-container .leaflet-tooltip-top::before {
+  display: none;
+}
+
+.map-dot {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 9999px;
+  background: var(--color-ink);
+  border: 3px solid #fff;
+  box-shadow: 0 1px 3px rgb(43 24 18 / 0.3);
+  transition: transform 0.15s ease;
+}
+.map-dot:hover {
+  transform: scale(1.3);
+}
+.map-dot--selected {
+  background: var(--color-brand);
+  box-shadow:
+    0 0 0 6px rgb(232 32 42 / 0.18),
+    0 1px 3px rgb(43 24 18 / 0.3);
+}
