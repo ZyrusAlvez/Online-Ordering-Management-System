@@ -43,9 +43,9 @@ Schema-level errors that belong to no single field appear under `details._errors
 | `200` / `201` / `204` | Success |
 | `400` | Validation failed, or the request is nonsensical (unknown product, variant on the wrong product) |
 | `401` | Missing/invalid token or kiosk key |
-| `403` | Authenticated but the wrong role |
-| `404` | Not found — or not visible to you, which is deliberately indistinguishable |
-| `409` | Conflict: illegal state transition, already paid (or paid twice at once), already claimed, item unavailable, a product or option that appears in past orders can't be deleted/removed, chat closed |
+| `403` | Authenticated but the wrong role, or asking for a branch you do not work at |
+| `404` | Not found — or not visible to you (for example another branch's order), which is deliberately indistinguishable |
+| `409` | Conflict: illegal state transition, already paid (or paid twice at once), already claimed, item unavailable or sold out at the branch, branch closed for an ASAP order, a product or option that appears in past orders can't be deleted/removed, chat closed, duplicate branch code |
 | `429` | Rate limited |
 | `503` | GCash requested but PayMongo is not configured |
 
@@ -114,22 +114,51 @@ back to login.
 | `POST` | `/auth/refresh` | `{ refreshToken }` | |
 | `POST` | `/auth/logout` | — | Requires a token. `204`. |
 | `GET` | `/auth/me` | — | Current user. |
-| `GET` | `/auth/profile` | — | `{ data: { id, email, full_name, phone, default_address, role, sign_in_method: 'email'\|'google', can_change_password, avatar_url } }`. |
+| `GET` | `/auth/profile` | — | `{ data: { id, email, full_name, phone, default_address, role, sign_in_method: 'email'\|'google', can_change_password, avatar_url, branches } }`. `branches` is the branches a staff account works at (every branch for a super admin; `[]` for a customer); staff screens build their branch switcher from it. |
 | `PATCH` | `/auth/profile` | `{ full_name?, phone?, default_address? }` | At least one field. `phone` and `default_address` accept `null` to clear. `default_address` has the same shape as an order's `delivery_address`. Sending `role` or `is_active` is a `400`. |
 | `POST` | `/auth/password` | `{ current_password, new_password }` | `204`. A wrong current password is `400` (not `401`, which the frontend reads as an expired session). `400` for Google accounts, `403` for the shared cashier login. 10 attempts per 15 minutes. |
 
 ### Employee gates — `/employee`
 
 `/cashier` and `/kiosk` in the frontend sit behind a shared employee password
-instead of a personal login. Both endpoints are limited to 10 attempts per IP
-per 15 minutes (`429` after that). A wrong password is always `401`.
+per **branch** instead of a personal login. Both endpoints are limited to 10
+wrong attempts per IP per 15 minutes (`429` after that). A wrong password, or a
+branch with no password set, is always `401`.
 
 | Method | Path | Body | Notes |
 | --- | --- | --- | --- |
-| `POST` | `/employee/cashier/login` | `{ password }` | Returns `{ user, session }` exactly like `/auth/login`, for the shared cashier account (`CASHIER_EMAIL`). Use the token on `/pos/*`. |
-| `POST` | `/employee/kiosk/unlock` | `{ password, device_name? }` | `201 { data: { id, name, key } }`. Provisions a new kiosk device and returns its raw key once — store it and send it as `X-Kiosk-Key`. It appears in `/admin/kiosks` and can be revoked there. |
+| `POST` | `/employee/cashier/login` | `{ branch_id, password }` | Returns `{ user, session }` exactly like `/auth/login`, for that branch's shared cashier account. Use the token on `/pos/*`; it only sees that branch. |
+| `POST` | `/employee/kiosk/unlock` | `{ branch_id, password, device_name? }` | `201 { data: { id, name, key, branch } }`. Provisions a new kiosk device **bound to the branch** and returns its raw key once — store it and send it as `X-Kiosk-Key`. It appears in `/admin/kiosks` and can be revoked there. |
 
-Admins change both passwords with `PUT /admin/employee-passwords/:role`.
+Admins change both passwords per branch with `PUT /admin/employee-passwords/:role`.
+
+---
+
+## Branches
+
+```http
+GET /branches
+```
+
+Public. The active branches, by name, for the map and every branch picker:
+
+```jsonc
+{
+  "data": [
+    {
+      "id": "…", "code": "gma", "name": "GMA Terminal",
+      "address": null, "phone": null,
+      "latitude": 14.295601, "longitude": 120.999645,
+      "opens_at": "08:00", "closes_at": "21:00",     // Manila time; both null = open 24 hours
+      "is_active": true
+    }
+  ]
+}
+```
+
+Every order, kiosk and website chat belongs to a branch. Staff lists accept
+`?branch_id=` to narrow to one of the caller's branches (`403` for any other);
+without it they cover all of the caller's branches.
 
 > Supabase rate-limits signups per IP. In development you will hit `429` after
 > a handful of registrations; create test users with the admin API instead
@@ -142,7 +171,12 @@ Admins change both passwords with `PUT /admin/employee-passwords/:role`.
 ```http
 GET /menu
 GET /menu?include_unavailable=true     # POS/admin, to show sold-out items
+GET /menu?branch_id=<id>               # as one branch sees it: its sold-out dishes hidden
 ```
+
+With `branch_id`, a dish that branch has sold out is left out, or, with
+`include_unavailable=true`, returned with `is_available: false`,
+`sold_out_here: true` and `available_everywhere` (the super admin's own switch).
 
 Categories → products → variants, pre-nested and pre-sorted by `sort_order`.
 One call renders an entire menu screen:
@@ -218,8 +252,12 @@ that product, or you get `400`.
 
 ## 1. Kiosk — `/kiosk`
 
-Header on every request: `X-Kiosk-Key: kiosk_...` (issued by an admin).
-Rate limit: 30 orders/minute per device.
+Header on every request: `X-Kiosk-Key: kiosk_...` (issued by an admin, or by
+unlocking with the branch's kiosk password). The key belongs to one branch:
+every order goes there. Rate limit: 30 orders/minute per device.
+
+`GET /kiosk/me` returns `{ id, name, branch: { id, code, name } }` for the attract
+screen and for `GET /menu?branch_id=` (the branch's sold-out dishes).
 
 ### Place an order
 
@@ -278,7 +316,9 @@ returns `404`.
 
 ## 2. POS (cashier) — `/pos`
 
-Role: `cashier` or `admin`.
+Role: `cashier`, `admin` or `super_admin`, limited to the caller's branches: a
+cashier sees only their branch; an order of another branch is `404` on every
+`/pos/orders/:id` route.
 
 ### The queue
 
@@ -287,14 +327,17 @@ GET /pos/orders?status=pending&channel=kiosk
 GET /pos/orders?q=Ana              # by customer name OR order number
 ```
 
-Filters: `status`, `payment_status`, `channel`, `q`, `page`, `limit`.
+Filters: `branch_id`, `status`, `payment_status`, `channel`, `q`, `page`, `limit`.
+Each order carries `branch` (`{ id, code, name }`) and `scheduled_for` (an ISO
+time, or `null` for as soon as possible); show scheduled ones prominently and
+sort by `scheduled_for ?? created_at`.
 `q` is how you "fetch" a kiosk order — the customer quotes their name or code.
 
 ### Working an order
 
 | Action | Request |
 | --- | --- |
-| Ring up a walk-in | `POST /pos/orders` — `{ fulfillment_type, customer_name, payment_method, items[] }` |
+| Ring up a walk-in | `POST /pos/orders` — `{ branch_id?, fulfillment_type, customer_name, payment_method, items[] }`. `branch_id` may be left out by someone with one branch (a cashier); an admin of several must send it (`400` otherwise) |
 | Modify items | `PATCH /pos/orders/:id/items` — `{ items: [ … ] }` (replaces all; recomputes total) |
 | Accept | `POST /pos/orders/:id/confirm` |
 | Advance | `PATCH /pos/orders/:id/status` — `{ "status": "preparing" }` |
@@ -335,6 +378,8 @@ customer only ever sees their own orders.
 POST /orders
 
 {
+  "branch_id": "…",                     // REQUIRED: the branch to order from (must be active)
+  "scheduled_for": "2026-10-11T00:15:00Z", // optional: omit for as soon as possible
   "fulfillment_type": "delivery",       // or "pickup"
   "payment_method": "gcash",            // or "cash" (COD / pay at pickup)
   "customer_phone": "09171234567",      // 11 digits starting 09; REQUIRED when delivery
@@ -384,6 +429,14 @@ Response (`201`) — the full order:
 }
 ```
 
+**Branch and time.** `branch_id` must be an active branch (`400` otherwise). An
+order without `scheduled_for` is for as soon as possible and is refused with
+`409` (`details.scheduled_for`) while the branch is closed. `scheduled_for` must
+be on a 15-minute mark, at least 30 minutes ahead, no later than the day after
+tomorrow (Manila), and inside the branch's opening hours (`400` with
+`details.scheduled_for` otherwise). A dish sold out at the branch is `409`. The
+response carries `branch_id`, `branch` and `scheduled_for`.
+
 For GCash, follow with `POST /orders/:id/payment` to get a `checkout_url`
 (also used to retry a failed attempt).
 
@@ -402,8 +455,8 @@ Role: `rider`. Accounts are created by an admin.
 
 | Method | Path | Notes |
 | --- | --- | --- |
-| `GET` | `/rider/pool` | Unclaimed `ready` delivery orders |
-| `POST` | `/rider/orders/:id/claim` | First rider wins; the loser gets `409` |
+| `GET` | `/rider/pool` | Unclaimed `ready` delivery orders **of the rider's branch** |
+| `POST` | `/rider/orders/:id/claim` | First rider wins; the loser gets `409` (so does a rider of another branch) |
 | `POST` | `/rider/orders/:id/unclaim` | Back to the pool |
 | `GET` | `/rider/orders?active=true` | Current deliveries (`false` → history) |
 | `POST` | `/rider/orders/:id/delivered` | `{ "collected_amount": 260 }` |
@@ -423,17 +476,32 @@ Role: `admin`.
 
 | Method | Path | Notes |
 | --- | --- | --- |
-| `GET` | `/admin/orders` | All orders. `?status&payment_status&channel&from&to&page&limit` (`from`/`to` are ISO 8601) |
+Two roles reach `/admin`: **`admin`**, limited to the branches assigned to them,
+and **`super_admin`**, every branch plus what they share (marked **super** below;
+`403` for an admin). Lists cover the caller's branches and accept `?branch_id=`
+to narrow to one (`403` for a branch outside them); records of other branches
+are `404`. A deactivated admin is `403` on every route.
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| `GET` | `/admin/orders` | Orders of the caller's branches. `?branch_id&status&payment_status&channel&from&to&page&limit` (`from`/`to` are ISO 8601) |
 | `POST` | `/admin/orders/:id/refund/retry` | Retry a refund PayMongo rejected |
-| `GET` | `/admin/sales` | Sales report for a range of **Manila days**: `?from=YYYY-MM-DD&to=YYYY-MM-DD` (both included; default is the last 7 days ending today, at most 366 days). See [Sales report](#sales-report). |
-| `GET` | `/admin/riders` | |
-| `POST` | `/admin/riders` | `{ email, password (8–72), full_name, phone? }` |
-| `PATCH` | `/admin/riders/:id` | `{ is_active?, full_name?, phone? }` |
-| `GET` | `/admin/kiosks` | Devices; never returns key hashes |
-| `POST` | `/admin/kiosks` | `{ name }` |
+| `GET` | `/admin/sales` | Sales report for a range of **Manila days**: `?from=YYYY-MM-DD&to=YYYY-MM-DD&branch_id` (both included; default is the last 7 days ending today, at most 366 days). See [Sales report](#sales-report). |
+| `GET` | `/admin/riders` | `?branch_id&page&limit`. Each rider has `branches` |
+| `POST` | `/admin/riders` | `{ branch_id, email, password (8–72), full_name, phone? }` |
+| `PATCH` | `/admin/riders/:id` | `{ is_active?, full_name?, phone?, branch_id? }` (`branch_id` moves the rider to another of the caller's branches) |
+| `GET` | `/admin/kiosks` | `?branch_id`. Devices with their `branch`; never returns key hashes |
+| `POST` | `/admin/kiosks` | `{ name, branch_id }` |
 | `DELETE` | `/admin/kiosks/:id` | Revoke (`204`) |
-| `PUT` | `/admin/employee-passwords/:role` | `{ password }` (min 6). `:role` is `cashier` or `kiosk`. `204`. Changing the cashier password also changes that account's login. Kiosk browsers that already unlocked keep working; revoke their devices to force a re-unlock. |
-| `PATCH` | `/admin/users/:id/role` | `{ role }` |
+| `PUT` | `/admin/employee-passwords/:role` | `{ branch_id, password }` (min 6). `:role` is `cashier` or `kiosk`. `204`. Changing the cashier password also changes that branch's register login; the first time, it **creates** the branch's cashier account (`cashier.<code>@…`). Kiosk browsers that already unlocked keep working; revoke their devices to force a re-unlock. |
+| `PUT` / `DELETE` | `/admin/branches/:id/sold-out/:productId` | Mark a dish sold out at that branch / available again (`204`). Any admin of the branch |
+| `GET` | `/admin/branches` | **super.** Every branch, including closed ones |
+| `POST` | `/admin/branches` | **super.** `{ name, code, latitude, longitude, address?, phone?, opens_at?, closes_at?, is_active? }`. `code` is 2–30 of `a-z 0-9 -`, unique (`409`). Hours are `HH:MM`, both or neither (neither = open 24 hours), closing after opening |
+| `PATCH` | `/admin/branches/:id` | **super.** Any of the above except `code`. There is no delete: set `is_active: false` |
+| `GET` | `/admin/admins` | **super.** Admin and super admin accounts with their `branches` |
+| `POST` | `/admin/admins` | **super.** `{ email, password, full_name, phone?, branch_ids: [≥1] }`. Refuses (`409`) the email of a super admin |
+| `PATCH` | `/admin/admins/:id` | **super.** `{ branch_ids?, is_active?, full_name? }`. Branch admins only (`404` for a super admin). Takes effect on their next request |
+| `PATCH` | `/admin/users/:id/role` | **super.** `{ role }` (`customer`, `cashier`, `rider`, `admin`, `super_admin`) |
 
 ### Sales report
 
@@ -447,6 +515,7 @@ Role: `admin`.
     "daily": [ { "date": "2026-10-01", "orders": 6, "revenue": 2450 }, … ],   // every day, zeros included
     "by_method": [ { "method": "cash", "orders": 30, "revenue": 12100 }, { "method": "gcash", … } ],
     "by_channel": [ { "channel": "pos", "orders": 20, "revenue": 8200 }, { "channel": "online" … }, { "channel": "kiosk" … } ],
+    "by_branch": [ { "branch_id": "…", "name": "GMA Terminal", "orders": 30, "revenue": 12400 }, … ],   // within the report's branches
     "top_items": [ { "product_id": "…", "name": "Sizzling Sisig", "variant": null, "quantity": 18, "revenue": 2340 }, … ],   // top 10
     "refunds_pending": { "orders": 1, "amount": 350 }
   }
@@ -458,7 +527,7 @@ day it was **placed** (so a 9pm order is today's). It is counted when it is paid
 a kiosk GCash or counter cash order is paid long before the kitchen finishes it. Voided and refunded orders
 drop out; voided orders still waiting on a GCash refund are shown in `refunds_pending` and are **not**
 revenue. Money is pesos. `400` for a reversed range, more than 366 days, or a date that is not real
-(`2026-02-30`).
+(`2026-02-30`). The report covers the caller's branches, or the one in `branch_id`.
 
 Issuing a kiosk key returns the raw key **once**:
 
@@ -475,8 +544,10 @@ Issuing a kiosk key returns the raw key **once**:
 Show it in a copyable field and make clear it will not be shown again. Only the
 hash is stored; a lost key means issuing a new device.
 
-Menu management uses `POST`/`PATCH`/`DELETE` on `/categories` and `/products`.
-Sending `variants` on a product **replaces the entire variant list**.
+Menu management uses `POST`/`PATCH`/`DELETE` on `/categories` and `/products`
+(**super admin only**: one menu and price list for every branch). Sending
+`variants` on a product **replaces the entire variant list**. A branch's own
+"sold out" is `PUT`/`DELETE /admin/branches/:id/sold-out/:productId`.
 
 ### Images
 
@@ -487,10 +558,10 @@ checked, not just the header.
 
 | Method | Path | Notes |
 | --- | --- | --- |
-| `PUT` | `/products/:id/image` | Admin or cashier. Stores the file, sets `image_url`, deletes the previous upload. Returns `{ data: product }`. |
-| `DELETE` | `/products/:id/image` | Admin or cashier. Clears `image_url` and deletes the stored file. |
-| `PUT` | `/admin/site-images/:key` | `key` is `logo` or `promo`. Returns `{ data: { logo, promo } }`. |
-| `DELETE` | `/admin/site-images/:key` | Back to the bundled default (`null`). |
+| `PUT` | `/products/:id/image` | Super admin. Stores the file, sets `image_url`, deletes the previous upload. Returns `{ data: product }`. |
+| `DELETE` | `/products/:id/image` | Super admin. Clears `image_url` and deletes the stored file. |
+| `PUT` | `/admin/site-images/:key` | Super admin. `key` is `logo` or `promo`. Returns `{ data: { logo, promo } }`. |
+| `DELETE` | `/admin/site-images/:key` | Super admin. Back to the bundled default (`null`). |
 | `GET` | `/site/images` | Public. `{ data: { logo, promo } }`; `null` means use the bundled `/brand/*.jpg`. |
 
 `image_url` on `PATCH /products/:id` also accepts an external URL, or `null` to
@@ -513,15 +584,15 @@ after that). They are stored in a **private** bucket and shown through links tha
 refetch the messages to renew them; the storage path is never exposed. The clients shrink photos in the browser
 first. A guest can send a photo only after their first text message (the thread must exist).
 
-**Support — anyone on the landing page, no account.** Talks to the cashier.
+**Support — anyone on the landing page, no account.** Talks to the cashier of the branch they pick.
 
 | Method | Path | Notes |
 | --- | --- | --- |
-| `POST` | `/chat/visitor/threads` | `{ body, name? }`. `201 { data: { thread_id, token, messages } }`. Keep both in localStorage: the `token` is shown once and only its hash is stored. Max 5 per hour per IP. |
+| `POST` | `/chat/visitor/threads` | `{ branch_id, body, name? }` (an active branch). `201 { data: { thread_id, token, messages } }`. Keep both in localStorage: the `token` is shown once and only its hash is stored. Max 5 per hour per IP. |
 | `GET` | `/chat/visitor/threads/:id/messages` | Header `X-Chat-Token`. `401` for a missing/wrong token or unknown thread (indistinguishable). |
 | `POST` | `/chat/visitor/threads/:id/messages` | `{ body }` with `X-Chat-Token`. Max 20 per minute. |
 | `POST` | `/chat/visitor/threads/:id/images` | Raw image with `X-Chat-Token` → `201 { data: message }`. Max 10 photos per 10 minutes. |
-| `GET` | `/pos/chat/threads` | Cashier/admin inbox, newest first: `{ id, guest_number, display_name, visitor_name, last_message, last_sender_role, last_message_at, unread }`. `display_name` is `Guest-1023`, or `Maria (Guest-1023)` when the visitor gave a name. |
+| `GET` | `/pos/chat/threads` | Cashier/admin inbox for their branches (`?branch_id` for one), newest first: `{ id, branch_id, branch, guest_number, display_name, visitor_name, last_message, last_sender_role, last_message_at, unread }`. Another branch's thread is `404` on the routes below. `display_name` is `Guest-1023`, or `Maria (Guest-1023)` when the visitor gave a name. |
 | `GET` / `POST` | `/pos/chat/threads/:id/messages` | Read history / reply (`{ body }`). |
 | `POST` | `/pos/chat/threads/:id/images` | Reply with a photo (raw image). |
 | `POST` | `/pos/chat/threads/:id/read` | `204`. Clears `unread`. |
@@ -554,8 +625,8 @@ fallback.
 Do **not** poll `/pos/orders` on a timer. Subscribe to Postgres changes with
 the Supabase client using the **publishable** key and the user's access token.
 Row-level security scopes the stream automatically — a cashier receives every
-order, a rider receives the pool plus their own, a customer receives only
-theirs.
+order of their branch, an admin those of their branches (a super admin all), a
+rider their branch's pool plus their own deliveries, a customer only theirs.
 
 ```js
 import { createClient } from '@supabase/supabase-js';
@@ -592,15 +663,20 @@ rules.
 
 | I want to… | Call |
 | --- | --- |
-| Render a menu | `GET /menu` |
+| Show the branches on a map | `GET /branches` |
+| Render a menu | `GET /menu?branch_id=<the customer's branch>` |
 | Place a kiosk order | `POST /kiosk/orders` |
 | Find a customer's order at the till | `GET /pos/orders?q=<name or number>` |
 | Take payment | `POST /pos/orders/:id/payment/cash` |
 | Send to kitchen | `POST /pos/orders/:id/confirm` then `PATCH …/status` |
-| Order for delivery | `POST /orders` with `fulfillment_type: "delivery"` |
+| Order for delivery | `POST /orders` with `branch_id` and `fulfillment_type: "delivery"` |
+| Order for later | `POST /orders` with `scheduled_for` (15-minute slot within the branch's hours) |
 | Find deliveries to take | `GET /rider/pool` |
 | Finish a delivery | `POST /rider/orders/:id/delivered` |
-| Add a kiosk terminal | `POST /admin/kiosks` |
+| Add a kiosk terminal | `POST /admin/kiosks` with `branch_id` |
+| Add or edit a branch | `POST` / `PATCH /admin/branches` (super admin) |
+| Give an admin their branches | `POST /admin/admins`, `PATCH /admin/admins/:id` (super admin) |
+| Mark a dish sold out at a branch | `PUT /admin/branches/:id/sold-out/:productId` |
 | Watch the queue live | Supabase Realtime on `orders` |
 | Sign in as the cashier / unlock a kiosk | `POST /employee/cashier/login` / `POST /employee/kiosk/unlock` |
 | Read or edit my profile, change password | `GET` / `PATCH /auth/profile`, `POST /auth/password` |
@@ -612,4 +688,4 @@ rules.
 | Upload a dish photo | `PUT /products/:id/image` (raw image); remove with `DELETE` |
 | Replace the logo or promo | `PUT /admin/site-images/:key` (`logo` or `promo`) |
 | Get sales figures | `GET /admin/sales?from=YYYY-MM-DD&to=YYYY-MM-DD` |
-| Change the cashier or kiosk password | `PUT /admin/employee-passwords/:role` |
+| Change a branch's cashier or kiosk password | `PUT /admin/employee-passwords/:role` with `branch_id` |

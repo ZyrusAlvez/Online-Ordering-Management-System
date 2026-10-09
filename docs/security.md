@@ -22,6 +22,7 @@ Read this before putting real customers or real money through it.
 4. **Secrets are hashed or kept server-side.** Nothing a browser holds (a kiosk key, a guest chat token) is stored in
    a recoverable form on the server.
 5. **Least privilege per role,** and role decided only by the server.
+6. **Branch isolation.** Staff see and act on only the branches they work at; only the super admin sees all.
 
 ## What each person can do
 
@@ -29,13 +30,15 @@ Read this before putting real customers or real money through it.
 | --- | --- | --- |
 | **Visitor** | Menu, site images; their own guest chat (with the token) | Start and use a guest chat |
 | **Customer** | Own orders, payments, profile, own delivery chat | Place and cancel own orders, edit own name/phone/address, change password |
-| **Cashier** | All orders and payments; website chats | Run orders, take payments, void, walk-ins, reply to chats |
-| **Rider** | Unclaimed ready deliveries and their own | Claim, release, deliver (record cash), chat on their delivery |
-| **Kiosk device** | Orders that device placed | Place orders, retry GCash for them |
-| **Admin** | Everything above | Menu, riders, kiosks, site images, employee passwords, refunds, roles |
+| **Cashier** | Their branch's orders and payments; their branch's website chats | Run orders, take payments, void, walk-ins, reply to chats (their branch) |
+| **Rider** | Their branch's unclaimed ready deliveries, and their own | Claim (their branch only), release, deliver (record cash), chat on their delivery |
+| **Kiosk device** | Orders that device placed | Place orders (at its branch), retry GCash for them |
+| **Admin** | Everything a cashier sees, for each of **their branches** | Riders, kiosks, employee passwords, sold out, refunds, for their branches only |
+| **Super admin** | Everything, every branch | Also branches, admin accounts, the shared menu and prices, site images, roles |
 
 A customer asking for someone else's order gets **404**, not 403, so the answer does not even confirm the order
-exists. Rider routes also refuse accounts an admin has deactivated, on every request.
+exists; staff asking for another branch's order get the same 404, and asking to list or act on a branch they do not
+work at is **403**. Rider and admin routes also refuse accounts that have been deactivated, on every request.
 
 ## Controls
 
@@ -47,8 +50,23 @@ exists. Rider routes also refuse accounts an admin has deactivated, on every req
 - The role is kept in two places that must agree (`app_metadata.role` in the token, `profiles.role` for listings) and
   only the profile service changes them together. The `profiles` table cannot be edited directly by users (no update
   policy), so a user cannot edit their own role or active status.
-- Cashier and kiosk use shared employee passwords: the cashier's is the shared cashier account's password; the kiosk's
-  is stored as a salted `scrypt` hash. A correct kiosk password mints a per-device key (below).
+- Cashier and kiosk use shared employee passwords **per branch**: the cashier's is that branch's shared cashier
+  account's password; the kiosk's is stored as a salted `scrypt` hash per branch. A correct kiosk password mints a
+  per-device key bound to that branch (below). One branch's password never opens another branch.
+
+### Branch isolation
+
+- Which branches an account works at is stored in `branch_staff` and **read on every request** (not carried in the
+  login token), so removing an admin from a branch applies to their very next request. A super admin is recognised by
+  role and sees all.
+- Every staff list is filtered to the caller's branches; asking for another branch is 403. Every action on a single
+  order first loads it and checks its branch, answering 404 otherwise, so ids of other branches' orders are not even
+  confirmed. Kiosks act for their device's branch; riders claim only from their branch's pool.
+- Row-level security applies the same rule to live feeds through `has_branch_access()`, so a cashier's browser never
+  receives another branch's orders or chats.
+- Shared things (menu and prices, branches, admin accounts, site images, roles) are writable by the super admin only.
+- Covered by `tests/integration/branch-scope.test.js` (an Imus admin, cashier and rider against GMA Terminal) and
+  `scripts/dev/check-rls.mjs`.
 
 ### Row-level security
 
@@ -99,7 +117,7 @@ spoofing `X-Forwarded-For`.
 | Where | Limit | Counted per |
 | --- | --- | --- |
 | Whole API | 300 requests / 15 minutes (kiosk payment polling exempt) | IP |
-| Cashier login | 10 wrong passwords / 15 minutes (successful logins are not counted) | IP |
+| Cashier login | 10 wrong passwords / 15 minutes, all branches together (successful logins are not counted) | IP |
 | Kiosk unlock | 10 wrong passwords / 15 minutes (own budget, separate from the cashier's) | IP |
 | Kiosk orders and GCash retries | 30 / minute | Device |
 | Change password | 10 attempts / 15 minutes | User |
@@ -117,8 +135,8 @@ shared store if you scale out.
 | Supabase **secret key** | `backend/.env` (server only) | in the frontend, in git, in logs |
 | Supabase publishable key | `backend/.env`, `frontend/.env` | (public by design) |
 | PayMongo secret and webhook secret | `backend/.env` | in the frontend or git |
-| Kiosk gate password | Hashed in `employee_credentials` | stored in plain text |
-| Cashier password | Supabase Auth (hashed) | |
+| Kiosk gate passwords (one per branch) | Hashed in `employee_credentials` | stored in plain text |
+| Cashier passwords (one login per branch) | Supabase Auth (hashed) | |
 | Kiosk device key, guest chat token | Browser; hash on the server | recoverable from the database |
 | Google client secret | Supabase dashboard | in this repository |
 
@@ -148,12 +166,14 @@ Found in review or testing, each now covered by a test. Recorded because they ex
 | **Medium** | Editing a product's sizes failed once ordered; an order could be edited after payment began; stale GCash attempts stayed live | Options are updated in place; edits blocked once payment starts; earlier attempts cancelled |
 | **Medium** | Logout ended the user's sessions on **every** device, including all registers sharing the cashier login | Logout ends only that device's session |
 | **Low** | A browser's *Back* from GCash left a frozen checkout; kiosk failure screens never reset; modals let keyboard focus escape | Fixed (see [changelog.md](./changelog.md)) |
+| **Low** | With branch policies in place, an anonymous read of `orders` or chats failed with *permission denied for function has_branch_access* instead of returning nothing | The function is executable by `anon` (it answers false) and runs with the caller's rights rather than as a definer |
 
 ## Known gaps and accepted risks
 
 | Gap | Impact | Mitigation / next step |
 | --- | --- | --- |
-| **Shared cashier login** | Cash payments record *the cashier account*, not the person on shift | Per-cashier accounts or a name prompt at shift start |
+| **Shared cashier login per branch** | Cash payments record *the branch's cashier account*, not the person on shift | Per-cashier accounts or a name prompt at shift start |
+| **One branch per cashier login and rider** | A rider who covers two branches needs two accounts | Allow several rows in `branch_staff` for riders if that becomes common |
 | **A kiosk's device key is extractable** by anyone with developer tools on that terminal | It is a revocable device identifier, not a true secret | Revoke devices from Admin → Kiosks; a locked-down kiosk shell would be stronger |
 | **Logins are stored in the browser (`localStorage`)** | A cross-site-scripting bug anywhere would expose a session | React escapes output and the app renders no user HTML; add a Content-Security-Policy at the host (the frontend sets none) |
 | **Leaked-password protection is off** in Supabase | Users may choose a password known from breaches | Turn it on: Authentication → Passwords |
@@ -167,8 +187,11 @@ Found in review or testing, each now covered by a test. Recorded because they ex
 
 ## Before going live
 
-- [ ] Change **every** development password: admin, cashier, kiosk, the sample riders and customers. Delete the
-      `@3k.local` test customers. Keep [test-accounts.md](./test-accounts.md) out of public view, or delete it.
+- [ ] Change **every** development password: super admin, the Imus test admin, each branch's cashier and kiosk, the
+      sample riders and customers. Delete the `@3k.local` test accounts. Keep [test-accounts.md](./test-accounts.md)
+      out of public view, or delete it.
+- [ ] Give each branch its real address, phone and opening hours (Admin → Branches); the seeds are 08:00–21:00 with
+      no address.
 - [ ] `NODE_ENV=production`, `CORS_ORIGIN` set to your site (not `*`), `TRUST_PROXY` matching your hosting, HTTPS everywhere.
 - [ ] Supabase: enable leaked-password protection; confirm only your real site addresses are in the redirect URL list;
       decide whether email confirmation is required.

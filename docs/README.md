@@ -9,9 +9,9 @@ down here, that is a gap in the documentation: please add it.
 | --- | --- |
 | Understand what the system is and how the pieces fit | [overview.md](./overview.md) |
 | Get it running on my machine | [getting-started.md](./getting-started.md) |
-| Learn how to *use* it (visitor, customer, cashier, kiosk, rider, admin) | [user-guide.md](./user-guide.md) |
+| Learn how to *use* it (visitor, customer, cashier, kiosk, rider, admin, super admin) | [user-guide.md](./user-guide.md) |
 | Log in and try every role | [test-accounts.md](./test-accounts.md) |
-| Understand the business rules (orders, payments, chat, sales…) | [how-it-works.md](./how-it-works.md) |
+| Understand the business rules (branches, orders, scheduling, payments, chat, sales…) | [how-it-works.md](./how-it-works.md) |
 | Find my way around the code, or add a feature | [architecture.md](./architecture.md) |
 | Call the API | [api.md](./api.md) |
 | Know what a field means, or what values it may hold | [data-dictionary.md](./data-dictionary.md) |
@@ -30,7 +30,7 @@ down here, that is a gap in the documentation: please add it.
 | [getting-started.md](./getting-started.md) | Supabase project, database migrations, environment files, seeding, running, optional Google and GCash setup | Developers |
 | [user-guide.md](./user-guide.md) | Step-by-step guides per role, with the real button and page names | Staff, owner, testers |
 | [test-accounts.md](./test-accounts.md) | Every login (role, email, password, access) and a test walkthrough per role | Testers, developers |
-| [how-it-works.md](./how-it-works.md) | The rules behind the screens: order and payment lifecycles, pricing, delivery, kiosk, chat and photos, images, sales, sessions | Developers, owner |
+| [how-it-works.md](./how-it-works.md) | The rules behind the screens: branches and who sees what, order and payment lifecycles, scheduled orders, pricing, delivery, kiosk, chat and photos, images, sales, sessions | Developers, owner |
 | [architecture.md](./architecture.md) | Backend layering, frontend structure, live updates, auth flow, migrations, "where does my change go?" | Developers |
 | [api.md](./api.md) | Every endpoint with real payloads, error format, rate limits, live-update setup | Frontend and integration developers |
 | [data-dictionary.md](./data-dictionary.md) | Every table and column, input rules and where each is enforced, JSON shapes, storage, access rules, known gaps | Developers, auditors |

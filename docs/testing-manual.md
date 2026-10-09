@@ -3,7 +3,7 @@
 How to drive every endpoint by hand with `curl`, to explore the API or debug a
 specific call. Assumes the repo is set up and `.env` is filled in.
 
-For the automated suite (475 tests on Node's built-in runner) see
+For the automated suite (525 tests on Node's built-in runner) see
 **[testing.md](./testing.md)**. Run that first if you only
 want to know whether something is broken; come here when you want to poke at a
 particular endpoint yourself.
@@ -41,7 +41,7 @@ failed validation.
 
 ## 1. Create the accounts
 
-You need an admin and a cashier. This also saves their passwords into `.env`
+You need the super admin and GMA Terminal's cashier. This also saves their passwords into `.env`
 (as `TEST_ADMIN_PASSWORD` / `TEST_CASHIER_PASSWORD`), which is where `npm test`
 reads them from. Re-running is safe — it keeps the passwords already in `.env`
 instead of rotating them:
@@ -51,8 +51,8 @@ node --env-file=.env scripts/seed-accounts.mjs
 ```
 
 ```
-✓ Admin                        admin@3k.local  role=admin
-✓ Cashier (shared POS login)   cashier@3k.local  role=cashier
+✓ Super admin                  admin@3k.local  role=super_admin
+✓ Cashier (GMA shared login)   cashier@3k.local  role=cashier
 
 Generated passwords — copy these now, they are not stored anywhere:
   admin@3k.local           egRRyNLgElq60gQP
@@ -66,11 +66,19 @@ SEED_ADMIN_PASSWORD='…' SEED_CASHIER_PASSWORD='…' \
   node --env-file=.env scripts/seed-accounts.mjs
 ```
 
-For a customer and a rider to test with:
+For customers, riders and a second branch's staff to test with:
 
 ```bash
 node --env-file=.env scripts/dev/seed-test-users.mjs
-# customer2@3k.local and rider1@3k.local, both password testpass12345
+# customer@, customer2@, rider1@ (GMA Terminal), and admin.imus@, cashier.imus@, rider.imus@ (Imus),
+# all @3k.local with password testpass12345
+```
+
+The branches come from the migrations. Keep their ids handy:
+
+```bash
+GMA=$(curl -s localhost:4000/api/v1/branches | python3 -c 'import json,sys; print(next(b["id"] for b in json.load(sys.stdin)["data"] if b["code"]=="gma"))')
+IMUS=$(curl -s localhost:4000/api/v1/branches | python3 -c 'import json,sys; print(next(b["id"] for b in json.load(sys.stdin)["data"] if b["code"]=="imus"))')
 ```
 
 > **Why not just `POST /auth/register`?** Supabase rate-limits signups per IP
@@ -150,7 +158,7 @@ This is the main in-store path.
 ```bash
 curl -s -X POST localhost:4000/api/v1/admin/kiosks \
   -H "Authorization: Bearer $ADMIN" -H 'Content-Type: application/json' \
-  -d '{"name":"Lobby Kiosk 1"}' | python3 -m json.tool
+  -d "{\"name\":\"Lobby Kiosk 1\",\"branch_id\":\"$GMA\"}" | python3 -m json.tool
 ```
 
 Copy `data.key` — it is shown **once**:
@@ -250,6 +258,7 @@ Then `PATCH …/status` to `completed`.
 curl -s -X POST localhost:4000/api/v1/orders \
   -H "Authorization: Bearer $CUSTOMER" -H 'Content-Type: application/json' \
   -d "{
+    \"branch_id\": \"$GMA\",
     \"fulfillment_type\": \"delivery\",
     \"payment_method\": \"cash\",
     \"customer_phone\": \"09171234567\",
@@ -261,7 +270,9 @@ DELIVERY=<id>
 ```
 
 Forgetting the address, or the mobile number, is rejected: drop `delivery_address` or `customer_phone` and you get a
-`400` naming the field. The number must be 11 digits starting `09` (`09171234567`); an optional map pin goes in the
+`400` naming the field. Outside GMA Terminal's hours (08:00–21:00 Manila) the order is refused with `409` until you
+add a time, for example `\"scheduled_for\": \"2026-10-11T00:15:00Z\"` (8:15 AM Manila; a 15-minute mark, at least
+30 minutes ahead, within two days). The number must be 11 digits starting `09` (`09171234567`); an optional map pin goes in the
 address as `"latitude": 14.2985, "longitude": 120.997`.
 
 ```bash
@@ -306,6 +317,17 @@ curl -s -o /dev/null -w 'customer→POS   %{http_code}\n' localhost:4000/api/v1/
 curl -s -o /dev/null -w 'cashier→rider  %{http_code}\n' localhost:4000/api/v1/rider/pool   -H "Authorization: Bearer $CASHIER"
 curl -s -o /dev/null -w 'cashier→admin  %{http_code}\n' localhost:4000/api/v1/admin/kiosks -H "Authorization: Bearer $CASHIER"
 curl -s -o /dev/null -w 'rider→POS      %{http_code}\n' localhost:4000/api/v1/pos/orders   -H "Authorization: Bearer $RIDER"
+```
+
+And across branches (with `IMUS_ADMIN` and `IMUS_CASHIER` logged in like above), `403` for asking for GMA and `404`
+for one of its orders:
+
+```bash
+IMUS_ADMIN=$(login admin.imus@3k.local testpass12345)
+IMUS_CASHIER=$(login cashier.imus@3k.local testpass12345)
+curl -s -o /dev/null -w 'imus admin→GMA orders  %{http_code}\n' "localhost:4000/api/v1/admin/orders?branch_id=$GMA" -H "Authorization: Bearer $IMUS_ADMIN"
+curl -s -o /dev/null -w 'imus admin→branches    %{http_code}\n' localhost:4000/api/v1/admin/branches -H "Authorization: Bearer $IMUS_ADMIN"
+curl -s -o /dev/null -w 'imus cashier→GMA order %{http_code}\n' "localhost:4000/api/v1/pos/orders/$ORDER" -H "Authorization: Bearer $IMUS_CASHIER"
 ```
 
 And with no token at all, `401`:

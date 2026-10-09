@@ -11,19 +11,26 @@ Running the system day to day, keeping it healthy, and fixing it when something 
 
 ### Opening
 1. Check the API is up: `GET /api/v1/health` answers `ok` (and `/health/supabase` can reach the database).
-2. Open `/cashier`, enter the shared password, **Open register**. Check **Messages** for anything overnight.
-3. Kiosks: make sure each one is on its start screen. A locked kiosk needs the employee password again.
+2. Open `/cashier`, choose your branch (remembered on that device), enter its password, **Open register**. Check
+   **Messages** for anything overnight.
+3. Look at the **Scheduled** orders in the Active tab: online orders placed while you were closed are there, marked
+   with their time (they turn orange an hour before).
+4. Kiosks: make sure each one is on its start screen (it shows its branch). A locked kiosk needs its branch's kiosk
+   password again.
 
 ### During service
 - New orders and chats appear on their own. If a screen looks stale, the **Refresh** button is on the admin pages; the
   cashier and rider screens update live.
-- Sold out a dish? Admin → Menu → the dish's **Available / Sold out** badge toggles it instantly.
+- Ran out of a dish? Admin → Menu, with your branch chosen at the top → **Mark sold out**. It disappears from your
+  branch's menu (website, kiosk, register) at once; **Back on** returns it. Other branches are unaffected. Only the super
+  admin can switch a dish off everywhere.
+- Scheduled orders: start them around the time the banner says (30 minutes before). They sort by their time.
 - A customer wants to cancel a paid order: **Void** it in the cashier screen with a reason. GCash is refunded
   automatically; hand cash back yourself.
 - A GCash order shows **refund failed**: **Void** again, or Admin → Orders → retry the refund.
 
 ### Closing
-1. Open Admin → **Sales** → **Today**. Compare **Cash** with the drawer: cash sales on the Sales page should match
+1. Open Admin → **Sales** → **Today**, with your branch chosen. Compare **Cash** with the drawer: cash sales on the Sales page should match
    what was taken (cash on delivery counts on the day the order was placed).
 2. Check the **refunds pending** note; anything waiting should clear within a day. Otherwise see *refund failed* above.
 3. Look in the cashier's **Active** tab for orders left open that should be completed or voided.
@@ -39,16 +46,20 @@ Running the system day to day, keeping it healthy, and fixing it when something 
 
 | To… | Do this |
 | --- | --- |
-| **Add a rider** | Admin → Riders → **New rider** (name, email, temporary password, 11-digit phone). Tell them to log in at `/login` |
+| **Open a new branch** | Super admin → Admin → **Branches** → **New branch** (name, code, pin on the map, hours). Then set its cashier and kiosk passwords (Employee passwords), create its riders, and give an admin access (Admins). It appears on the landing map at once |
+| **Close a branch** | Super admin → Branches → **Edit** → untick **Open for orders**. It leaves the map and takes no new orders; its history stays |
+| **Change a branch's hours, address or pin** | Super admin → Branches → **Edit**. Hours decide when "as soon as possible" is allowed and which times can be scheduled |
+| **Add a branch admin** | Super admin → Admin → **Admins** → **New admin**, ticking the branches they run. **Branches** on their row changes them later (immediately); **Deactivate** locks them out |
+| **Add a rider** | Admin → Riders → **New rider** (branch, name, email, temporary password, 11-digit phone). Tell them to log in at `/login` |
 | **Remove a rider's access** | Admin → Riders → **Deactivate**. Takes effect on their very next request. Reactivate the same way |
-| **Change the cashier or kiosk password** | Admin → **Employee passwords**. Cashier logins already open keep working until they sign out; kiosks already unlocked keep working until revoked |
+| **Change the cashier or kiosk password** | Admin → **Employee passwords** → choose the branch. Cashier logins already open keep working until they sign out; kiosks already unlocked keep working until revoked. Setting a branch's cashier password the first time creates its register login |
 | **Retire or lock out a kiosk** | Admin → Kiosks → **Revoke**. The terminal locks and asks for the password again |
-| **Set up a new kiosk** | Open `/kiosk` on the device, enter the kiosk password. It registers itself and appears in Admin → Kiosks |
+| **Set up a new kiosk** | Open `/kiosk` on the device, choose the branch, enter that branch's kiosk password. It registers itself and appears in Admin → Kiosks |
 | **Lock a kiosk from the device** | Tap the logo on the start screen five times quickly and confirm |
-| **Forgot the admin, cashier or kiosk password** | On the server: `SEED_ADMIN_PASSWORD=… SEED_CASHIER_PASSWORD=… SEED_KIOSK_PASSWORD=… node --env-file=.env scripts/seed-accounts.mjs` |
-| **Make someone an admin or rider** | Only an admin, via `PATCH /admin/users/:id/role` ([api.md](./api.md)); there is no screen for it, deliberately |
-| **Change the logo or home photo** | Admin → **Site images** |
-| **Change a dish's photo** | Admin → Menu → **Edit** the dish → **Photo** |
+| **Forgot the super admin password, or GMA's cashier or kiosk password** | On the server: `SEED_ADMIN_PASSWORD=… SEED_CASHIER_PASSWORD=… SEED_KIOSK_PASSWORD=… node --env-file=.env scripts/seed-accounts.mjs`. Other branches' passwords: the super admin resets them in Employee passwords |
+| **Change someone's role** | Only the super admin, via `PATCH /admin/users/:id/role` ([api.md](./api.md)); there is no screen for it, deliberately. Admins are created from the Admins page |
+| **Change the logo or home photo** | Super admin → **Site images** |
+| **Change a dish, its price or photo** | Super admin → Menu → **Edit** the dish (the menu is shared by every branch) |
 
 ---
 
@@ -109,6 +120,8 @@ Confirm they run; **practise a restore** into a scratch project, since an untest
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
 | Cashier or kiosk password refused 10 times then "Too many attempts" | The limit is 10 wrong guesses per 15 minutes per address (correct logins are not counted) | Wait 15 minutes, or restart the API in development |
+| The right cashier or kiosk password is refused | The wrong **branch** is chosen on the gate, or that branch has no password yet | Pick the register's branch; an admin sets the branch's password in Employee passwords |
+| An admin cannot see a branch, or a page (Branches, Admins, Site images) | They are not assigned to it; those pages are the super admin's | Super admin → Admins → **Branches** on their row |
 | Everyone suddenly gets "Too many requests" | Many users share one address and `TRUST_PROXY` is too low, or genuinely too much traffic | Set `TRUST_PROXY` to the number of proxies; raise `RATE_LIMIT_MAX` if needed |
 | "Continue with Google" lands on a Supabase error page | Google is not enabled, or the site's `/auth/callback` is not in Supabase's redirect URLs | [getting-started.md](./getting-started.md#optional-google-sign-in) |
 | Google works, then the next page asks to log in again | An expired or revoked session | Sign in again. If it recurs, clear the site's data and report it |
@@ -120,6 +133,9 @@ Confirm they run; **practise a restore** into a scratch project, since an untest
 
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
+| A customer can't order "as soon as possible" ("closed now, schedule your order") | The branch is outside its opening hours | Expected: they schedule a time. Check the hours in Branches if they look wrong |
+| An order is missing from the cashier's queue | It was placed at another branch (the customer's chosen or nearest branch) | Find it in Admin → Orders with **All branches**; it can only be handled by its branch |
+| A dish shows "Sold out" at one branch only | That branch marked it sold out | Admin → Menu, that branch chosen → **Back on** |
 | GCash buttons say "not configured" (503) | No PayMongo keys | [deployment.md](./deployment.md#gcash-paymongo); cash still works |
 | Customer paid by GCash but the order is still unpaid | The notification did not arrive or was rejected | Check PayMongo's webhook log, the API log lines starting `[paymongo]`, and that the signing secret matches. A failed delivery is retried by PayMongo |
 | "GCash requires a minimum of PHP 20.00" | PayMongo's rule | Take cash for small orders |

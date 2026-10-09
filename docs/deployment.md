@@ -62,7 +62,7 @@ proxy), set `2`; otherwise every visitor looks like one address and shares one r
 | `VITE_API_URL` | **yes** | The API's full address including the prefix, e.g. `https://api.example.com/api/v1` |
 | `VITE_SUPABASE_URL` | **yes** | Project URL |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | **yes** | Publishable key only; **never** the secret key |
-| `VITE_MAP_DEFAULT_LAT`, `VITE_MAP_DEFAULT_LNG` | no | Where the delivery map opens (default General Mariano Alvarez, Cavite) |
+| `VITE_MAP_DEFAULT_LAT`, `VITE_MAP_DEFAULT_LNG` | no | Where the delivery-address map opens (default General Mariano Alvarez, Cavite). The landing-page branch map frames the branches themselves and needs no setting |
 
 Because Vite bakes these in when you build, change them and **rebuild** to take effect.
 
