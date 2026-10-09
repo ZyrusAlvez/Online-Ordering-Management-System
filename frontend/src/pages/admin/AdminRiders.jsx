@@ -6,10 +6,19 @@ import { dateTime } from '../../lib/format.js';
 import { useToast } from '../../context/ToastContext.jsx';
 import { Badge, Button, Empty, ErrorNote, Field, Input, Modal, PageLoader, Pagination } from '../../components/ui.jsx';
 import { Plus } from '../../components/icons.jsx';
+import { BranchSelect, useStaffBranch } from '../../components/StaffBranch.jsx';
 
 function CreateRider({ onClose, onCreated }) {
   const toast = useToast();
-  const [form, setForm] = useState({ full_name: '', email: '', password: '', phone: '' });
+  const { branchId, branches } = useStaffBranch();
+  // A rider delivers for one branch: the one being viewed, else the admin's first.
+  const [form, setForm] = useState({
+    full_name: '',
+    email: '',
+    password: '',
+    phone: '',
+    branch_id: branchId || (branches.length === 1 ? branches[0].id : ''),
+  });
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -22,6 +31,7 @@ function CreateRider({ onClose, onCreated }) {
       await api.post(
         '/admin/riders',
         {
+          branch_id: form.branch_id,
           full_name: form.full_name.trim(),
           email: form.email.trim(),
           password: form.password,
@@ -41,6 +51,7 @@ function CreateRider({ onClose, onCreated }) {
   return (
     <Modal open onClose={onClose} title="New rider">
       <form onSubmit={submit} className="space-y-4">
+        <BranchSelect value={form.branch_id} onChange={(id) => setForm((f) => ({ ...f, branch_id: id }))} />
         <Field label="Full name"><Input required maxLength={120} autoComplete="off" value={form.full_name} onChange={set('full_name')} /></Field>
         <Field label="Email"><Input type="email" required maxLength={254} autoComplete="off" value={form.email} onChange={set('email')} /></Field>
         <Field label="Temporary password" hint="At least 8 characters. Share it with the rider.">
@@ -56,11 +67,12 @@ function CreateRider({ onClose, onCreated }) {
 
 export default function AdminRiders() {
   const toast = useToast();
+  const { branchId, query: branchQuery } = useStaffBranch();
   const [page, setPage] = useState(1);
   const [creating, setCreating] = useState(false);
   const { data, error, loading, reload, refresh } = useFetch(
-    () => api.get('/admin/riders', { auth: true, query: { page, limit: 20 } }),
-    [page],
+    () => api.get('/admin/riders', { auth: true, query: { page, limit: 20, ...branchQuery } }),
+    [page, branchId],
   );
 
   const toggle = async (rider) => {
@@ -91,7 +103,10 @@ export default function AdminRiders() {
           <div key={r.id} className="flex items-center justify-between gap-3 rounded-2xl border border-ink/10 bg-paper p-4">
             <div>
               <p className="font-bold">{r.full_name || 'Unnamed rider'}</p>
-              <p className="text-xs text-ink-soft">{r.phone || 'No phone'} · added {dateTime(r.created_at)}</p>
+              <p className="text-xs text-ink-soft">
+                {r.branches?.map((b) => b.name).join(', ') || 'No branch'} · {r.phone || 'No phone'} · added{' '}
+                {dateTime(r.created_at)}
+              </p>
             </div>
             <div className="flex items-center gap-3">
               <Badge tone={r.is_active ? 'green' : 'gray'}>{r.is_active ? 'Active' : 'Inactive'}</Badge>

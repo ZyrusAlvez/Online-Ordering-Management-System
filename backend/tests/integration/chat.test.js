@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import { get, post } from '../helpers/client.js';
 import { tokenFor } from '../helpers/auth.js';
 import { db, setOrderState } from '../helpers/db.js';
-import { cleanup, placeOnlineOrder } from '../helpers/fixtures.js';
+import { branchId, cleanup, placeOnlineOrder } from '../helpers/fixtures.js';
 
 // Opening a thread is limited to 5 per hour per IP, and the limiter runs before
 // validation, so every POST /chat/visitor/threads here counts. This file budgets
@@ -35,7 +35,7 @@ after(async () => {
 });
 
 const openThread = async (body = 'Hello, are you open?', name) => {
-  const res = await post('/chat/visitor/threads', { body, ...(name ? { name } : {}) });
+  const res = await post('/chat/visitor/threads', { branch_id: await branchId(), body, ...(name ? { name } : {}) });
   if (res.status === 201) threadIds.push(res.body.data.thread_id);
   return res;
 };
@@ -57,7 +57,7 @@ describe('visitor support chat', () => {
   });
 
   it('rejects an empty message', async () => {
-    const res = await post('/chat/visitor/threads', { body: '   ' });
+    const res = await post('/chat/visitor/threads', { branch_id: await branchId(), body: '   ' });
     assert.equal(res.status, 400);
   });
 
@@ -131,9 +131,9 @@ describe('visitor support chat', () => {
   });
 
   it('numbers each anonymous guest so several can be told apart', async () => {
-    const { data } = await db.from('chat_threads').insert({ kind: 'support' }).select('id, guest_number').single();
+    const { data } = await db.from('chat_threads').insert({ kind: 'support', branch_id: await branchId() }).select('id, guest_number').single();
     threadIds.push(data.id);
-    const { data: other } = await db.from('chat_threads').insert({ kind: 'support' }).select('id, guest_number').single();
+    const { data: other } = await db.from('chat_threads').insert({ kind: 'support', branch_id: await branchId() }).select('id, guest_number').single();
     threadIds.push(other.id);
     await db.from('chat_messages').insert([
       { thread_id: data.id, sender_role: 'visitor', body: 'first' },

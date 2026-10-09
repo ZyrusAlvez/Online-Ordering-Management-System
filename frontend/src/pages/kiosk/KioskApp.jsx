@@ -2,14 +2,17 @@ import { useState } from 'react';
 import { Route, Routes } from 'react-router-dom';
 import { CartProvider } from '../../context/CartContext.jsx';
 import { api } from '../../lib/api.js';
+import { useBranches } from '../../lib/branches.js';
 import { clearKioskKey, getKioskKey, setKioskKey } from '../../lib/kiosk.js';
 import { Logo } from '../../components/Logo.jsx';
-import { Button, Card, ErrorNote, Field, Input } from '../../components/ui.jsx';
+import { Button, Card, ErrorNote, Field, Input, Select } from '../../components/ui.jsx';
 import { Lock } from '../../components/icons.jsx';
 import KioskFlow from './KioskFlow.jsx';
 import KioskPaymentResult from './KioskPaymentResult.jsx';
 
 function KioskGate({ onUnlocked }) {
+  const { branches } = useBranches();
+  const [branchId, setBranchId] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -19,7 +22,9 @@ function KioskGate({ onUnlocked }) {
     setBusy(true);
     setError(null);
     try {
+      // The device key is bound to this branch: every order it takes goes there.
       const { data } = await api.post('/employee/kiosk/unlock', {
+        branch_id: branchId,
         password,
         device_name: `Kiosk ${new Date().toLocaleDateString('en-PH')}`,
       });
@@ -45,6 +50,18 @@ function KioskGate({ onUnlocked }) {
           </div>
         </div>
         <form onSubmit={submit} className="space-y-4">
+          <Field label="Branch">
+            <Select required value={branchId} onChange={(e) => setBranchId(e.target.value)}>
+              <option value="" disabled>
+                Choose this kiosk's branch
+              </option>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
           <Field label="Employee password">
             <Input
               type="password"

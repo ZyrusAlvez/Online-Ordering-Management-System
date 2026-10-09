@@ -26,7 +26,16 @@ export const PAYMENT_STATUSES = [
 
 export const CHANNELS = ['kiosk', 'pos', 'online'];
 export const PAYMENT_METHODS = ['cash', 'gcash'];
-export const ROLES = ['customer', 'cashier', 'rider', 'admin'];
+export const ROLES = ['customer', 'cashier', 'rider', 'admin', 'super_admin'];
+
+/**
+ * An admin manages the branches it is assigned to; a super admin manages every
+ * branch, plus what is shared across them (menu, branches, admins, branding).
+ */
+export const ADMIN_ROLES = ['admin', 'super_admin'];
+
+/** Roles that work at a branch and see its orders at the counter. */
+export const COUNTER_ROLES = ['cashier', ...ADMIN_ROLES];
 
 /** Fulfillment types available per channel — a kiosk cannot take a delivery. */
 export const COUNTER_FULFILLMENT = ['dine_in', 'take_out'];
@@ -47,4 +56,5 @@ export const ALLOWED_TRANSITIONS = {
 
 /** Select string used wherever an order is returned with its items joined. */
 export const WITH_ITEMS =
-  '*, order_items(*, product:products(id, name, price), variant:product_variants(id, label, price))';
+  '*, branch:branches(id, code, name), ' +
+  'order_items(*, product:products(id, name, price), variant:product_variants(id, label, price))';

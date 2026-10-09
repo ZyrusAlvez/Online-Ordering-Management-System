@@ -1,5 +1,6 @@
 import { useAuth, HOME_FOR_ROLE } from '../context/AuthContext.jsx';
-import { BRANCH, Logo, RESTAURANT } from '../components/Logo.jsx';
+import { Logo, REGION, RESTAURANT } from '../components/Logo.jsx';
+import { useBranches } from '../lib/branches.js';
 import { Button } from '../components/ui.jsx';
 import { BottomDock, CartBar } from '../components/BottomDock.jsx';
 import MenuBrowser from '../components/MenuBrowser.jsx';
@@ -30,6 +31,8 @@ function LandingPage() {
   const cart = useCart();
   const toast = useToast();
   const promo = useSiteImage('promo');
+  const { branches } = useBranches();
+  const where = branches.length > 1 ? `${branches.length} branches across ${REGION}` : REGION;
   const home = HOME_FOR_ROLE[role] ?? '/menu';
 
   return (
@@ -51,7 +54,7 @@ function LandingPage() {
       <section className="mx-auto grid max-w-6xl items-center gap-12 px-4 pb-20 pt-8 md:grid-cols-2 md:pt-16">
         <div>
           <p className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-sun-dark">
-            <Store size={14} /> {BRANCH}
+            <Store size={14} /> {where}
           </p>
           <h1 className="font-script text-5xl leading-[1.1] text-ink sm:text-6xl">
             Home-style favorites, <span className="text-brand">ready</span> when you are.
@@ -120,7 +123,7 @@ function LandingPage() {
 
       <footer className="border-t border-line px-4 pb-32 pt-10 text-center text-sm text-ink-soft">
         <p className="font-script text-2xl text-ink">{RESTAURANT}</p>
-        <p>{BRANCH}</p>
+        <p>{where}</p>
         <p className="mt-2 text-xs">Riders and admins sign in with the same Log in button.</p>
       </footer>
     </div>

@@ -1,3 +1,4 @@
+import * as branchService from '../services/branch.service.js';
 import * as orderService from '../services/order.service.js';
 import * as paymentService from '../services/payment.service.js';
 import { ApiError } from '../utils/ApiError.js';
@@ -28,8 +29,10 @@ export const getMine = async (req, res) => {
 
 export const create = async (req, res) => {
   const body = req.body;
+  const branch = await branchService.getActiveBranchOrFail(body.branch_id);
 
   const data = await orderService.createOrder({
+    branchId: branch.id,
     items: body.items,
     channel: 'online',
     fulfillmentType: body.fulfillment_type,

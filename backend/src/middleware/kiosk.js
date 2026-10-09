@@ -27,7 +27,7 @@ export const requireKiosk = asyncHandler(async (req, _res, next) => {
 
   const { data: device, error } = await supabaseAdmin
     .from('kiosk_devices')
-    .select('id, name, is_active, key_hash')
+    .select('id, name, is_active, key_hash, branch_id, branch:branches(id, code, name)')
     .eq('key_hash', hashKioskKey(presented))
     .maybeSingle();
 
@@ -43,7 +43,8 @@ export const requireKiosk = asyncHandler(async (req, _res, next) => {
     throw ApiError.unauthorized('Unknown kiosk device key');
   }
 
-  req.kiosk = { id: device.id, name: device.name };
+  // Every kiosk order goes to the branch the device was unlocked for.
+  req.kiosk = { id: device.id, name: device.name, branch_id: device.branch_id, branch: device.branch };
 
   // Liveness for the admin screen; never block the request on it.
   supabaseAdmin

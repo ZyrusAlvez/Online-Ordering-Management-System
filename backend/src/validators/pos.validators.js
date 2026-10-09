@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { COUNTER_FULFILLMENT, PAYMENT_METHODS } from '../constants/orders.js';
-import { itemsSchema } from './common.validators.js';
+import { branchId, itemsSchema } from './common.validators.js';
 import { money, optionalText, personName, requiredText } from './fields.js';
 import { orderFilterQuery } from './order.validators.js';
 
@@ -10,6 +10,8 @@ export const posQueueQuery = orderFilterQuery.extend({
 });
 
 export const createWalkInOrderSchema = z.object({
+  // A cashier works at one branch and can leave this out; an admin with several must say.
+  branch_id: branchId.optional(),
   fulfillment_type: z.enum(COUNTER_FULFILLMENT),
   customer_name: personName(),
   payment_method: z.enum(PAYMENT_METHODS),

@@ -30,6 +30,19 @@ export const cleanupKiosks = async () => {
   kioskDevices.clear();
 };
 
+// --- branches -------------------------------------------------------------
+
+const branchIds = new Map();
+
+/** A branch id by code (gma, imus, ...). Test orders default to GMA Terminal. */
+export const branchId = async (code = 'gma') => {
+  if (branchIds.has(code)) return branchIds.get(code);
+  const { data, error } = await db.from('branches').select('id').eq('code', code).single();
+  if (error) throw new Error(`Branch ${code} not found: ${error.message}`);
+  branchIds.set(code, data.id);
+  return data.id;
+};
+
 // --- menu -----------------------------------------------------------------
 
 let menuCache = null;
@@ -72,9 +85,9 @@ export const unpricedProduct = async () => {
 // --- kiosk devices --------------------------------------------------------
 
 /** Issues a real kiosk device key via the admin API and tracks it for cleanup. */
-export const issueKioskKey = async (name = `Test Kiosk ${Date.now()}`) => {
+export const issueKioskKey = async (name = `Test Kiosk ${Date.now()}`, branch = 'gma') => {
   const admin = await tokenFor('admin');
-  const res = await post('/admin/kiosks', { name }, { token: admin });
+  const res = await post('/admin/kiosks', { name, branch_id: await branchId(branch) }, { token: admin });
   if (res.status !== 201) throw new Error(`Could not issue kiosk key: ${JSON.stringify(res.body)}`);
   kioskDevices.add(res.body.data.id);
   return res.body.data.key;
@@ -110,6 +123,7 @@ export const placeOnlineOrder = async (role = 'customer', overrides = {}) => {
   const res = await post(
     '/orders',
     {
+      branch_id: await branchId(),
       fulfillment_type: 'pickup',
       payment_method: 'cash',
       items: [{ product_id: product.id, quantity: 1 }],
@@ -125,10 +139,10 @@ export const placeOnlineOrder = async (role = 'customer', overrides = {}) => {
   return res.body.data;
 };
 
-/** Places a POS walk-in order and tracks it. */
-export const placeWalkInOrder = async (overrides = {}) => {
+/** Places a POS walk-in order (at the cashier's own branch) and tracks it. */
+export const placeWalkInOrder = async (overrides = {}, role = 'cashier') => {
   const product = await flatPricedProduct();
-  const cashier = await tokenFor('cashier');
+  const cashier = await tokenFor(role);
 
   const res = await post(
     '/pos/orders',
@@ -147,9 +161,9 @@ export const placeWalkInOrder = async (overrides = {}) => {
   return res.body.data;
 };
 
-/** Drives an order to `ready` through the POS, the way a cashier would. */
-export const driveToReady = async (orderId) => {
-  const cashier = await tokenFor('cashier');
+/** Drives an order to `ready` through the POS, the way its branch's cashier would. */
+export const driveToReady = async (orderId, role = 'cashier') => {
+  const cashier = await tokenFor(role);
 
   const confirmed = await post(`/pos/orders/${orderId}/confirm`, undefined, { token: cashier });
   if (confirmed.status !== 200) {

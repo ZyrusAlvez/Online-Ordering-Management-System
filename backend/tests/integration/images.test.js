@@ -78,9 +78,9 @@ describe('PUT /products/:id/image', () => {
     assert.equal(await existsInStorage(before), false);
   });
 
-  it('lets a cashier upload too, like other product edits', async () => {
+  it('403s a cashier: the shared menu is edited by the super admin only', async () => {
     const res = await put(`/products/${productId}/image`, PNG, { ...png, token: cashier });
-    assert.equal(res.status, 200);
+    assert.equal(res.status, 403);
   });
 
   it('rejects bytes that are not an image even when labelled as one', async () => {

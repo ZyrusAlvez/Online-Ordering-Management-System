@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { ALLOWED_TRANSITIONS, WITH_ITEMS } from '../constants/orders.js';
 import { ApiError, fromPostgrestError } from '../utils/ApiError.js';
+import { canAccessBranch } from '../utils/branchScope.js';
 import { applyRange } from '../utils/pagination.js';
 import { anyColumnContains } from '../utils/postgrest.js';
 
@@ -41,6 +42,16 @@ export const getOrderOrFail = async (orderId, client = supabaseAdmin) => {
 };
 
 /**
+ * fetchOrder for staff: 404 unless the order belongs to a branch in `scope`, so
+ * a cashier or branch admin cannot act on (or even confirm) another branch's order.
+ */
+export const getScopedOrderOrFail = async (orderId, scope) => {
+  const order = await fetchOrder(orderId);
+  if (!order || !canAccessBranch(scope, order.branch_id)) throw ApiError.notFound('Order not found');
+  return order;
+};
+
+/**
  * Lists orders with the filters every caller needs. `client` decides the
  * visibility: pass a caller-scoped client to let RLS narrow rows to that user,
  * or the default admin client for staff views that must see everything.
@@ -55,7 +66,11 @@ export const listOrders = async ({
   search,
   createdAfter,
   createdBefore,
+  branchIds = null,
 } = {}) => {
+  // An admin with no branches assigned sees nothing, not everything.
+  if (branchIds && branchIds.length === 0) return { data: [], total: 0 };
+
   let query = applyRange(
     client
       .from('orders')
@@ -66,6 +81,7 @@ export const listOrders = async ({
     { page, limit },
   );
 
+  if (branchIds) query = query.in('branch_id', branchIds);
   if (status) query = query.eq('status', status);
   if (paymentStatus) query = query.eq('payment_status', paymentStatus);
   if (channel) query = query.eq('channel', channel);
@@ -149,6 +165,7 @@ export const priceOrder = async (items) => {
  * `order_number` is assigned by the orders_set_order_number trigger.
  */
 export const createOrder = async ({
+  branchId,
   items,
   channel,
   fulfillmentType,
@@ -165,6 +182,7 @@ export const createOrder = async ({
   const { data: order, error: orderError } = await supabaseAdmin
     .from('orders')
     .insert({
+      branch_id: branchId,
       customer_id: customerId,
       customer_name: customerName,
       customer_phone: customerPhone,

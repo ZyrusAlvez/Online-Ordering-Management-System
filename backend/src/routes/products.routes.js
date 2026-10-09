@@ -9,30 +9,31 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 
 const router = Router();
 
-const staff = [requireAuth, requireRole('admin', 'cashier')];
-const adminOnly = [requireAuth, requireRole('admin')];
+// One menu and price list for every branch, so only the super admin edits it.
+// (A branch marks items sold out for itself through /admin/branches.)
+const superAdmin = [requireAuth, requireRole('super_admin')];
 
 router.get('/', validate({ query: productListQuery }), asyncHandler(products.list));
 router.get('/:id', validate({ params: idParam }), asyncHandler(products.get));
 
-router.post('/', staff, validate({ body: productBody }), asyncHandler(products.create));
+router.post('/', superAdmin, validate({ body: productBody }), asyncHandler(products.create));
 
 router.patch(
   '/:id',
-  staff,
+  superAdmin,
   validate({ params: idParam, body: productBody.partial() }),
   asyncHandler(products.update),
 );
 
 router.put(
   '/:id/image',
-  staff,
+  superAdmin,
   validate({ params: idParam }),
   imageBody,
   asyncHandler(products.setImage),
 );
-router.delete('/:id/image', staff, validate({ params: idParam }), asyncHandler(products.clearImage));
+router.delete('/:id/image', superAdmin, validate({ params: idParam }), asyncHandler(products.clearImage));
 
-router.delete('/:id', adminOnly, validate({ params: idParam }), asyncHandler(products.remove));
+router.delete('/:id', superAdmin, validate({ params: idParam }), asyncHandler(products.remove));
 
 export default router;

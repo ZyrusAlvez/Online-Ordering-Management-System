@@ -2,18 +2,20 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api.js';
 import { useFetch } from '../../lib/hooks.js';
+import { useSelectedBranch } from '../../lib/branches.js';
 import { money } from '../../lib/format.js';
 import { useCart } from '../../context/CartContext.jsx';
 import { useToast } from '../../context/ToastContext.jsx';
 import PhoneInput from '../../components/PhoneInput.jsx';
 import AddressFields, { blankAddress, cleanAddress, fromSaved } from '../../components/AddressFields.jsx';
-import { Button, Card, Empty, ErrorNote, Field, Input, Segmented, Textarea } from '../../components/ui.jsx';
+import { Button, Card, Empty, ErrorNote, Field, Input, Segmented, Select, Textarea } from '../../components/ui.jsx';
 import { Minus, Plus, Trash } from '../../components/icons.jsx';
 
 export default function Checkout() {
   const cart = useCart();
   const toast = useToast();
   const navigate = useNavigate();
+  const { branch, branches, select: selectBranch } = useSelectedBranch();
 
   const [fulfillment, setFulfillment] = useState('pickup');
   const [payment, setPayment] = useState('cash');
@@ -71,6 +73,7 @@ export default function Checkout() {
     try {
       const clean = (v) => v.trim() || undefined;
       const body = {
+        branch_id: branch?.id,
         fulfillment_type: fulfillment,
         payment_method: payment,
         customer_phone: clean(phone),
@@ -119,6 +122,19 @@ export default function Checkout() {
         <h1 className="font-display text-4xl">
           Checkout
         </h1>
+
+        <Card className="space-y-4">
+          <h2 className="text-lg font-bold">Which branch?</h2>
+          <Field label="Order from">
+            <Select required value={branch?.id ?? ''} onChange={(e) => selectBranch(e.target.value)}>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </Card>
 
         <Card className="space-y-4">
           <h2 className="text-lg font-bold">How would you like it?</h2>

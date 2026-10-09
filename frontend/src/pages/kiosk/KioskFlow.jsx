@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import MenuBrowser from '../../components/MenuBrowser.jsx';
-import { Logo } from '../../components/Logo.jsx';
+import { Logo, RESTAURANT } from '../../components/Logo.jsx';
 import { Button, ErrorNote, Input } from '../../components/ui.jsx';
 import { Cart, Check, ChefHat, Minus, Plus, Store, Trash } from '../../components/icons.jsx';
 import { useCart } from '../../context/CartContext.jsx';
@@ -26,7 +26,7 @@ function useSecretLock(onLock) {
   };
 }
 
-function Attract({ onStart, onSecretTap }) {
+function Attract({ branchName, onStart, onSecretTap }) {
   const logo = useSiteImage('logo');
   return (
     <button
@@ -43,10 +43,10 @@ function Attract({ onStart, onSecretTap }) {
         className="relative h-48 w-48 rounded-full object-cover ring-1 ring-line"
       />
       <div className="relative">
-        <h1 className="font-script text-7xl text-ink">3K Kitchen</h1>
-        <p className="mt-2 text-lg font-medium uppercase tracking-[0.3em] text-sun-dark">
-          GMA Terminal Branch
-        </p>
+        <h1 className="font-script text-7xl text-ink">{RESTAURANT}</h1>
+        {branchName && (
+          <p className="mt-2 text-lg font-medium uppercase tracking-[0.3em] text-sun-dark">{branchName} Branch</p>
+        )}
       </div>
       <span className="relative animate-pulse rounded-2xl bg-brand px-14 py-6 text-3xl font-semibold text-white">
         Touch to order
@@ -317,6 +317,12 @@ export default function KioskFlow({ onLock }) {
   const [placed, setPlaced] = useState(null);
   const secretTap = useSecretLock(onLock);
 
+  // Which branch this device orders for, shown on the attract screen.
+  const [device, setDevice] = useState(null);
+  useEffect(() => {
+    kioskApi.call('get', '/kiosk/me', undefined, onLock).then((res) => setDevice(res.data), () => {});
+  }, [onLock]);
+
   const reset = useCallback(() => {
     cart.clear();
     setType(null);
@@ -342,7 +348,9 @@ export default function KioskFlow({ onLock }) {
     };
   }, [step, reset]);
 
-  if (step === 'attract') return <Attract onStart={() => setStep('type')} onSecretTap={secretTap} />;
+  if (step === 'attract') {
+    return <Attract branchName={device?.branch?.name} onStart={() => setStep('type')} onSecretTap={secretTap} />;
+  }
   if (step === 'type') {
     return (
       <ChooseType

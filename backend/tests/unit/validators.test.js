@@ -91,6 +91,7 @@ describe('registerSchema', () => {
 
 describe('createOnlineOrderSchema', () => {
   const base = {
+    branch_id: UUID,
     payment_method: 'cash',
     items: [{ product_id: UUID, quantity: 1 }],
   };

@@ -8,14 +8,17 @@ import { cancelPendingGcash } from './payment.service.js';
 const now = () => new Date().toISOString();
 
 /**
- * Unclaimed delivery orders the kitchen has finished. Riders take from this
- * shared pool rather than being dispatched, so the queue self-balances and
- * does not stall when nobody is watching a dispatcher screen.
+ * Unclaimed delivery orders the kitchen has finished, at the rider's branch.
+ * Riders take from this shared pool rather than being dispatched, so the queue
+ * self-balances and does not stall when nobody is watching a dispatcher screen.
  */
-export const listPool = async () => {
+export const listPool = async (branchIds) => {
+  if (!branchIds.length) return [];
+
   const { data, error } = await supabaseAdmin
     .from('orders')
     .select(WITH_ITEMS)
+    .in('branch_id', branchIds)
     .eq('status', 'ready')
     .eq('fulfillment_type', 'delivery')
     .is('rider_id', null)
@@ -56,7 +59,7 @@ export const listRiderOrders = async (riderId, { page, limit, active }) => {
  * of them. The loser updates zero rows and gets a 409 — no read-then-write, no
  * transaction, no lock.
  */
-export const claimOrder = async (orderId, riderId) => {
+export const claimOrder = async (orderId, riderId, branchIds) => {
   const { data, error } = await supabaseAdmin
     .from('orders')
     .update({
@@ -66,6 +69,8 @@ export const claimOrder = async (orderId, riderId) => {
       updated_at: now(),
     })
     .eq('id', orderId)
+    // Only from their own branch's pool.
+    .in('branch_id', branchIds)
     .eq('status', 'ready')
     .eq('fulfillment_type', 'delivery')
     .is('rider_id', null)

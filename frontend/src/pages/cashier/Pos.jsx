@@ -15,6 +15,7 @@ import {
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useToast } from '../../context/ToastContext.jsx';
 import { StaffBar } from '../../components/Layouts.jsx';
+import { BranchPicker, StaffBranchProvider, useStaffBranch } from '../../components/StaffBranch.jsx';
 import StaffInbox from '../../components/chat/StaffInbox.jsx';
 import ItemsEditor, { linesFromOrder } from '../../components/ItemsEditor.jsx';
 import { MapLink, MethodLabel, OrderLines, PaymentBadge, StatusBadge, addressLine } from '../../components/OrderParts.jsx';
@@ -431,14 +432,14 @@ function OrderPanel({ orderId, onChanged, onClose }) {
   );
 }
 
-function WalkInModal({ onClose, onCreated }) {
+function WalkInModal({ branch, onClose, onCreated }) {
   const toast = useToast();
   const [name, setName] = useState('');
   const [type, setType] = useState('dine_in');
   const [method, setMethod] = useState('cash');
 
   return (
-    <Modal open onClose={onClose} title="New walk-in order" wide>
+    <Modal open onClose={onClose} title={`New walk-in order · ${branch.name}`} wide>
       <ItemsEditor
         submitLabel="Create order"
         canSubmit={Boolean(name.trim())}
@@ -471,7 +472,7 @@ function WalkInModal({ onClose, onCreated }) {
         onSubmit={async (items) => {
           const { data } = await api.post(
             '/pos/orders',
-            { fulfillment_type: type, customer_name: name.trim(), payment_method: method, items },
+            { branch_id: branch.id, fulfillment_type: type, customer_name: name.trim(), payment_method: method, items },
             { auth: true },
           );
           toast.success(`Order ${data.order_number} created`);
@@ -483,8 +484,19 @@ function WalkInModal({ onClose, onCreated }) {
   );
 }
 
+// A register works at one branch. A cashier login has exactly one; an admin of
+// several picks which register they are standing at.
 export default function Pos() {
+  return (
+    <StaffBranchProvider storageKey="3k.posBranch">
+      <Register />
+    </StaffBranchProvider>
+  );
+}
+
+function Register() {
   const { logout } = useAuth();
+  const { branch, branchId } = useStaffBranch();
   const wide = useMedia('(min-width: 1024px)');
   const [tab, setTab] = useState('active');
   const [channel, setChannel] = useState('');
@@ -493,7 +505,10 @@ export default function Pos() {
   const [selected, setSelected] = useState(null);
   const [walkIn, setWalkIn] = useState(false);
   const [messages, setMessages] = useState(false);
-  const inbox = useInbox();
+  const inbox = useInbox(branchId);
+
+  // Switching registers: the open order belongs to the other branch.
+  useEffect(() => setSelected(null), [branchId]);
 
   // The API filters by one status at a time. Fetching "the latest 100 orders" and
   // filtering here meant that on a busy day the Active and Cancelled tabs silently
@@ -501,16 +516,17 @@ export default function Pos() {
   // for exactly the statuses it shows and merges them.
   const statuses = { active: ACTIVE, completed: ['completed'], closed: ['cancelled', 'voided'] }[tab] ?? [undefined];
   const { data, error, loading, reload, refresh } = useFetch(async () => {
+    if (!branchId) return { data: [] };
     const pages = await Promise.all(
       statuses.map((status) =>
         api.get('/pos/orders', {
           auth: true,
-          query: { limit: 100, q: q || undefined, channel: channel || undefined, status },
+          query: { branch_id: branchId, limit: 100, q: q || undefined, channel: channel || undefined, status },
         }),
       ),
     );
     return { data: pages.flatMap((p) => p.data) };
-  }, [q, channel, tab]);
+  }, [q, channel, tab, branchId]);
 
   useEffect(() => subscribeToOrders(() => refresh()), [refresh]);
 
@@ -536,7 +552,8 @@ export default function Pos() {
 
   return (
     <div className="min-h-screen bg-cream">
-      <StaffBar title="Cashier" onLogout={logout}>
+      <StaffBar title="Cashier" subtitle={branch?.name} onLogout={logout}>
+        <BranchPicker />
         <button
           onClick={() => setMessages(true)}
           className="relative flex items-center gap-1.5 rounded-xl bg-ink/5 px-3 py-2 text-sm font-medium text-ink transition hover:bg-ink/10"
@@ -548,7 +565,7 @@ export default function Pos() {
             </span>
           )}
         </button>
-        <Button tone="sun" size="sm" onClick={() => setWalkIn(true)}>
+        <Button tone="sun" size="sm" onClick={() => setWalkIn(true)} disabled={!branch}>
           <Plus size={16} /> Walk-in
         </Button>
       </StaffBar>
@@ -620,7 +637,7 @@ export default function Pos() {
       )}
 
       {messages && <StaffInbox inbox={inbox} onClose={() => setMessages(false)} />}
-      {walkIn && <WalkInModal onClose={() => setWalkIn(false)} onCreated={setSelected} />}
+      {walkIn && branch && <WalkInModal branch={branch} onClose={() => setWalkIn(false)} onCreated={setSelected} />}
     </div>
   );
 }

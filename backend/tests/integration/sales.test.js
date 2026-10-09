@@ -3,7 +3,7 @@ import { after, before, describe, it } from 'node:test';
 import { get } from '../helpers/client.js';
 import { tokenFor } from '../helpers/auth.js';
 import { db } from '../helpers/db.js';
-import { cleanup, flatPricedProduct, allProducts, track, variantPricedProduct } from '../helpers/fixtures.js';
+import { allProducts, branchId, cleanup, flatPricedProduct, track, variantPricedProduct } from '../helpers/fixtures.js';
 import { manilaToday } from '../../src/utils/manilaDate.js';
 
 /**
@@ -41,10 +41,12 @@ const makeOrder = async ({
   total,
   created = at(DAY),
   lines = [],
+  branch = 'gma',
 }) => {
   const { data, error } = await db
     .from('orders')
     .insert({
+      branch_id: await branchId(branch),
       channel,
       fulfillment_type: fulfillment,
       customer_name: 'Sales Test',

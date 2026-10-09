@@ -21,6 +21,8 @@ const kioskLimiter = rateLimit({
 
 router.use(requireKiosk);
 
+router.get('/me', kiosk.me);
+
 router.post(
   '/orders',
   kioskLimiter,

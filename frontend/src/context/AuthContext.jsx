@@ -16,8 +16,12 @@ export const HOME_FOR_ROLE = {
   customer: '/menu',
   rider: '/driver',
   admin: '/admin',
+  super_admin: '/admin',
   cashier: '/cashier',
 };
+
+/** An admin manages its own branches; a super admin manages every branch. */
+export const ADMIN_ROLES = ['admin', 'super_admin'];
 
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(getSession);
@@ -38,8 +42,9 @@ export function AuthProvider({ children }) {
     return result;
   }, []);
 
-  const loginCashier = useCallback(async (password) => {
-    const result = await api.post('/employee/cashier/login', { password });
+  // Each branch has its own register login.
+  const loginCashier = useCallback(async (branchId, password) => {
+    const result = await api.post('/employee/cashier/login', { branch_id: branchId, password });
     saveSession(result);
     return result;
   }, []);

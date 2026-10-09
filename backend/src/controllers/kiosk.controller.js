@@ -23,6 +23,7 @@ export const createOrder = async (req, res) => {
   const body = req.body;
 
   const order = await orderService.createOrder({
+    branchId: req.kiosk.branch_id,
     items: body.items,
     channel: 'kiosk',
     fulfillmentType: body.fulfillment_type,
@@ -51,6 +52,12 @@ export const createOrder = async (req, res) => {
   }
 
   res.status(201).json({ data: { order, payment } });
+};
+
+/** Which device this is and the branch it orders for, for the attract screen. */
+export const me = (req, res) => {
+  const { id, name, branch } = req.kiosk;
+  res.json({ data: { id, name, branch } });
 };
 
 /**

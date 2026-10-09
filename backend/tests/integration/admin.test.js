@@ -3,11 +3,12 @@ import { after, before, describe, it } from 'node:test';
 import { del, get, patch, post } from '../helpers/client.js';
 import { tokenFor } from '../helpers/auth.js';
 import { db } from '../helpers/db.js';
-import { cleanup, cleanupKiosks, placeWalkInOrder } from '../helpers/fixtures.js';
+import { branchId, cleanup, cleanupKiosks, placeWalkInOrder } from '../helpers/fixtures.js';
 
 let admin;
 let cashier;
 let customer;
+let gma;
 const createdRiders = [];
 const createdKiosks = [];
 
@@ -15,6 +16,7 @@ before(async () => {
   admin = await tokenFor('admin');
   cashier = await tokenFor('cashier');
   customer = await tokenFor('customer');
+  gma = await branchId('gma');
 });
 
 after(async () => {
@@ -77,7 +79,7 @@ describe('GET /admin/orders', () => {
 
 describe('kiosk device management', () => {
   it('issues a device and returns the raw key exactly once', async () => {
-    const res = await post('/admin/kiosks', { name: 'Test Terminal' }, { token: admin });
+    const res = await post('/admin/kiosks', { name: 'Test Terminal', branch_id: gma }, { token: admin });
 
     assert.equal(res.status, 201);
     assert.match(res.body.data.key, /^kiosk_/);
@@ -91,7 +93,7 @@ describe('kiosk device management', () => {
   });
 
   it('stores only a hash of the key', async () => {
-    const res = await post('/admin/kiosks', { name: 'Hash Check' }, { token: admin });
+    const res = await post('/admin/kiosks', { name: 'Hash Check', branch_id: gma }, { token: admin });
     createdKiosks.push(res.body.data.id);
 
     const { data } = await db
@@ -104,12 +106,13 @@ describe('kiosk device management', () => {
     assert.notEqual(data.key_hash, res.body.data.key);
   });
 
-  it('requires a name', async () => {
-    assert.equal((await post('/admin/kiosks', {}, { token: admin })).status, 400);
+  it('requires a name and a branch', async () => {
+    assert.equal((await post('/admin/kiosks', { branch_id: gma }, { token: admin })).status, 400);
+    assert.equal((await post('/admin/kiosks', { name: 'No Branch' }, { token: admin })).status, 400);
   });
 
   it('revokes a device', async () => {
-    const created = await post('/admin/kiosks', { name: 'To Revoke' }, { token: admin });
+    const created = await post('/admin/kiosks', { name: 'To Revoke', branch_id: gma }, { token: admin });
     createdKiosks.push(created.body.data.id);
 
     const res = await del(`/admin/kiosks/${created.body.data.id}`, { token: admin });
@@ -131,13 +134,14 @@ describe('rider account management', () => {
     const email = `rider.test.${Date.now()}@3k.local`;
     const res = await post(
       '/admin/riders',
-      { email, password: 'testpass12345', full_name: 'Test Rider', phone: '09171112222' },
+      { branch_id: gma, email, password: 'testpass12345', full_name: 'Test Rider', phone: '09171112222' },
       { token: admin },
     );
 
     assert.equal(res.status, 201);
     assert.equal(res.body.data.role, 'rider');
     assert.equal(res.body.data.full_name, 'Test Rider');
+    assert.deepEqual(res.body.data.branches.map((b) => b.id), [gma], 'a rider works at one branch');
     createdRiders.push(res.body.data.id);
   });
 
@@ -145,7 +149,7 @@ describe('rider account management', () => {
     const email = `rider.jwt.${Date.now()}@3k.local`;
     const created = await post(
       '/admin/riders',
-      { email, password: 'testpass12345', full_name: 'JWT Rider' },
+      { branch_id: gma, email, password: 'testpass12345', full_name: 'JWT Rider' },
       { token: admin },
     );
     createdRiders.push(created.body.data.id);
@@ -160,10 +164,19 @@ describe('rider account management', () => {
     for (const profile of res.body.data) assert.equal(profile.role, 'rider');
   });
 
+  it('requires a branch', async () => {
+    const res = await post(
+      '/admin/riders',
+      { email: `nobranch${Date.now()}@3k.local`, password: 'testpass12345', full_name: 'X' },
+      { token: admin },
+    );
+    assert.equal(res.status, 400);
+  });
+
   it('rejects a weak password', async () => {
     const res = await post(
       '/admin/riders',
-      { email: `x${Date.now()}@3k.local`, password: 'short', full_name: 'X' },
+      { branch_id: gma, email: `x${Date.now()}@3k.local`, password: 'short', full_name: 'X' },
       { token: admin },
     );
     assert.equal(res.status, 400);
@@ -172,7 +185,7 @@ describe('rider account management', () => {
   it('rejects a malformed email', async () => {
     const res = await post(
       '/admin/riders',
-      { email: 'not-an-email', password: 'testpass12345', full_name: 'X' },
+      { branch_id: gma, email: 'not-an-email', password: 'testpass12345', full_name: 'X' },
       { token: admin },
     );
     assert.equal(res.status, 400);
@@ -182,7 +195,7 @@ describe('rider account management', () => {
     const email = `rider.deact.${Date.now()}@3k.local`;
     const created = await post(
       '/admin/riders',
-      { email, password: 'testpass12345', full_name: 'Deactivate Me' },
+      { branch_id: gma, email, password: 'testpass12345', full_name: 'Deactivate Me' },
       { token: admin },
     );
     createdRiders.push(created.body.data.id);
@@ -210,7 +223,7 @@ describe('rider account management', () => {
     const { data: adminProfile } = await db
       .from('profiles')
       .select('id')
-      .eq('role', 'admin')
+      .eq('role', 'super_admin')
       .limit(1)
       .single();
 

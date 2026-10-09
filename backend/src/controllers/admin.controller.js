@@ -5,12 +5,14 @@ import * as paymentService from '../services/payment.service.js';
 import * as profileService from '../services/profile.service.js';
 import * as salesService from '../services/sales.service.js';
 import * as siteService from '../services/site.service.js';
+import { assertBranchAccess, branchFilter } from '../utils/branchScope.js';
 import { buildMeta } from '../utils/pagination.js';
 
 // --- Orders ----------------------------------------------------------------
 export const listOrders = async (req, res) => {
   const { page, limit, status, payment_status: paymentStatus, channel, from, to } = req.query;
   const { data, total } = await orderService.listOrders({
+    branchIds: branchFilter(req.branchScope, req.query.branch_id),
     page,
     limit,
     status,
@@ -32,16 +34,23 @@ export const retryRefund = async (req, res) => {
 // --- Riders ----------------------------------------------------------------
 export const listRiders = async (req, res) => {
   const { page, limit } = req.query;
-  const { data, total } = await profileService.listProfiles({ role: 'rider', page, limit });
+  const { data, total } = await profileService.listProfiles({
+    roles: ['rider'],
+    branchIds: branchFilter(req.branchScope, req.query.branch_id),
+    page,
+    limit,
+  });
 
   res.json({ data, meta: buildMeta({ page, limit, total }) });
 };
 
 export const createRider = async (req, res) => {
-  const data = await profileService.createStaffUser({
+  assertBranchAccess(req.branchScope, req.body.branch_id);
+
+  const data = await profileService.createRider({
+    branchId: req.body.branch_id,
     email: req.body.email,
     password: req.body.password,
-    role: 'rider',
     fullName: req.body.full_name,
     phone: req.body.phone,
   });
@@ -50,37 +59,69 @@ export const createRider = async (req, res) => {
 };
 
 export const updateRider = async (req, res) => {
-  res.json({ data: await profileService.updateRider(req.params.id, req.body) });
+  res.json({ data: await profileService.updateRider(req.params.id, req.body, req.branchScope) });
 };
 
 // --- Kiosk devices ---------------------------------------------------------
-export const listKiosks = async (_req, res) => {
-  res.json({ data: await kioskDeviceService.listKioskDevices() });
+export const listKiosks = async (req, res) => {
+  const branchIds = branchFilter(req.branchScope, req.query.branch_id);
+  res.json({ data: await kioskDeviceService.listKioskDevices({ branchIds }) });
 };
 
 export const createKiosk = async (req, res) => {
-  res.status(201).json({ data: await kioskDeviceService.issueKioskDevice(req.body.name) });
+  assertBranchAccess(req.branchScope, req.body.branch_id);
+  res.status(201).json({ data: await kioskDeviceService.issueKioskDevice(req.body.name, req.body.branch_id) });
 };
 
 export const revokeKiosk = async (req, res) => {
-  await kioskDeviceService.revokeKioskDevice(req.params.id);
+  await kioskDeviceService.revokeKioskDevice(req.params.id, { branchIds: branchFilter(req.branchScope) });
   res.status(204).send();
 };
 
-// --- Employee gate passwords -----------------------------------------------
+// --- Employee gate passwords (per branch) ----------------------------------
 export const setEmployeePassword = async (req, res) => {
   const { role } = req.params;
-  const { password } = req.body;
+  const { password, branch_id: branchId } = req.body;
+  assertBranchAccess(req.branchScope, branchId);
 
-  if (role === 'cashier') await employeeService.setCashierPassword(password);
-  else await employeeService.setKioskPassword(password, req.user.id);
+  if (role === 'cashier') await employeeService.setCashierPassword(branchId, password);
+  else await employeeService.setKioskPassword(branchId, password, req.user.id);
 
   res.status(204).send();
 };
 
 // --- Sales report ----------------------------------------------------------
 export const salesReport = async (req, res) => {
-  res.json({ data: await salesService.getSalesReport(req.query) });
+  const { branch_id: branchId, ...range } = req.query;
+  const data = await salesService.getSalesReport({
+    ...range,
+    branchIds: branchFilter(req.branchScope, branchId),
+  });
+  res.json({ data });
+};
+
+// --- Admin accounts (super admin) ------------------------------------------
+export const listAdmins = async (req, res) => {
+  const { page, limit } = req.query;
+  const { data, total } = await profileService.listAdmins({ page, limit });
+
+  res.json({ data, meta: buildMeta({ page, limit, total }) });
+};
+
+export const createAdmin = async (req, res) => {
+  const data = await profileService.createAdmin({
+    branchIds: req.body.branch_ids,
+    email: req.body.email,
+    password: req.body.password,
+    fullName: req.body.full_name,
+    phone: req.body.phone,
+  });
+
+  res.status(201).json({ data });
+};
+
+export const updateAdmin = async (req, res) => {
+  res.json({ data: await profileService.updateAdmin(req.params.id, req.body) });
 };
 
 // --- Site images (logo, promo) ---------------------------------------------

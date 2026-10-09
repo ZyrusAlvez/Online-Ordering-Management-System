@@ -5,10 +5,13 @@ import { dateTime, timeAgo } from '../../lib/format.js';
 import { useToast } from '../../context/ToastContext.jsx';
 import { Badge, Button, Empty, ErrorNote, Field, Input, Modal, PageLoader } from '../../components/ui.jsx';
 import { Plus } from '../../components/icons.jsx';
+import { BranchSelect, useStaffBranch } from '../../components/StaffBranch.jsx';
 
 function IssueKiosk({ onClose, onIssued }) {
   const toast = useToast();
+  const { branchId: viewing, branches } = useStaffBranch();
   const [name, setName] = useState('');
+  const [branchId, setBranchId] = useState(viewing || (branches.length === 1 ? branches[0].id : ''));
   const [issued, setIssued] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -18,7 +21,7 @@ function IssueKiosk({ onClose, onIssued }) {
     setBusy(true);
     setError(null);
     try {
-      const { data } = await api.post('/admin/kiosks', { name: name.trim() }, { auth: true });
+      const { data } = await api.post('/admin/kiosks', { name: name.trim(), branch_id: branchId }, { auth: true });
       setIssued(data);
       onIssued();
     } catch (err) {
@@ -54,6 +57,7 @@ function IssueKiosk({ onClose, onIssued }) {
             Kiosks normally register themselves with the employee password. Issue a key manually only
             if you need to set one up by hand.
           </p>
+          <BranchSelect value={branchId} onChange={setBranchId} />
           <Field label="Device name"><Input required autoFocus maxLength={120} value={name} onChange={(e) => setName(e.target.value)} placeholder="Front counter kiosk" /></Field>
           <ErrorNote error={error} />
           <Button type="submit" size="lg" className="w-full" loading={busy}>Issue key</Button>
@@ -65,10 +69,11 @@ function IssueKiosk({ onClose, onIssued }) {
 
 export default function AdminKiosks() {
   const toast = useToast();
+  const { branchId, query: branchQuery } = useStaffBranch();
   const [issuing, setIssuing] = useState(false);
   const { data, error, loading, reload, refresh } = useFetch(
-    () => api.get('/admin/kiosks', { auth: true }),
-    [],
+    () => api.get('/admin/kiosks', { auth: true, query: branchQuery }),
+    [branchId],
   );
 
   const revoke = async (device) => {
@@ -93,7 +98,7 @@ export default function AdminKiosks() {
       <ErrorNote error={error} onRetry={reload} />
       {loading && !data && <PageLoader />}
       {!loading && !error && devices.length === 0 && (
-        <Empty title="No kiosk devices" hint="A kiosk registers here the first time it is unlocked with the employee password." />
+        <Empty title="No kiosk devices" hint="A kiosk registers here the first time it is unlocked with its branch's employee password." />
       )}
       <div className="space-y-2">
         {devices.map((d) => (
@@ -101,7 +106,7 @@ export default function AdminKiosks() {
             <div>
               <p className="font-bold">{d.name}</p>
               <p className="text-xs text-ink-soft">
-                <code>{d.key_prefix}…</code> · created {dateTime(d.created_at)} ·{' '}
+                {d.branch?.name ?? 'No branch'} · <code>{d.key_prefix}…</code> · created {dateTime(d.created_at)} ·{' '}
                 {d.last_seen_at ? `last seen ${timeAgo(d.last_seen_at)}` : 'never used'}
               </p>
             </div>

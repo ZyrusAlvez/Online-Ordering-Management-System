@@ -4,7 +4,7 @@ import { after, before, describe, it } from 'node:test';
 import { get, post } from '../helpers/client.js';
 import { tokenFor } from '../helpers/auth.js';
 import { db, setOrderState } from '../helpers/db.js';
-import { cleanup, placeOnlineOrder } from '../helpers/fixtures.js';
+import { branchId, cleanup, placeOnlineOrder } from '../helpers/fixtures.js';
 
 // 1x1 PNG.
 const PNG = Buffer.from(
@@ -52,7 +52,7 @@ after(async () => {
  */
 const guestThread = async () => {
   const token = `chat_${randomBytes(12).toString('base64url')}`;
-  const { data, error } = await db.from('chat_threads').insert({ kind: 'support' }).select('id').single();
+  const { data, error } = await db.from('chat_threads').insert({ kind: 'support', branch_id: await branchId() }).select('id').single();
   assert.equal(error, null);
   threadIds.push(data.id);
   await db.from('chat_thread_secrets').insert({ thread_id: data.id, token_hash: createHash('sha256').update(token).digest('hex') });

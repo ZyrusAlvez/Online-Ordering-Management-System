@@ -1,12 +1,26 @@
 import { useState } from 'react';
-import { useAuth } from '../../context/AuthContext.jsx';
+import { ADMIN_ROLES, useAuth } from '../../context/AuthContext.jsx';
+import { useBranches } from '../../lib/branches.js';
 import { Logo } from '../../components/Logo.jsx';
-import { Button, Card, ErrorNote, Field, Input } from '../../components/ui.jsx';
+import { Button, Card, ErrorNote, Field, Input, Select } from '../../components/ui.jsx';
 import { Lock } from '../../components/icons.jsx';
 import Pos from './Pos.jsx';
 
+// The register remembers its branch, so staff only type the password each shift.
+const BRANCH_KEY = '3k.registerBranch';
+const rememberedBranch = () => {
+  try {
+    return localStorage.getItem(BRANCH_KEY) ?? '';
+  } catch {
+    return '';
+  }
+};
+
 function CashierGate() {
   const { loginCashier } = useAuth();
+  const { branches } = useBranches();
+  const [picked, setPicked] = useState(rememberedBranch);
+  const branchId = branches.some((b) => b.id === picked) ? picked : '';
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -16,7 +30,12 @@ function CashierGate() {
     setBusy(true);
     setError(null);
     try {
-      await loginCashier(password);
+      try {
+        localStorage.setItem(BRANCH_KEY, branchId);
+      } catch {
+        // not remembered; they pick it again next time
+      }
+      await loginCashier(branchId, password);
     } catch (err) {
       setError(err);
       setBusy(false);
@@ -37,6 +56,18 @@ function CashierGate() {
           </div>
         </div>
         <form onSubmit={submit} className="space-y-4">
+          <Field label="Branch">
+            <Select required value={branchId} onChange={(e) => setPicked(e.target.value)}>
+              <option value="" disabled>
+                Choose this register's branch
+              </option>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
           <Field label="Employee password">
             <Input
               type="password"
@@ -61,6 +92,6 @@ function CashierGate() {
 export default function CashierApp() {
   const { isAuthed, role } = useAuth();
   // Admins may also use the register; any other signed-in role still gets the gate.
-  if (isAuthed && ['cashier', 'admin'].includes(role)) return <Pos />;
+  if (isAuthed && ['cashier', ...ADMIN_ROLES].includes(role)) return <Pos />;
   return <CashierGate />;
 }
