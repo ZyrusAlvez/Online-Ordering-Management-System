@@ -235,7 +235,7 @@ branches** in the switcher), the left menu adds:
 | **Menu** | Also add and rename categories; add, edit, switch off at every branch ("Off everywhere") or delete dishes; set prices, size options and choices; upload, replace or remove a **photo** per dish. A dish that has been ordered cannot be deleted (switch it off instead), and an option that appears in past orders cannot be removed (clear its price to hide it) |
 | **Branches** | **New branch** and **Edit**: name, code (a short id, fixed once created), address, phone, **location** (drop the pin on the map, or search; the address fills in), **opening hours** in Manila time (or **Open 24 hours**), and **Open for orders**. Unticking it closes a branch: it leaves the map and takes no orders, but keeps its history. Branches are never deleted |
 | **Admins** | **New admin** (name, email, temporary password, phone, and the **branches they manage**, at least one); **Branches** changes an admin's branches (it applies at once); **Deactivate** locks them out. Super admins are listed but not editable here |
-| **Site images** | Replace the **logo** and the home-page **promo photo**, or reset them to the defaults |
+| **Site images** | Replace the **logo** (header, home page, kiosk), or reset it to the default |
 
 Photos you upload are shrunk in your browser first, so even a large camera photo is fine.
 

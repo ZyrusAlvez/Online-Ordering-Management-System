@@ -23,7 +23,7 @@ You need a Supabase project with the migrations applied first: [getting-started]
 | `npm run seed:accounts` | Create or reset the super admin, GMA cashier and GMA kiosk passwords |
 | `node --env-file=.env scripts/dev/seed-test-users.mjs` | Test customers, riders, and the Imus admin and cashier |
 | `npm run seed:menu` | Regenerate `supabase/seed.sql` from `supabase/seed-data/menu.json` |
-| `npm run seed:brand` | Upload the bundled logo and promo to Storage |
+| `npm run seed:brand` | Upload the bundled logo to Storage |
 | `npm run seed:product-images` | Placeholder photos for every dish |
 | `node --env-file=.env scripts/dev/check-rls.mjs` | Check what each role (and each branch's staff) is allowed to read |
 

@@ -25,7 +25,7 @@ node --env-file=.env scripts/dev/seed-test-users.mjs      # customers, riders, I
 
 | Role | Email | Password | Where to sign in | Access |
 | --- | --- | --- | --- | --- |
-| **Super admin** | `admin@3k.local` | `admin-3k-2026` | `/login` → lands on `/admin` (Sales) | Every branch: sales (with sales by branch), all orders and refunds, the shared menu and product photos, riders, kiosk devices, employee passwords of every branch, **Branches** (add/edit), **Admins** (create branch admins), site images (logo, promo). |
+| **Super admin** | `admin@3k.local` | `admin-3k-2026` | `/login` → lands on `/admin` (Sales) | Every branch: sales (with sales by branch), all orders and refunds, the shared menu and product photos, riders, kiosk devices, employee passwords of every branch, **Branches** (add/edit), **Admins** (create branch admins), site images (the logo). |
 | **Branch admin (Imus)** | `admin.imus@3k.local` | `testpass12345` | `/login` → `/admin` | Imus only: its sales, orders, riders, kiosks, employee passwords and sold-out dishes. Sees nothing of the other branches, and no Branches, Admins or Site images pages. |
 | **Cashier (GMA Terminal)** | *(none, password only)* | `cashier123` | `/cashier` → Branch **GMA Terminal** + password | Point of sale for GMA Terminal: order queue (scheduled orders highlighted), walk-in orders, confirm and advance orders, take cash or GCash, void (GCash orders are refunded), edit items, **Messages** inbox for GMA's website chats. Cannot open `/admin` or `/driver`. |
 | **Cashier (Imus)** | `cashier.imus@3k.local` | `testpass12345` | `/login`, or `/cashier` → Branch **Imus** + `testpass12345` | The same for Imus. Use it beside the GMA cashier to see that each register only shows its own branch. |
@@ -106,7 +106,7 @@ scheduled.
    landing map. Untick **Open for orders** to take it off the map.
 5. **Admins**: create an admin for two branches, log in as them, and check the switcher offers only those two.
 6. **Riders**: create a rider for a branch, deactivate or reactivate one.
-7. **Kiosks**: issue and revoke devices. **Site images**: replace the logo and home-page photo.
+7. **Kiosks**: issue and revoke devices. **Site images**: replace the logo.
 8. **Employee passwords**: choose a branch, change its cashier and kiosk passwords. Remember to change them
    back here (or re-run the seed command above) so this file stays accurate.
 9. Log in as the **Imus admin**: everything above shows Imus only; asking the API for GMA (`?branch_id=`) is a 403.

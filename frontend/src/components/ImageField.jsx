@@ -8,10 +8,9 @@ import { ChefHat } from './icons.jsx';
  * `onChange` receives `{ blob }` for a new image, `{ remove: true }` to clear
  * it, or null when the pick is undone — the caller decides when to send it.
  *
- *   current   the saved image URL, if any
- *   shape     'square' (product thumbnails) | 'wide' (promo banner)
+ *   current   the saved image URL, if any (shown as a square preview)
  */
-export default function ImageField({ current, onChange, shape = 'square', fallbackLabel = 'Default image' }) {
+export default function ImageField({ current, onChange, fallbackLabel = 'Default image' }) {
   const input = useRef(null);
   const [picked, setPicked] = useState(null); // { blob, url } | { remove: true } | null
   const [error, setError] = useState(null);
@@ -39,11 +38,10 @@ export default function ImageField({ current, onChange, shape = 'square', fallba
 
   const removed = picked?.remove;
   const shown = removed ? null : picked?.url ?? current;
-  const box = shape === 'wide' ? 'aspect-[5/4] w-48' : 'h-28 w-28';
 
   return (
     <div className="flex items-start gap-4">
-      <div className={`${box} shrink-0 overflow-hidden rounded-2xl bg-cream-deep ring-1 ring-ink/10`}>
+      <div className={`h-28 w-28 shrink-0 overflow-hidden rounded-2xl bg-cream-deep ring-1 ring-ink/10`}>
         {shown ? (
           <img src={shown} alt="" className="h-full w-full object-cover" />
         ) : (

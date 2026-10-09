@@ -560,12 +560,12 @@ checked, not just the header.
 | --- | --- | --- |
 | `PUT` | `/products/:id/image` | Super admin. Stores the file, sets `image_url`, deletes the previous upload. Returns `{ data: product }`. |
 | `DELETE` | `/products/:id/image` | Super admin. Clears `image_url` and deletes the stored file. |
-| `PUT` | `/admin/site-images/:key` | Super admin. `key` is `logo` or `promo`. Returns `{ data: { logo, promo } }`. |
+| `PUT` | `/admin/site-images/:key` | Super admin. `key` is `logo` (the only site image; anything else is `400`). Returns `{ data: { logo } }`. |
 | `DELETE` | `/admin/site-images/:key` | Super admin. Back to the bundled default (`null`). |
-| `GET` | `/site/images` | Public. `{ data: { logo, promo } }`; `null` means use the bundled `/brand/*.jpg`. |
+| `GET` | `/site/images` | Public. `{ data: { logo } }`; `null` means use the bundled `/brand/logo.jpg`. |
 
 `image_url` on `PATCH /products/:id` also accepts an external URL, or `null` to
-clear it. Seed the logo and promo from `frontend/public/brand` with
+clear it. Seed the logo from `frontend/public/brand` with
 `npm run seed:brand`.
 
 ---
@@ -686,6 +686,6 @@ rules.
 | Chat on a delivery | `GET` / `POST /orders/:id/chat` (customer), `/rider/orders/:id/chat` (rider) |
 | Send a photo in a chat | `POST` the raw image to the conversation's `…/images` route |
 | Upload a dish photo | `PUT /products/:id/image` (raw image); remove with `DELETE` |
-| Replace the logo or promo | `PUT /admin/site-images/:key` (`logo` or `promo`) |
+| Replace the logo | `PUT /admin/site-images/logo` |
 | Get sales figures | `GET /admin/sales?from=YYYY-MM-DD&to=YYYY-MM-DD` |
 | Change a branch's cashier or kiosk password | `PUT /admin/employee-passwords/:role` with `branch_id` |

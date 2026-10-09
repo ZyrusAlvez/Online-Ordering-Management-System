@@ -102,7 +102,7 @@ More in [architecture.md](./architecture.md) and [security.md](./security.md).
 │   ├── src/pages/            one folder per audience (customer, cashier, kiosk, driver, admin)
 │   ├── src/components/       shared pieces (chat, map, dialogs, buttons…)
 │   ├── src/lib/              API client, session, live updates, validation, formatting
-│   └── public/brand/         the logo and promo image bundled as defaults
+│   └── public/brand/         the logo bundled as the default
 ├── docs/                     this documentation
 └── .mcp.json                 Supabase MCP server address (no credentials)
 ```

@@ -34,7 +34,7 @@ Open the Supabase **SQL Editor**, paste each file in turn and run it (or use the
 | 3 | `20260912010000_harden_functions.sql` | Locks down the database functions |
 | 4 | `20260912020000_revoke_function_execute_from_public.sql` | Closes the functions to the public |
 | 5 | `20260920000000_employee_credentials.sql` | Hashed kiosk password |
-| 6 | `20260921000000_menu_images_storage.sql` | Public `menu-images` bucket and the logo/promo table |
+| 6 | `20260921000000_menu_images_storage.sql` | Public `menu-images` bucket and the site images table |
 | 7 | `20260922000000_chat.sql` | Chat conversations and messages |
 | 8 | `20260923000000_profile_address.sql` | Saved delivery address; closes direct profile edits |
 | 9 | `20260924000000_chat_guest_number.sql` | `Guest-1023` style guest numbers |
@@ -48,6 +48,7 @@ Open the Supabase **SQL Editor**, paste each file in turn and run it (or use the
 | 17 | `20261010010200_has_branch_access_invoker.sql` | Runs the branch check with the caller's own rights |
 | 18 | `20261010020000_branch_availability.sql` | Sold out at one branch |
 | 19 | `20261010030000_scheduled_orders.sql` | Scheduled online orders |
+| 20 | `20261011000000_remove_promo_image.sql` | Removes the promo photo: the logo is the only site image |
 
 Then load the menu: run `backend/supabase/seed.sql` in the same editor. It is safe to run twice. It is generated from
 `backend/supabase/seed-data/menu.json`; to change the menu, edit that file and run `npm run seed:menu` in `backend/`
@@ -123,7 +124,7 @@ The resulting logins are listed in [test-accounts.md](./test-accounts.md).
 ## 6. Optional: photos
 
 ```bash
-npm run seed:brand            # uploads the bundled logo and promo to Storage
+npm run seed:brand            # uploads the bundled logo to Storage
 npm run seed:product-images   # gives every dish a placeholder photo (openly licensed, see seed-data/product-images.json)
 ```
 
@@ -190,7 +191,7 @@ and only the GCash buttons answer "not configured".
 | | `npm run test:coverage` | Everything, with coverage |
 | | `npm run seed:accounts` | Create or reset the super admin, GMA cashier and GMA kiosk passwords |
 | | `npm run seed:menu` | Regenerate `seed.sql` from `menu.json` |
-| | `npm run seed:brand` | Upload logo and promo images |
+| | `npm run seed:brand` | Upload the logo |
 | | `npm run seed:product-images` | Placeholder dish photos |
 | | `node --env-file=.env scripts/dev/check-rls.mjs` | Check each role sees only what it should |
 | `frontend/` | `npm run dev` | App with hot reload |

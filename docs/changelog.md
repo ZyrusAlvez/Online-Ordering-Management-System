@@ -4,6 +4,13 @@ What has been built, grouped by feature, with the database migration that goes w
 numbers are the dates in the file names under `backend/supabase/migrations/`. Security-relevant changes are also
 listed in [security.md](./security.md#issues-found-and-fixed).
 
+## No promo photo; CARTO light maps
+*Migration `20261011000000_remove_promo_image.sql`*
+- The **promo photo is gone**: from the landing page, Admin → Site images (now the logo only), the API (`promo` is an
+  unknown key, `400`), the database (row removed, key check narrowed) and the bundled defaults. The stored file was
+  deleted through the API first.
+- Every map uses **CARTO's light tiles** (OpenStreetMap data), set once in `frontend/src/components/mapPins.js`.
+
 ## Multiple branches, branch admins, branch map and scheduled orders
 *Migrations `20261010000000_super_admin_role.sql`, `20261010010000_branches.sql`,
 `20261010010100_has_branch_access_anon.sql`, `20261010010200_has_branch_access_invoker.sql`,

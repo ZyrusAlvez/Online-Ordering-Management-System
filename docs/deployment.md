@@ -171,7 +171,7 @@ origin. Serving both from one domain (the proxy sending `/api` to Node) avoids C
 
 **Content**
 - [ ] Menu prices checked (a dish with no price cannot be ordered); real photos uploaded or placeholders accepted
-      (their credits are in `seed-data/product-images.json`); logo and promo set.
+      (their credits are in `seed-data/product-images.json`); logo set.
 - [ ] Kiosk devices unlocked and listed in Admin → Kiosks; a test order taken through every channel.
 
 **Verification**

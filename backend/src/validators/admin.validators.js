@@ -59,7 +59,8 @@ export const updateAdminSchema = z
   })
   .refine((body) => Object.keys(body).length > 0, { message: 'Nothing to update' });
 
-export const siteImageKeyParam = z.object({ key: z.enum(['logo', 'promo']) });
+// The only replaceable site image (the landing page's hero is the branch map, not a photo).
+export const siteImageKeyParam = z.object({ key: z.enum(['logo']) });
 
 export const roleSchema = z.object({ role: z.enum(ROLES) });
 

@@ -58,7 +58,7 @@ Running the system day to day, keeping it healthy, and fixing it when something 
 | **Lock a kiosk from the device** | Tap the logo on the start screen five times quickly and confirm |
 | **Forgot the super admin password, or GMA's cashier or kiosk password** | On the server: `SEED_ADMIN_PASSWORD=… SEED_CASHIER_PASSWORD=… SEED_KIOSK_PASSWORD=… node --env-file=.env scripts/seed-accounts.mjs`. Other branches' passwords: the super admin resets them in Employee passwords |
 | **Change someone's role** | Only the super admin, via `PATCH /admin/users/:id/role` ([api.md](./api.md)); there is no screen for it, deliberately. Admins are created from the Admins page |
-| **Change the logo or home photo** | Super admin → **Site images** |
+| **Change the logo** | Super admin → **Site images** |
 | **Change a dish, its price or photo** | Super admin → Menu → **Edit** the dish (the menu is shared by every branch) |
 
 ---

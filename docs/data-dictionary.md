@@ -81,7 +81,7 @@ The admin **Sales** page and `GET /admin/sales` use one definition everywhere:
 | `payment_status` | `unpaid`, `processing`, `paid`, `refund_pending`, `refunded`, `refund_failed`, `failed` | `processing` = a GCash payment has been started. `refund_failed` needs an admin retry. |
 | `chat_threads.kind` | `support`, `delivery` | Website visitor ↔ cashier, or customer ↔ rider. |
 | `chat_messages.sender_role` | `visitor`, `customer`, `cashier`, `rider` | |
-| `site_images.key` | `logo`, `promo` | The two brand images an admin can replace. |
+| `site_images.key` | `logo` | The brand image the super admin can replace. (`promo` was removed: the landing page's hero is the branch map.) |
 
 ---
 
@@ -230,7 +230,7 @@ Indexes: customer, `(status, channel)`, `(branch_id, status)`, `(branch_id, crea
 `event_id` (text, PK) · `provider` (default `paymongo`) · `event_type` · `payload` (jsonb) · `received_at`. The primary key makes a redelivered event a no-op. If processing fails the row is removed so the provider retries. Server only.
 
 ### `site_images`: brand images
-`key` (`logo` or `promo`, PK) · `image_url` (null = use the bundled default) · `updated_at`. Readable by everyone.
+`key` (`logo` only, PK) · `image_url` (null = use the bundled default) · `updated_at`. Readable by everyone.
 
 ### `chat_threads`: conversations
 | Column | Type | Rules | Meaning |
@@ -282,7 +282,7 @@ Cash: `{ "collected_by": "<user id>", "tendered": 500, "change": 20 }`. GCash: t
 | Bucket | Public | Limit | Types | Holds |
 | --- | --- | --- | --- | --- |
 | `chat-images` | **private** (no public address) | 5 MB per file | JPEG, PNG, WebP | `<chat thread id>/<uuid>.<ext>`. Only the server reads and writes; people see a photo through a link that expires after an hour, issued only to someone who can already read that conversation. Deleting a conversation does not delete its files yet (see known gaps). |
-| `menu-images` | read-only | 5 MB per file | JPEG, PNG, WebP | `products/<product id>/<uuid>.<ext>` and `site/<logo or promo>/<uuid>.<ext>`. Only the server writes. The server also checks the file's real bytes, not just its name. |
+| `menu-images` | read-only | 5 MB per file | JPEG, PNG, WebP | `products/<product id>/<uuid>.<ext>` and `site/logo/<uuid>.<ext>`. Only the server writes. The server also checks the file's real bytes, not just its name. |
 
 ## Login accounts (Supabase Auth)
 

@@ -98,7 +98,7 @@ router.patch(
   asyncHandler(admin.updateAdmin),
 );
 
-// --- site images (logo, promo; super admin) ---
+// --- site images (the logo; super admin) ---
 router.put(
   '/site-images/:key',
   superAdmin,

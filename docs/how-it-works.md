@@ -268,7 +268,7 @@ Delivery-chat rules for text apply equally to photos: closed chats refuse both.
 | What | Where | Rules |
 | --- | --- | --- |
 | **Product photos** | Public `menu-images` bucket; set per dish in Admin → Menu | JPEG/PNG/WebP, 5 MB; replacing or removing deletes the old file; a pasted web link is also accepted |
-| **Logo and home photo** | Same bucket; Admin → Site images | "Reset" returns to the bundled defaults (`frontend/public/brand`) |
+| **Logo** | Same bucket; Admin → Site images (super admin) | "Reset" returns to the bundled default (`frontend/public/brand/logo.jpg`) |
 | **Chat photos** | Private `chat-images` bucket | See above |
 
 Replaced photos get a new address, so no browser or network cache can show the old one.

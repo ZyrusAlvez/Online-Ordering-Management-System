@@ -10,7 +10,6 @@ import MenuBrowser from '../components/MenuBrowser.jsx';
 import VisitorChat from '../components/chat/VisitorChat.jsx';
 import { CartProvider, useCart } from '../context/CartContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
-import { useSiteImage } from '../lib/siteImages.js';
 import { Bike, ChefHat, Store, Receipt } from '../components/icons.jsx';
 
 const STEPS = [
@@ -90,7 +89,6 @@ function LandingPage() {
   const { isAuthed, role } = useAuth();
   const cart = useCart();
   const toast = useToast();
-  const promo = useSiteImage('promo');
   const { branches } = useBranches();
   const { branch } = useSelectedBranch();
   const where = branches.length > 1 ? `${branches.length} branches across ${REGION}` : REGION;
@@ -134,12 +132,6 @@ function LandingPage() {
             )}
           </div>
         </div>
-
-        <img
-          src={promo}
-          alt="Plates of pancit, sisig and caldereta from 3K Kitchen"
-          className="mx-auto aspect-[5/4] w-full max-w-md rounded-2xl border border-line object-cover object-bottom"
-        />
       </section>
 
       <section className="border-y border-line bg-paper py-16">

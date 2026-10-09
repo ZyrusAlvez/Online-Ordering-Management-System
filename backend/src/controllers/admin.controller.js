@@ -146,7 +146,7 @@ export const updateAdmin = async (req, res) => {
   res.json({ data: await profileService.updateAdmin(req.params.id, req.body) });
 };
 
-// --- Site images (logo, promo) ---------------------------------------------
+// --- Site images (the logo) -------------------------------------------------
 export const setSiteImage = async (req, res) => {
   res.json({ data: await siteService.setSiteImage(req.params.key, req.body) });
 };

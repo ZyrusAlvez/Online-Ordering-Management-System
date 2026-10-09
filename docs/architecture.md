@@ -241,7 +241,7 @@ Other side refetches messages ─▶ service signs short-lived links ─▶ <img
 
 | Bucket | Visibility | Holds |
 | --- | --- | --- |
-| `menu-images` | Public read | Product photos, logo, promo |
+| `menu-images` | Public read | Product photos, the logo |
 | `chat-images` | **Private** | Chat photos, shown only via short-lived signed links |
 
 Neither bucket has any policy that lets a browser write; uploads go through the API with the secret key.
