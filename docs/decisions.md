@@ -221,8 +221,9 @@ OpenStreetMap.
 `frontend/src/components/mapPins.js`.
 **Why.** A quiet, pale map keeps attention on the red branch pins and fits the warm, minimal design; the default
 OpenStreetMap style is busy and colourful.
-**Trade-off.** CARTO's free tiles are meant for modest non-commercial use, and CARTO sees which area is viewed. Swapping
-providers is a one-file change ([deployment.md](./deployment.md)).
+**Trade-off.** CARTO requires a (free) key, `VITE_CARTO_BASEMAPS_KEY`, with a monthly request allowance, and sees which
+area is viewed. Without the key the maps fall back to standard OpenStreetMap tiles rather than CARTO's "API KEY
+REQUIRED" placeholders. Swapping providers is a one-file change ([deployment.md](./deployment.md)).
 
 ### The pin is optional, and typed addresses always win
 **Why.** Plenty of addresses are better typed; a pin is a precision aid for the rider. A field the customer typed is never

@@ -76,7 +76,8 @@ export default function BranchMap({ branches, selectedId, userPos, onSelect, cla
     const m = map.current;
     if (!m || branches.length === 0) return;
     const bounds = L.latLngBounds(branches.map((b) => [b.latitude, b.longitude]));
-    m.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
+    // Extra room at the top: a pin stands above its point, and the selected one is taller.
+    m.fitBounds(bounds, { paddingTopLeft: [40, 72], paddingBottomRight: [40, 32], maxZoom: 15 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [framing]);
 

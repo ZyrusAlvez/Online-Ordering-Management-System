@@ -49,10 +49,11 @@ scheduled.
 ## What to test, by role
 
 ### Visitor (not logged in)
-1. Open `/`. **Our branches** shows the map with all seven pins, framed on all of them. Allow location: the
-   list sorts nearest first and your branch becomes the nearest. Tap a pin, then **Order here** on another
-   branch: the menu below says "Ordering from" that branch.
-2. The full menu is below the branches, with photos and prices.
+1. Open `/`. The hero is the map with all seven pins, framed on all of them. Allow location: the card beside the
+   headline says **Nearest to you** with that branch, and **Find us in Cavite** sorts the branch cards nearest
+   first. Tap a pin, then **Order here** on another branch: the page jumps to the menu, which says "Ordering from"
+   that branch, and the card now says **Your branch**.
+2. The full menu is near the bottom, with photos and prices; the footer lists every branch with its hours.
 3. Add two dishes. A **Checkout** bar appears. Press it: you land on `/login`.
 4. Log in as Customer. You return to **checkout with the cart intact**.
 5. Back on `/` (logged out), press **Chat with us**, choose a branch, enter a name, send a message. Only that

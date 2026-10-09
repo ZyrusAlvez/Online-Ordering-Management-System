@@ -12,22 +12,26 @@ you need the logins in [test-accounts.md](./test-accounts.md).
 
 ### Choosing a branch
 
-3K Kitchen has several branches; every order is made and collected (or delivered) by one of them. Open the website
-(`/`) and scroll to **Our branches** (or press **Find a branch**):
+3K Kitchen has several branches; every order is made and collected (or delivered) by one of them. The website (`/`)
+opens on them:
 
-- The **map** shows every branch. It opens framed on all of them; tap a pin for its address, hours, whether it is
+- **The map** at the top shows every branch, framed on all of them. Tap a pin for its address, hours, whether it is
   **open now**, how far it is from you, and **Order here**.
-- The **list** beside it shows the same branches. If you allow the browser to use your **location** (it asks once),
-  the list is sorted nearest first, the nearest is marked **Nearest**, and a blue dot shows where you are.
-- **Your branch** is highlighted. Until you choose one yourself it is the **nearest branch** (with location allowed)
-  or the first in the list. Choosing one with **Order here** is remembered in your browser and always wins.
+- **Your branch card** beside the headline: the branch you will order from (**Nearest to you** when you allow the
+  browser to use your **location**, which it asks once; otherwise the first branch, or the one you picked), with its
+  hours, open or closed now, distance, and **Order from …** to jump to its menu. **See all branches** scrolls to the
+  list.
+- **Find us in Cavite** lists every branch as a card, nearest first when your location is known, with **Order here**.
+  A blue dot on the map shows where you are.
+- The **footer** lists all branches with their hours and whether each is open now.
+- Choosing a branch yourself (any **Order here**) is remembered in your browser and always wins over the nearest.
 
 You can also change branch later: the menu page shows **Ordering from** with a dropdown, and checkout has a **Which
 branch?** dropdown (both sorted by distance, marking branches that are closed now).
 
 ### Browsing without an account
 
-Below the branches is the **full menu** of your branch ("Ordering from …", with **Change**): search it, filter by
+Further down (**Menu** in the header) is the **full menu** of your branch ("Ordering from …", with **Change**): search it, filter by
 category, and tap a dish to see its options. Every branch has the same menu and prices; a dish your branch has run
 out of shows as **Sold out**. You do **not** need an account to browse, build a cart or chat with the cashier.
 

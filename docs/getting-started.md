@@ -90,6 +90,9 @@ VITE_SUPABASE_URL=https://abcdefgh.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_…
 ```
 
+For the light map style on every map, request a free key at <https://carto.com/basemaps/apikey> and set
+`VITE_CARTO_BASEMAPS_KEY=` to it; without it the maps use standard OpenStreetMap tiles.
+
 Use the **publishable** key here, never the secret one. Optionally set `VITE_MAP_DEFAULT_LAT` and
 `VITE_MAP_DEFAULT_LNG` for where the delivery-address map opens (it defaults to General Mariano Alvarez, Cavite). The
 landing-page branch map needs no setting: it frames whatever branches exist.
