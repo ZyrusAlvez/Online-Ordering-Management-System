@@ -1,7 +1,10 @@
+import { Suspense, lazy } from 'react';
 import { useAuth, HOME_FOR_ROLE } from '../context/AuthContext.jsx';
 import { Logo, REGION, RESTAURANT } from '../components/Logo.jsx';
-import { useBranches } from '../lib/branches.js';
-import { Button } from '../components/ui.jsx';
+import { useBranches, useSelectedBranch } from '../lib/branches.js';
+import { byDistance, useUserPosition } from '../lib/geo.js';
+import BranchList from '../components/BranchList.jsx';
+import { Button, Spinner } from '../components/ui.jsx';
 import { BottomDock, CartBar } from '../components/BottomDock.jsx';
 import MenuBrowser from '../components/MenuBrowser.jsx';
 import VisitorChat from '../components/chat/VisitorChat.jsx';
@@ -15,6 +18,63 @@ const STEPS = [
   { icon: Receipt, title: 'Pay your way', body: 'Cash on delivery or pickup, or pay ahead with GCash.' },
   { icon: Bike, title: 'Pickup or delivery', body: 'Collect at the counter, or have a rider bring it to your door.' },
 ];
+
+// Leaflet only loads when the page does, not with the rest of the app.
+const BranchMap = lazy(() => import('../components/BranchMap.jsx'));
+
+/**
+ * Every branch on a map plus a list. Asks for the customer's location (once)
+ * to sort by distance; "Order here" makes that branch theirs for the menu and
+ * checkout below.
+ */
+function BranchesSection() {
+  const { branches, branch, select } = useSelectedBranch();
+  const { position, status } = useUserPosition();
+  const list = byDistance(branches, position);
+
+  const choose = (id) => {
+    select(id);
+    document.getElementById('menu')?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  if (branches.length === 0) return null;
+
+  return (
+    <section id="branches" className="mx-auto max-w-6xl scroll-mt-4 px-4 py-16">
+      <h2 className="font-display text-2xl sm:text-3xl">Our branches</h2>
+      <p className="mt-2 text-ink-soft">
+        {position
+          ? 'Sorted by distance from you. Pick the branch to order from.'
+          : status === 'denied'
+            ? 'Pick the branch to order from. Allow location access to see which one is nearest.'
+            : 'Pick the branch to order from.'}
+      </p>
+      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_380px]">
+        <Suspense
+          fallback={
+            <div className="flex h-80 items-center justify-center rounded-2xl border border-line bg-white text-brand sm:h-[480px]">
+              <Spinner />
+            </div>
+          }
+        >
+          <BranchMap
+            className="h-80 sm:h-[480px]"
+            branches={branches}
+            selectedId={branch?.id}
+            userPos={position}
+            onSelect={choose}
+          />
+        </Suspense>
+        <BranchList
+          branches={list}
+          selectedId={branch?.id}
+          onSelect={choose}
+          className="scroll-thin lg:max-h-[480px] lg:overflow-y-auto lg:pr-1"
+        />
+      </div>
+    </section>
+  );
+}
 
 // Same storage key as the customer layout, so a cart started here is the one
 // /checkout shows. Login is only asked for there, not while browsing.
@@ -65,6 +125,7 @@ function LandingPage() {
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Button href="#menu" size="lg">Order now</Button>
+            <Button href="#branches" size="lg" tone="outline">Find a branch</Button>
             {!isAuthed && (
               <Button to="/login" size="lg" tone="outline">
                   Log in
@@ -99,6 +160,8 @@ function LandingPage() {
           </div>
         </div>
       </section>
+
+      <BranchesSection />
 
       <section id="menu" className="mx-auto max-w-6xl scroll-mt-4 px-4 py-16">
         <h2 className="font-display text-2xl sm:text-3xl">Our menu</h2>
