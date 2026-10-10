@@ -8,10 +8,15 @@ import { manilaBounds } from '../utils/manilaDate.js';
  * request and a busy month of orders and their items would silently be cut off.
  * See supabase/migrations/20260926000000_sales_report.sql for what counts as a sale.
  */
-export const getSalesReport = async ({ from, to }) => {
+export const getSalesReport = async ({ from, to, branchIds = null }) => {
   const { start, end } = manilaBounds(from, to);
 
-  const { data, error } = await supabaseAdmin.rpc('sales_report', { p_from: start, p_to: end });
+  const { data, error } = await supabaseAdmin.rpc('sales_report', {
+    p_from: start,
+    p_to: end,
+    // null = every branch; an admin always passes their own (possibly empty) list.
+    p_branch_ids: branchIds,
+  });
   if (error) throw fromPostgrestError(error);
 
   return { range: { from, to }, ...data };

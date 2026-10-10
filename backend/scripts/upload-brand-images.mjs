@@ -1,8 +1,7 @@
 /**
- * Uploads the bundled brand images (frontend/public/brand) to Supabase Storage
- * and points site_images at them, so the admin can later replace them from the
- * dashboard. Only fills images that have not been set yet; pass --force to
- * overwrite.
+ * Uploads the bundled logo (frontend/public/brand/logo.jpg) to Supabase Storage
+ * and points site_images at it, so the super admin can later replace it from the
+ * dashboard. Only fills it if it has not been set yet; pass --force to overwrite.
  *
  *   npm run seed:brand
  */
@@ -16,7 +15,7 @@ const brandDir = new URL('../../frontend/public/brand/', import.meta.url);
 
 const current = await getSiteImages();
 
-for (const key of ['logo', 'promo']) {
+for (const key of ['logo']) {
   if (current[key] && !force) {
     console.log(`- ${key.padEnd(6)} already set, skipping (use --force to replace)`);
     continue;

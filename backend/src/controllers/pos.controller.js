@@ -1,5 +1,6 @@
 import * as orderService from '../services/order.service.js';
 import * as paymentService from '../services/payment.service.js';
+import { branchFilter, resolveBranch } from '../utils/branchScope.js';
 import { buildMeta } from '../utils/pagination.js';
 
 /**
@@ -10,6 +11,7 @@ import { buildMeta } from '../utils/pagination.js';
 export const listQueue = async (req, res) => {
   const { page, limit, status, payment_status: paymentStatus, channel, q } = req.query;
   const { data, total } = await orderService.listOrders({
+    branchIds: branchFilter(req.branchScope, req.query.branch_id),
     page,
     limit,
     status,
@@ -21,13 +23,15 @@ export const listQueue = async (req, res) => {
   res.json({ data, meta: buildMeta({ page, limit, total }) });
 };
 
+// requireOrderInScope has already loaded the order and checked its branch.
 export const getOrder = async (req, res) => {
-  res.json({ data: await orderService.getOrderOrFail(req.params.id) });
+  res.json({ data: req.order });
 };
 
 /** A walk-in order rung up directly at the counter. */
 export const createWalkIn = async (req, res) => {
   const data = await orderService.createOrder({
+    branchId: resolveBranch(req.branchScope, req.body.branch_id),
     items: req.body.items,
     channel: 'pos',
     fulfillmentType: req.body.fulfillment_type,
@@ -79,7 +83,7 @@ export const payGcash = async (req, res) => {
  * being voided with the customer's money kept.
  */
 export const voidOrder = async (req, res) => {
-  const order = await orderService.getOrderOrFail(req.params.id);
+  const { order } = req;
   orderService.assertVoidable(order);
 
   // A GCash order whose payment is still open must not complete behind our back.

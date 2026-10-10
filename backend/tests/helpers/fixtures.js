@@ -1,6 +1,7 @@
 import { db } from './db.js';
 import { get, patch, post } from './client.js';
 import { tokenFor } from './auth.js';
+import { isOpenAt, nextOpenSlot } from '../../src/utils/schedule.js';
 
 /**
  * Test data lives in the same database as everything else, so every order this
@@ -28,6 +29,31 @@ export const cleanupKiosks = async () => {
   if (kioskDevices.size === 0) return;
   await db.from('kiosk_devices').delete().in('id', [...kioskDevices]);
   kioskDevices.clear();
+};
+
+// --- branches -------------------------------------------------------------
+
+const branchIds = new Map();
+
+/** A branch id by code (gma, imus, ...). Test orders default to GMA Terminal. */
+export const branchId = async (code = 'gma') => {
+  if (branchIds.has(code)) return branchIds.get(code);
+  const { data, error } = await db.from('branches').select('id').eq('code', code).single();
+  if (error) throw new Error(`Branch ${code} not found: ${error.message}`);
+  branchIds.set(code, data.id);
+  return data.id;
+};
+
+/**
+ * Online orders are refused "as soon as possible" while a branch is closed, so
+ * the suite would pass by day and fail by night. This is the order time to send:
+ * nothing while the branch is open, else its next open slot. Spread it into an
+ * online order body.
+ */
+export const orderTime = async (id) => {
+  const { data, error } = await db.from('branches').select('name, opens_at, closes_at').eq('id', id ?? (await branchId())).single();
+  if (error) throw error;
+  return isOpenAt(data, new Date()) ? {} : { scheduled_for: nextOpenSlot(data) };
 };
 
 // --- menu -----------------------------------------------------------------
@@ -72,9 +98,9 @@ export const unpricedProduct = async () => {
 // --- kiosk devices --------------------------------------------------------
 
 /** Issues a real kiosk device key via the admin API and tracks it for cleanup. */
-export const issueKioskKey = async (name = `Test Kiosk ${Date.now()}`) => {
+export const issueKioskKey = async (name = `Test Kiosk ${Date.now()}`, branch = 'gma') => {
   const admin = await tokenFor('admin');
-  const res = await post('/admin/kiosks', { name }, { token: admin });
+  const res = await post('/admin/kiosks', { name, branch_id: await branchId(branch) }, { token: admin });
   if (res.status !== 201) throw new Error(`Could not issue kiosk key: ${JSON.stringify(res.body)}`);
   kioskDevices.add(res.body.data.id);
   return res.body.data.key;
@@ -107,9 +133,12 @@ export const placeOnlineOrder = async (role = 'customer', overrides = {}) => {
   const product = await flatPricedProduct();
   const token = await tokenFor(role);
 
+  const branch = overrides.branch_id ?? (await branchId());
   const res = await post(
     '/orders',
     {
+      branch_id: branch,
+      ...(await orderTime(branch)),
       fulfillment_type: 'pickup',
       payment_method: 'cash',
       items: [{ product_id: product.id, quantity: 1 }],
@@ -125,10 +154,10 @@ export const placeOnlineOrder = async (role = 'customer', overrides = {}) => {
   return res.body.data;
 };
 
-/** Places a POS walk-in order and tracks it. */
-export const placeWalkInOrder = async (overrides = {}) => {
+/** Places a POS walk-in order (at the cashier's own branch) and tracks it. */
+export const placeWalkInOrder = async (overrides = {}, role = 'cashier') => {
   const product = await flatPricedProduct();
-  const cashier = await tokenFor('cashier');
+  const cashier = await tokenFor(role);
 
   const res = await post(
     '/pos/orders',
@@ -147,9 +176,9 @@ export const placeWalkInOrder = async (overrides = {}) => {
   return res.body.data;
 };
 
-/** Drives an order to `ready` through the POS, the way a cashier would. */
-export const driveToReady = async (orderId) => {
-  const cashier = await tokenFor('cashier');
+/** Drives an order to `ready` through the POS, the way its branch's cashier would. */
+export const driveToReady = async (orderId, role = 'cashier') => {
+  const cashier = await tokenFor(role);
 
   const confirmed = await post(`/pos/orders/${orderId}/confirm`, undefined, { token: cashier });
   if (confirmed.status !== 200) {

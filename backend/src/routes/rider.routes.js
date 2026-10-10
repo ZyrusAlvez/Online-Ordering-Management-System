@@ -2,6 +2,7 @@ import { Router } from 'express';
 import * as chat from '../controllers/chat.controller.js';
 import * as rider from '../controllers/rider.controller.js';
 import { requireActive, requireAuth, requireRole } from '../middleware/auth.js';
+import { loadBranchScope } from '../middleware/branch.js';
 import { validate } from '../middleware/validate.js';
 import { idParam } from '../validators/common.validators.js';
 import { imageBody } from '../middleware/upload.js';
@@ -11,7 +12,8 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 
 const router = Router();
 
-router.use(requireAuth, requireRole('rider'), requireActive);
+// A rider sees and claims only from the branch they deliver for.
+router.use(requireAuth, requireRole('rider'), requireActive, loadBranchScope);
 
 router.get('/pool', asyncHandler(rider.pool));
 router.get('/orders', validate({ query: riderOrdersQuery }), asyncHandler(rider.listMine));

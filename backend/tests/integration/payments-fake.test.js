@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import { db } from '../helpers/db.js';
-import { allProducts } from '../helpers/fixtures.js';
+import { allProducts, branchId } from '../helpers/fixtures.js';
 
 /**
  * Payment-provider behaviour that cannot be reached through the API here
@@ -74,6 +74,7 @@ beforeEach(() => {
 
 const newOrder = async (fields = {}) => {
   const order = await orders.createOrder({
+    branchId: await branchId(),
     items: [{ product_id: product.id, quantity: 1 }],
     channel: 'pos',
     fulfillmentType: 'take_out',
@@ -159,15 +160,22 @@ describe('refunds', () => {
 });
 
 describe('voiding a GCash order', () => {
-  const voidWith = (order) =>
-    pos.voidOrder({ params: { id: order.id }, body: { reason: 'test void' }, user: { id: null } }, respond());
+  // The real route loads the order into req.order (requireOrderInScope) first.
+  const voidWith = async (order) =>
+    pos.voidOrder(
+      { params: { id: order.id }, order: await orders.fetchOrder(order.id), body: { reason: 'test void' }, user: { id: null } },
+      respond(),
+    );
 
   it('retries the refund after an earlier one failed instead of keeping the money', async () => {
     const order = await newOrder({ payment_status: 'refund_failed', payment_method: 'gcash' });
     await addPayment(order.id, { intent_id: 'pi_v', payment_id: 'pay_v', status: 'refund_failed' });
 
     const res = respond();
-    await pos.voidOrder({ params: { id: order.id }, body: { reason: 'second try' }, user: { id: null } }, res);
+    await pos.voidOrder(
+      { params: { id: order.id }, order: await orders.fetchOrder(order.id), body: { reason: 'second try' }, user: { id: null } },
+      res,
+    );
 
     assert.ok(state.calls.includes('POST /refunds'), 'the refund was attempted again');
     assert.equal(res.body.data.status, 'voided');

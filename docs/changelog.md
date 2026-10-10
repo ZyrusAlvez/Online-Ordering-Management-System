@@ -4,6 +4,50 @@ What has been built, grouped by feature, with the database migration that goes w
 numbers are the dates in the file names under `backend/supabase/migrations/`. Security-relevant changes are also
 listed in [security.md](./security.md#issues-found-and-fixed).
 
+## Landing page built around the branches; no promo photo; CARTO light maps
+*Migration `20261011000000_remove_promo_image.sql`*
+- The **promo photo is gone**: from the landing page, Admin → Site images (now the logo only), the API (`promo` is an
+  unknown key, `400`), the database (row removed, key check narrowed) and the bundled defaults. The stored file was
+  deleted through the API first.
+- **Landing page revamp:** the hero is the branch map, beside a "Your branch" card (nearest to you, open now, hours,
+  distance, *Order from …*) and quick facts; then every branch as a card (*Find us in Cavite*), a four-step *How it
+  works* that starts with picking a branch, the menu, and a footer listing all branches with their hours.
+- **Landing page polish:** sticky header with section links, the map right after the headline on phones, a clearer
+  branch card (hours and distance with icons, **Directions**), branch cards with a distance pill and an even footer,
+  compact *How it works* on phones, smooth in-page scrolling; every clickable element shows a pointer cursor.
+- **Minimal maps:** the branch map is near-white with each branch shown as a red pin holding the 3K Kitchen logo
+  (your branch larger and labelled); pale tiles, quiet controls and credits, the app's font in popups on every map.
+- **Toasts** now come from the `sonner` library with rich colours (green success, red errors), still at the top.
+- Every map uses **CARTO's light tiles** (OpenStreetMap data) when `VITE_CARTO_BASEMAPS_KEY` (a free CARTO key) is set,
+  and standard OpenStreetMap tiles otherwise; chosen once in `frontend/src/components/mapPins.js`.
+
+## Multiple branches, branch admins, branch map and scheduled orders
+*Migrations `20261010000000_super_admin_role.sql`, `20261010010000_branches.sql`,
+`20261010010100_has_branch_access_anon.sql`, `20261010010200_has_branch_access_invoker.sql`,
+`20261010020000_branch_availability.sql`, `20261010030000_scheduled_orders.sql`*
+- **Seven branches** (GMA Terminal, Dasma Bayan, Langkaan, Gen-Tri, Trece, Silang, Imus). Every order, kiosk, website chat,
+  order number and kiosk password belongs to a branch; existing data moved to GMA Terminal. See
+  [how-it-works.md](./how-it-works.md#branches).
+- **Roles revised:** `admin` now runs only the branches assigned to them (one or several) and cannot see any other;
+  the new **`super_admin`** sees every branch and manages branches, admin accounts, the shared menu and prices, site images
+  and roles. Existing admins became super admins. Enforced in the API and by row-level security, so live feeds are scoped
+  too ([security.md](./security.md#branch-isolation)).
+- **Super admin can add and edit branches** (Admin → Branches): name, code, address, phone, map pin, opening hours or
+  24 hours, open for orders. Branches are deactivated, never deleted. **Admins** page to create branch admins and set
+  their branches.
+- **Branch map on the landing page:** all branches on OpenStreetMap, framed on the middle of them, with hours, open/closed
+  now, distance and **Order here**; a list beside it, nearest first when location is allowed.
+- **Preferred branch when ordering:** defaults to the nearest branch (location asked once), otherwise the first; the
+  customer's own pick is remembered and wins. Pickers on the menu page and at checkout.
+- **Sold out per branch:** the menu stays shared; a branch admin marks a dish sold out at their branch only.
+- **Scheduled online orders:** as soon as possible (only while the branch is open) or a 15-minute slot up to two days
+  ahead inside the branch's hours. The cashier's queue sorts by when orders are due and highlights scheduled ones
+  (amber, orange with a countdown in the last hour) with a "start preparing" banner.
+- Per-branch cashier logins and kiosk passwords (gates ask for the branch); riders see only their branch's pool; the
+  admin screens and the register get a branch switcher; the sales report adds sales **by branch**.
+- Fix: the address map's search box was a form nested inside the checkout form (invalid HTML; Enter could submit the order).
+- 525 tests (50 new), including branch isolation, sold out, branches and scheduling; `check-rls.mjs` checks branch scoping.
+
 ## Photos in chat
 *Migration `20260927000000_chat_images.sql`*
 - Guests, cashiers, customers and riders can send photos in chat: a picture button beside the message box.

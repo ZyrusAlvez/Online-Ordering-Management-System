@@ -2,22 +2,34 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { api } from '../../lib/api.js';
 import { useInbox } from '../../lib/chat.js';
-import { useDebounced, useFetch } from '../../lib/hooks.js';
+import { useDebounced, useFetch, useTick } from '../../lib/hooks.js';
 import { subscribeToOrders } from '../../lib/supabase.js';
 import {
   CHANNEL,
   FULFILLMENT,
   NEXT_STATUS,
   STATUS,
+  minutesUntil,
   money,
   timeAgo,
 } from '../../lib/format.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useToast } from '../../context/ToastContext.jsx';
 import { StaffBar } from '../../components/Layouts.jsx';
+import { BranchPicker, StaffBranchProvider, useStaffBranch } from '../../components/StaffBranch.jsx';
 import StaffInbox from '../../components/chat/StaffInbox.jsx';
 import ItemsEditor, { linesFromOrder } from '../../components/ItemsEditor.jsx';
-import { MapLink, MethodLabel, OrderLines, PaymentBadge, StatusBadge, addressLine } from '../../components/OrderParts.jsx';
+import {
+  DUE_SOON_MINUTES,
+  MapLink,
+  MethodLabel,
+  OrderLines,
+  PaymentBadge,
+  ScheduledBadge,
+  ScheduledBanner,
+  StatusBadge,
+  addressLine,
+} from '../../components/OrderParts.jsx';
 import {
   Button,
   Empty,
@@ -51,13 +63,24 @@ const useMedia = (query) => {
   return match;
 };
 
+/** When an order should be worked on: its slot if scheduled, else when it came in. */
+const dueAt = (o) => o.scheduled_for ?? o.created_at;
+
+// A scheduled order still waiting on the kitchen gets a coloured edge: amber,
+// then orange once it is close, so it is neither started too early nor missed.
+const scheduleEdge = (order) => {
+  if (!order.scheduled_for || !['pending', 'confirmed'].includes(order.status)) return '';
+  return minutesUntil(order.scheduled_for) <= DUE_SOON_MINUTES ? 'border-l-4 border-l-orange-600' : 'border-l-4 border-l-amber-400';
+};
+
 function QueueRow({ order, selected, onSelect }) {
+  useTick(); // the edge turns orange as the slot comes due
   return (
     <button
       onClick={() => onSelect(order.id)}
       className={`w-full rounded-xl border p-3 text-left transition ${
         selected ? 'border-brand bg-brand/5' : 'border-line bg-paper hover:border-ink/25'
-      }`}
+      } ${scheduleEdge(order)}`}
     >
       <div className="flex items-start justify-between gap-2">
         <div>
@@ -70,6 +93,7 @@ function QueueRow({ order, selected, onSelect }) {
         </div>
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        <ScheduledBadge at={order.scheduled_for} />
         <StatusBadge status={order.status} />
         <PaymentBadge status={order.payment_status} />
         <span className="text-xs text-ink-soft">
@@ -325,6 +349,10 @@ function OrderPanel({ orderId, onChanged, onClose }) {
         </div>
       </div>
 
+      {order.scheduled_for && !['completed', 'cancelled', 'voided'].includes(order.status) && (
+        <ScheduledBanner at={order.scheduled_for} />
+      )}
+
       {isDelivery && (
         <div className="rounded-2xl bg-cream-deep/60 p-3 text-sm">
           <p className="font-semibold">Delivery</p>
@@ -415,6 +443,7 @@ function OrderPanel({ orderId, onChanged, onClose }) {
       {modal === 'edit' && (
         <Modal open onClose={() => setModal(null)} title={`Edit ${order.order_number}`} wide>
           <ItemsEditor
+            branchId={order.branch_id}
             initialItems={linesFromOrder(order)}
             submitLabel="Save changes"
             onSubmit={async (items) => {
@@ -431,15 +460,16 @@ function OrderPanel({ orderId, onChanged, onClose }) {
   );
 }
 
-function WalkInModal({ onClose, onCreated }) {
+function WalkInModal({ branch, onClose, onCreated }) {
   const toast = useToast();
   const [name, setName] = useState('');
   const [type, setType] = useState('dine_in');
   const [method, setMethod] = useState('cash');
 
   return (
-    <Modal open onClose={onClose} title="New walk-in order" wide>
+    <Modal open onClose={onClose} title={`New walk-in order · ${branch.name}`} wide>
       <ItemsEditor
+        branchId={branch.id}
         submitLabel="Create order"
         canSubmit={Boolean(name.trim())}
         extra={
@@ -471,7 +501,7 @@ function WalkInModal({ onClose, onCreated }) {
         onSubmit={async (items) => {
           const { data } = await api.post(
             '/pos/orders',
-            { fulfillment_type: type, customer_name: name.trim(), payment_method: method, items },
+            { branch_id: branch.id, fulfillment_type: type, customer_name: name.trim(), payment_method: method, items },
             { auth: true },
           );
           toast.success(`Order ${data.order_number} created`);
@@ -483,8 +513,19 @@ function WalkInModal({ onClose, onCreated }) {
   );
 }
 
+// A register works at one branch. A cashier login has exactly one; an admin of
+// several picks which register they are standing at.
 export default function Pos() {
+  return (
+    <StaffBranchProvider storageKey="3k.posBranch">
+      <Register />
+    </StaffBranchProvider>
+  );
+}
+
+function Register() {
   const { logout } = useAuth();
+  const { branch, branchId } = useStaffBranch();
   const wide = useMedia('(min-width: 1024px)');
   const [tab, setTab] = useState('active');
   const [channel, setChannel] = useState('');
@@ -493,7 +534,10 @@ export default function Pos() {
   const [selected, setSelected] = useState(null);
   const [walkIn, setWalkIn] = useState(false);
   const [messages, setMessages] = useState(false);
-  const inbox = useInbox();
+  const inbox = useInbox(branchId);
+
+  // Switching registers: the open order belongs to the other branch.
+  useEffect(() => setSelected(null), [branchId]);
 
   // The API filters by one status at a time. Fetching "the latest 100 orders" and
   // filtering here meant that on a busy day the Active and Cancelled tabs silently
@@ -501,28 +545,32 @@ export default function Pos() {
   // for exactly the statuses it shows and merges them.
   const statuses = { active: ACTIVE, completed: ['completed'], closed: ['cancelled', 'voided'] }[tab] ?? [undefined];
   const { data, error, loading, reload, refresh } = useFetch(async () => {
+    if (!branchId) return { data: [] };
     const pages = await Promise.all(
       statuses.map((status) =>
         api.get('/pos/orders', {
           auth: true,
-          query: { limit: 100, q: q || undefined, channel: channel || undefined, status },
+          query: { branch_id: branchId, limit: 100, q: q || undefined, channel: channel || undefined, status },
         }),
       ),
     );
     return { data: pages.flatMap((p) => p.data) };
-  }, [q, channel, tab]);
+  }, [q, channel, tab, branchId]);
 
   useEffect(() => subscribeToOrders(() => refresh()), [refresh]);
 
+  // Scheduled orders queue by their slot, not by when they were placed.
+  const [scheduledOnly, setScheduledOnly] = useState(false);
+  const scheduledCount = (data?.data ?? []).filter((o) => o.scheduled_for && ACTIVE.includes(o.status)).length;
   const orders = useMemo(() => {
     const all = data?.data ?? [];
     if (tab === 'active') {
       return all
-        .filter((o) => ACTIVE.includes(o.status))
-        .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+        .filter((o) => ACTIVE.includes(o.status) && (!scheduledOnly || o.scheduled_for))
+        .sort((a, b) => new Date(dueAt(a)) - new Date(dueAt(b)));
     }
     return all.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  }, [data, tab]);
+  }, [data, tab, scheduledOnly]);
 
   const counts = useMemo(() => {
     const c = {};
@@ -536,7 +584,8 @@ export default function Pos() {
 
   return (
     <div className="min-h-screen bg-cream">
-      <StaffBar title="Cashier" onLogout={logout}>
+      <StaffBar title="Cashier" subtitle={branch?.name} onLogout={logout}>
+        <BranchPicker />
         <button
           onClick={() => setMessages(true)}
           className="relative flex items-center gap-1.5 rounded-xl bg-ink/5 px-3 py-2 text-sm font-medium text-ink transition hover:bg-ink/10"
@@ -548,7 +597,7 @@ export default function Pos() {
             </span>
           )}
         </button>
-        <Button tone="sun" size="sm" onClick={() => setWalkIn(true)}>
+        <Button tone="sun" size="sm" onClick={() => setWalkIn(true)} disabled={!branch}>
           <Plus size={16} /> Walk-in
         </Button>
       </StaffBar>
@@ -587,6 +636,18 @@ export default function Pos() {
                   {STATUS[s].label} {counts[s] ?? 0}
                 </span>
               ))}
+              {scheduledCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setScheduledOnly((v) => !v)}
+                  aria-pressed={scheduledOnly}
+                  className={`rounded-full px-2.5 py-1 font-semibold ring-1 ring-amber-300 ${
+                    scheduledOnly ? 'bg-amber-400 text-ink' : 'bg-amber-50 text-amber-900'
+                  }`}
+                >
+                  Scheduled {scheduledCount}
+                </button>
+              )}
             </div>
           )}
 
@@ -620,7 +681,7 @@ export default function Pos() {
       )}
 
       {messages && <StaffInbox inbox={inbox} onClose={() => setMessages(false)} />}
-      {walkIn && <WalkInModal onClose={() => setWalkIn(false)} onCreated={setSelected} />}
+      {walkIn && branch && <WalkInModal branch={branch} onClose={() => setWalkIn(false)} onCreated={setSelected} />}
     </div>
   );
 }

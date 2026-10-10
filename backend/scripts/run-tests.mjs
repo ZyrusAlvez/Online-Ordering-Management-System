@@ -80,6 +80,9 @@ const preflight = async () => {
     ['customer', process.env.TEST_CUSTOMER_PASSWORD ?? 'testpass12345', 'customer@3k.local'],
     ['customer2', 'testpass12345', 'customer2@3k.local'],
     ['rider', process.env.TEST_RIDER_PASSWORD ?? 'testpass12345', 'rider1@3k.local'],
+    ['branchAdmin', 'testpass12345', 'admin.imus@3k.local'],
+    ['cashierImus', 'testpass12345', 'cashier.imus@3k.local'],
+    ['riderImus', 'testpass12345', 'rider.imus@3k.local'],
   ];
 
   const missing = accounts.filter(([, password]) => !password).map(([role]) => role);

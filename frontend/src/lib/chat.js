@@ -23,9 +23,13 @@ export function useLive(loader, subscribe, deps = []) {
   return state;
 }
 
-/** Cashier inbox: support threads, kept live, with the unread count for badges. */
-export function useInbox() {
-  const state = useLive(() => api.get('/pos/chat/threads', { auth: true }), subscribeToInbox, []);
+/** Cashier inbox: one branch's support threads, kept live, with the unread count for badges. */
+export function useInbox(branchId) {
+  const state = useLive(
+    () => api.get('/pos/chat/threads', { auth: true, query: branchId ? { branch_id: branchId } : {} }),
+    subscribeToInbox,
+    [branchId],
+  );
   const threads = state.data?.data ?? [];
   return { ...state, threads, unread: threads.filter((t) => t.unread).length };
 }
@@ -94,13 +98,18 @@ export function useVisitorChat() {
     return () => clearInterval(timer);
   }, [threadId, refresh]);
 
-  const send = async (body, name) => {
+  /** The first message also says which branch's cashier the conversation is with. */
+  const send = async (body, name, branch) => {
     setSending(true);
     setError(null);
     try {
       if (!threadId) {
-        const res = await api.post('/chat/visitor/threads', { body, ...(name ? { name } : {}) });
-        const next = { threadId: res.data.thread_id, token: res.data.token, seen: 0 };
+        const res = await api.post('/chat/visitor/threads', {
+          branch_id: branch.id,
+          body,
+          ...(name ? { name } : {}),
+        });
+        const next = { threadId: res.data.thread_id, token: res.data.token, seen: 0, branchName: branch.name };
         writeStored(next);
         setConv(next);
         setMessages(res.data.messages);
@@ -136,5 +145,15 @@ export function useVisitorChat() {
     setConv(next);
   };
 
-  return { started: Boolean(threadId), messages, send, sendImage, sending, error, unread, markSeen };
+  return {
+    started: Boolean(threadId),
+    branchName: conv?.branchName ?? null,
+    messages,
+    send,
+    sendImage,
+    sending,
+    error,
+    unread,
+    markSeen,
+  };
 }

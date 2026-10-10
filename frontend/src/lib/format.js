@@ -80,3 +80,31 @@ export const shortDay = (day, withYear = false) =>
     ...(withYear ? { year: 'numeric' } : {}),
     timeZone: 'UTC',
   });
+
+// --- Scheduled orders -----------------------------------------------------------
+
+/** "3:30 PM" in Manila time. */
+export const manilaClock = (iso) =>
+  new Date(iso).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Manila' });
+
+/** "Today", "Tomorrow" or "Mon, Oct 12" for a 'YYYY-MM-DD' Manila day. */
+export const dayLabel = (day) => {
+  const today = manilaToday();
+  if (day === today) return 'Today';
+  if (day === addDays(today, 1)) return 'Tomorrow';
+  return new Date(`${day}T00:00:00Z`).toLocaleDateString('en-PH', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC',
+  });
+};
+
+/** The Manila day of an instant, 'YYYY-MM-DD'. */
+export const manilaDayOf = (iso) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date(iso));
+
+/** "Today, 3:30 PM" / "Tomorrow, 8:00 AM" / "Mon, Oct 12, 8:00 AM" */
+export const scheduleLabel = (iso) => `${dayLabel(manilaDayOf(iso))}, ${manilaClock(iso)}`;
+
+/** Whole minutes from now until `iso` (negative once it has passed). */
+export const minutesUntil = (iso, now = Date.now()) => Math.round((Date.parse(iso) - now) / 60_000);

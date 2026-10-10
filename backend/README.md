@@ -18,13 +18,14 @@ You need a Supabase project with the migrations applied first: [getting-started]
 | Command | What it does |
 | --- | --- |
 | `npm run dev` / `npm start` | API with / without file watching |
-| `npm test` | All 475 tests (unit, integration, end-to-end) against your Supabase project |
+| `npm test` | All 525 tests (unit, integration, end-to-end) against your Supabase project |
 | `npm run test:unit` / `test:integration` / `test:e2e` / `test:coverage` | One layer, or coverage |
-| `npm run seed:accounts` | Create or reset the admin, cashier and kiosk passwords |
+| `npm run seed:accounts` | Create or reset the super admin, GMA cashier and GMA kiosk passwords |
+| `node --env-file=.env scripts/dev/seed-test-users.mjs` | Test customers, riders, and the Imus admin and cashier |
 | `npm run seed:menu` | Regenerate `supabase/seed.sql` from `supabase/seed-data/menu.json` |
-| `npm run seed:brand` | Upload the bundled logo and promo to Storage |
+| `npm run seed:brand` | Upload the bundled logo to Storage |
 | `npm run seed:product-images` | Placeholder photos for every dish |
-| `node --env-file=.env scripts/dev/check-rls.mjs` | Check what each role is allowed to read |
+| `node --env-file=.env scripts/dev/check-rls.mjs` | Check what each role (and each branch's staff) is allowed to read |
 
 ## Layout
 
@@ -34,10 +35,10 @@ src/
   controllers/  HTTP in and out
   services/     business rules and all database access
   validators/   zod schemas (fields.js has the shared field rules)
-  middleware/   auth and roles, kiosk keys, uploads, errors
+  middleware/   auth and roles, branch scope, kiosk keys, uploads, errors
   config/       validated environment, Supabase clients
   constants/    statuses and allowed moves
-  utils/        helpers
+  utils/        helpers (branchScope: who sees which branch; schedule: order times)
 supabase/       migrations (applied in order), menu seed data
 scripts/        seeding, test runner, verification scripts
 tests/          unit, integration, e2e

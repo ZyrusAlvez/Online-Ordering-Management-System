@@ -3,13 +3,15 @@ import { api } from '../../lib/api.js';
 import { useFetch } from '../../lib/hooks.js';
 import { CHANNEL, FULFILLMENT, PAYMENT, STATUS, dateTime, money } from '../../lib/format.js';
 import { useToast } from '../../context/ToastContext.jsx';
-import { MapLink, MethodLabel, OrderLines, PaymentBadge, StatusBadge, addressLine } from '../../components/OrderParts.jsx';
+import { MapLink, MethodLabel, OrderLines, PaymentBadge, ScheduledBadge, StatusBadge, addressLine } from '../../components/OrderParts.jsx';
 import { Button, Empty, ErrorNote, Input, Modal, PageLoader, Pagination, Select } from '../../components/ui.jsx';
+import { useStaffBranch } from '../../components/StaffBranch.jsx';
 
 const toIso = (date, end) => (date ? new Date(`${date}T${end ? '23:59:59.999' : '00:00:00'}`).toISOString() : undefined);
 
 export default function AdminOrders() {
   const toast = useToast();
+  const { branchId, query: branchQuery } = useStaffBranch();
   const [filters, setFilters] = useState({ status: '', payment_status: '', channel: '', from: '', to: '' });
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState(null);
@@ -27,10 +29,18 @@ export default function AdminOrders() {
           channel: filters.channel || undefined,
           from: toIso(filters.from, false),
           to: toIso(filters.to, true),
+          ...branchQuery,
         },
       }),
-    [page, filters],
+    [page, filters, branchId],
   );
+
+  // A new branch means a new list; start it from the first page.
+  const [seenBranch, setSeenBranch] = useState(branchId);
+  if (seenBranch !== branchId) {
+    setSeenBranch(branchId);
+    setPage(1);
+  }
 
   const set = (key) => (e) => {
     setPage(1);
@@ -97,6 +107,7 @@ export default function AdminOrders() {
             <thead className="border-b border-ink/10 text-xs uppercase tracking-wide text-ink-soft">
               <tr>
                 <th className="px-4 py-3">Order</th>
+                {!branchId && <th className="px-4 py-3">Branch</th>}
                 <th className="px-4 py-3">Customer</th>
                 <th className="px-4 py-3">Type</th>
                 <th className="px-4 py-3">Status</th>
@@ -113,6 +124,7 @@ export default function AdminOrders() {
                   className="cursor-pointer border-b border-ink/5 last:border-0 hover:bg-cream-deep/40"
                 >
                   <td className="px-4 py-3 font-bold">{o.order_number}</td>
+                  {!branchId && <td className="px-4 py-3">{o.branch?.name ?? '—'}</td>}
                   <td className="px-4 py-3">{o.customer_name || '—'}</td>
                   <td className="px-4 py-3 text-ink-soft">
                     {CHANNEL[o.channel]} · {FULFILLMENT[o.fulfillment_type]}
@@ -120,7 +132,14 @@ export default function AdminOrders() {
                   <td className="px-4 py-3"><StatusBadge status={o.status} /></td>
                   <td className="px-4 py-3"><PaymentBadge status={o.payment_status} /></td>
                   <td className="px-4 py-3 text-right font-semibold">{money(o.total_amount)}</td>
-                  <td className="px-4 py-3 text-ink-soft">{dateTime(o.created_at)}</td>
+                  <td className="px-4 py-3 text-ink-soft">
+                    {dateTime(o.created_at)}
+                    {o.scheduled_for && (
+                      <span className="mt-1 block">
+                        <ScheduledBadge at={o.scheduled_for} />
+                      </span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -130,12 +149,13 @@ export default function AdminOrders() {
       <Pagination meta={data?.meta} onPage={setPage} />
 
       {open && (
-        <Modal open onClose={() => setOpen(null)} title={open.order_number}>
+        <Modal open onClose={() => setOpen(null)} title={`${open.order_number} · ${open.branch?.name ?? ''}`}>
           <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-2">
               <StatusBadge status={open.status} />
               <PaymentBadge status={open.payment_status} />
               <MethodLabel order={open} />
+              <ScheduledBadge at={open.scheduled_for} />
             </div>
             <p className="text-sm text-ink-soft">
               {open.customer_name || 'Guest'} · {dateTime(open.created_at)}

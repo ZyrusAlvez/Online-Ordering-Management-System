@@ -1,7 +1,10 @@
 #!/usr/bin/env node
-// Creates the two staff accounts the system needs — the single admin and the
-// shared POS cashier login — and records their passwords in .env so that
-// `npm test` works with no further setup.
+// Creates the two staff accounts the system needs — the super admin and the
+// GMA Terminal branch's shared POS cashier login — and records their passwords
+// in .env so that `npm test` works with no further setup. Other branches get
+// their cashier account the first time an admin sets its password.
+//
+// Branches themselves come from the 20261010010000_branches.sql migration.
 //
 //   node --env-file=.env scripts/seed-accounts.mjs
 //
@@ -17,26 +20,35 @@
 
 import { randomBytes } from 'node:crypto';
 import { supabaseAdmin } from '../src/config/supabase.js';
+import { setStaffBranches } from '../src/services/branch.service.js';
 import { setKioskPassword } from '../src/services/employee.service.js';
 import { createStaffUser } from '../src/services/profile.service.js';
 import { upsertEnv } from './lib/env-file.mjs';
 
 const generatePassword = () => randomBytes(12).toString('base64url');
 
+const { data: gma, error: branchError } = await supabaseAdmin
+  .from('branches')
+  .select('id, name')
+  .eq('code', 'gma')
+  .single();
+if (branchError) throw new Error(`GMA Terminal branch not found — apply the migrations first (${branchError.message})`);
+
 const accounts = [
   {
-    label: 'Admin',
+    label: 'Super admin',
     email: process.env.SEED_ADMIN_EMAIL ?? 'admin@3k.local',
-    role: 'admin',
+    role: 'super_admin',
     fullName: 'System Administrator',
     envKey: 'TEST_ADMIN_PASSWORD',
     explicit: process.env.SEED_ADMIN_PASSWORD,
   },
   {
-    label: 'Cashier (shared POS login)',
+    label: 'Cashier (GMA shared login)',
     email: process.env.SEED_CASHIER_EMAIL ?? 'cashier@3k.local',
     role: 'cashier',
-    fullName: 'POS Terminal',
+    fullName: 'GMA Terminal Cashier',
+    branchId: gma.id,
     envKey: 'TEST_CASHIER_PASSWORD',
     explicit: process.env.SEED_CASHIER_PASSWORD,
   },
@@ -56,6 +68,8 @@ for (const account of accounts) {
   const { error } = await supabaseAdmin.auth.admin.updateUserById(profile.id, { password });
   if (error) throw new Error(`Could not set password for ${account.email}: ${error.message}`);
 
+  if (account.branchId) await setStaffBranches(profile.id, [account.branchId]);
+
   upsertEnv(account.envKey, password);
 
   console.log(
@@ -74,9 +88,9 @@ const kioskSource = process.env.SEED_KIOSK_PASSWORD
     ? 'kept from .env'
     : 'generated';
 
-await setKioskPassword(kioskPassword);
+await setKioskPassword(gma.id, kioskPassword);
 upsertEnv('TEST_KIOSK_PASSWORD', kioskPassword);
-console.log(`✓ ${'Kiosk gate password'.padEnd(28)} ${''.padEnd(20)} (${kioskSource})`);
+console.log(`✓ ${'Kiosk gate password (GMA)'.padEnd(28)} ${''.padEnd(20)} (${kioskSource})`);
 if (kioskSource === 'generated') generated.push({ email: 'kiosk gate', password: kioskPassword });
 
 console.log('\nPasswords saved to .env — `npm test` will pick them up automatically.');

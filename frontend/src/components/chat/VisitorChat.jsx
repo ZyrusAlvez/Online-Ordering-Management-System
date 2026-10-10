@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
+import { useSelectedBranch } from '../../lib/branches.js';
 import { useVisitorChat } from '../../lib/chat.js';
 import { RESTAURANT } from '../Logo.jsx';
-import { ErrorNote } from '../ui.jsx';
+import { ErrorNote, Select } from '../ui.jsx';
 import { Chat, X } from '../icons.jsx';
 import ChatWindow from './ChatWindow.jsx';
 
@@ -15,6 +16,11 @@ import ChatWindow from './ChatWindow.jsx';
 export default function VisitorChat() {
   const { user } = useAuth();
   const chat = useVisitorChat();
+  // The conversation goes to one branch's cashier: the customer's preferred
+  // branch unless they pick another here before their first message.
+  const preferred = useSelectedBranch();
+  const [branchId, setBranchId] = useState('');
+  const branch = preferred.branches.find((b) => b.id === branchId) ?? preferred.branch;
   const [open, setOpen] = useState(false);
   const [name, setName] = useState((user?.user_metadata?.full_name ?? '').slice(0, 60));
 
@@ -49,7 +55,13 @@ export default function VisitorChat() {
       <header className="flex items-center justify-between border-b border-line bg-white px-4 py-3">
         <div className="leading-tight">
           <p className="font-script text-xl leading-none">{RESTAURANT}</p>
-          <p className="mt-0.5 text-xs text-ink-soft">Ask the cashier anything</p>
+          <p className="mt-0.5 text-xs text-ink-soft">
+            {chat.started && chat.branchName
+              ? `Chatting with ${chat.branchName}`
+              : branch
+                ? `Ask the ${branch.name} cashier anything`
+                : 'Ask the cashier anything'}
+          </p>
         </div>
         <button onClick={() => setOpen(false)} aria-label="Close chat" className="rounded-full p-1.5 text-ink-soft hover:bg-ink/5">
           <X size={20} />
@@ -62,11 +74,25 @@ export default function VisitorChat() {
           messages={chat.messages}
           mine={(m) => m.sender_role === 'visitor'}
           sending={chat.sending}
-          onSend={(body) => chat.send(body, name.trim())}
+          onSend={(body) => chat.send(body, name.trim(), branch)}
           onSendImage={chat.started ? chat.sendImage : undefined}
           imageNote="Send a message first, then you can attach photos."
           emptyText="Hi! Questions about the menu, delivery or your order? Send us a message and the cashier will reply here."
         />
+        {!chat.started && preferred.branches.length > 1 && (
+          <Select
+            value={branch?.id ?? ''}
+            onChange={(e) => setBranchId(e.target.value)}
+            aria-label="Branch to message"
+            className="mt-2 !py-2 text-sm"
+          >
+            {preferred.branches.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name} branch
+              </option>
+            ))}
+          </Select>
+        )}
         {!chat.started && (
           <input
             value={name}

@@ -3,6 +3,12 @@ import { optionalText, quantity } from './fields.js';
 
 export const idParam = z.object({ id: z.string().uuid() });
 
+/** Which branch an order, kiosk, rider or conversation belongs to. */
+export const branchId = z.string().uuid('Choose a branch');
+
+/** Optional ?branch_id= narrowing a staff list to one branch. */
+export const branchQuery = z.object({ branch_id: branchId.optional() });
+
 export const paginationQuery = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),

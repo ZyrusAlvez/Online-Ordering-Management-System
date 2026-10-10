@@ -3,6 +3,7 @@ import { api } from '../../lib/api.js';
 import { useFetch } from '../../lib/hooks.js';
 import { CHANNEL, addDays, manilaToday, money, shortDay, startOfMonth } from '../../lib/format.js';
 import { Button, Card, Empty, ErrorNote, Input, PageLoader, Segmented } from '../../components/ui.jsx';
+import { useStaffBranch } from '../../components/StaffBranch.jsx';
 
 const PRESETS = [
   { value: 'today', label: 'Today' },
@@ -126,25 +127,26 @@ function MethodSplit({ rows, total }) {
   );
 }
 
-function ChannelBars({ rows }) {
+/** Revenue per channel or per branch, as bars scaled to the largest. */
+function RevenueBars({ title, rows, keyOf, labelOf }) {
   const max = Math.max(...rows.map((r) => r.revenue), 0);
   return (
     <Card className="space-y-3">
-      <h2 className="text-lg font-semibold">By channel</h2>
+      <h2 className="text-lg font-semibold">{title}</h2>
       {rows.length === 0 ? (
         <p className="text-sm text-ink-soft">No sales yet.</p>
       ) : (
         <ul className="space-y-3">
           {rows.map((r) => (
-            <li key={r.channel}>
+            <li key={keyOf(r)}>
               <div className="flex items-baseline justify-between gap-3 text-sm">
-                <span className="font-medium">{CHANNEL[r.channel] ?? r.channel}</span>
+                <span className="font-medium">{labelOf(r)}</span>
                 <span className="tabular-nums">
                   <span className="font-semibold">{money(r.revenue)}</span>
                   <span className="text-ink-soft"> · {r.orders} {r.orders === 1 ? 'order' : 'orders'}</span>
                 </span>
               </div>
-              <div className="mt-1 h-2 overflow-hidden rounded-full bg-line" role="img" aria-label={`${CHANNEL[r.channel] ?? r.channel}: ${money(r.revenue)}`}>
+              <div className="mt-1 h-2 overflow-hidden rounded-full bg-line" role="img" aria-label={`${labelOf(r)}: ${money(r.revenue)}`}>
                 <div className="h-full rounded-full bg-ink" style={{ width: `${pct(r.revenue, max)}%` }} />
               </div>
             </li>
@@ -188,7 +190,10 @@ function BestSellers({ items }) {
   );
 }
 
+const channelLabel = (r) => CHANNEL[r.channel] ?? r.channel;
+
 export default function AdminSales() {
+  const { branchId, query: branchQuery } = useStaffBranch();
   const [preset, setPreset] = useState('7d');
   const [custom, setCustom] = useState(() => ({ from: addDays(manilaToday(), -6), to: manilaToday() }));
 
@@ -199,8 +204,8 @@ export default function AdminSales() {
       : null;
 
   const { data, error, loading, reload, refresh } = useFetch(
-    () => (rangeError ? Promise.resolve(null) : api.get('/admin/sales', { auth: true, query: range })),
-    [range.from, range.to, rangeError],
+    () => (rangeError ? Promise.resolve(null) : api.get('/admin/sales', { auth: true, query: { ...range, ...branchQuery } })),
+    [range.from, range.to, rangeError, branchId],
   );
 
   const report = data?.data;
@@ -277,8 +282,12 @@ export default function AdminSales() {
               <DailyChart daily={report.daily} />
               <div className="grid gap-4 lg:grid-cols-2">
                 <MethodSplit rows={report.by_method} total={report.totals.revenue} />
-                <ChannelBars rows={report.by_channel} />
+                <RevenueBars title="By channel" rows={report.by_channel} keyOf={(r) => r.channel} labelOf={channelLabel} />
               </div>
+              {/* Only worth showing when the report covers more than one branch. */}
+              {!branchId && report.by_branch?.length > 1 && (
+                <RevenueBars title="By branch" rows={report.by_branch} keyOf={(r) => r.branch_id} labelOf={(r) => r.name} />
+              )}
               <BestSellers items={report.top_items} />
             </>
           )}

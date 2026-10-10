@@ -1,6 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { supabaseAdmin } from '../config/supabase.js';
 import { ApiError, fromPostgrestError } from '../utils/ApiError.js';
+import { canAccessBranch } from '../utils/branchScope.js';
 import { signedUrls, uploadPrivateImage } from './storage.service.js';
 
 /**
@@ -134,13 +135,16 @@ const guestLabel = ({ guest_number: number, visitor_name: name }) => {
   return name ? `${name} (${tag})` : tag;
 };
 
-/** Opens a thread with its first message. The token is returned once; only its hash is kept. */
-export const createVisitorThread = async ({ name, body }) => {
+/**
+ * Opens a thread with its first message, in the inbox of the branch the visitor
+ * picked. The token is returned once; only its hash is kept.
+ */
+export const createVisitorThread = async ({ name, body, branchId }) => {
   const token = `chat_${randomBytes(24).toString('base64url')}`;
 
   const { data: thread, error } = await supabaseAdmin
     .from(THREADS)
-    .insert({ kind: 'support', visitor_name: name ?? null })
+    .insert({ kind: 'support', visitor_name: name ?? null, branch_id: branchId })
     .select('id')
     .single();
   if (error) throw fromPostgrestError(error);
@@ -192,26 +196,34 @@ export const postVisitorImage = async (threadId, token, file) => {
 
 // --- cashier side ---
 
-const requireSupportThread = async (threadId) => {
+/** A support thread at one of the caller's branches; anything else is "not found". */
+const requireSupportThread = async (threadId, scope) => {
   const { data, error } = await supabaseAdmin
     .from(THREADS)
-    .select('id')
+    .select('id, branch_id')
     .eq('id', threadId)
     .eq('kind', 'support')
     .maybeSingle();
   if (error) throw fromPostgrestError(error);
-  if (!data) throw ApiError.notFound('Conversation not found');
+  if (!data || !canAccessBranch(scope, data.branch_id)) throw ApiError.notFound('Conversation not found');
 };
 
-export const listSupportThreads = async () => {
-  const { data: threads, error } = await supabaseAdmin
+/** The inbox for the given branches (null = every branch). */
+export const listSupportThreads = async (branchIds = null) => {
+  if (branchIds && branchIds.length === 0) return [];
+
+  let query = supabaseAdmin
     .from(THREADS)
     .select(
-      'id, guest_number, visitor_name, last_message, last_sender_role, last_message_at, staff_read_at, created_at',
+      'id, guest_number, visitor_name, last_message, last_sender_role, last_message_at, staff_read_at, ' +
+        'created_at, branch_id, branch:branches(id, code, name)',
     )
     .eq('kind', 'support')
     .order('last_message_at', { ascending: false })
     .limit(50);
+  if (branchIds) query = query.in('branch_id', branchIds);
+
+  const { data: threads, error } = await query;
   if (error) throw fromPostgrestError(error);
 
   return threads.map(({ staff_read_at: readAt, ...thread }) => ({
@@ -222,23 +234,23 @@ export const listSupportThreads = async () => {
   }));
 };
 
-export const getSupportMessages = async (threadId) => {
-  await requireSupportThread(threadId);
+export const getSupportMessages = async (threadId, scope) => {
+  await requireSupportThread(threadId, scope);
   return listMessages(threadId);
 };
 
-export const postStaffMessage = async (threadId, staffId, body) => {
-  await requireSupportThread(threadId);
+export const postStaffMessage = async (threadId, scope, staffId, body) => {
+  await requireSupportThread(threadId, scope);
   return addMessage(threadId, { senderRole: 'cashier', senderId: staffId, body });
 };
 
-export const postStaffImage = async (threadId, staffId, file) => {
-  await requireSupportThread(threadId);
+export const postStaffImage = async (threadId, scope, staffId, file) => {
+  await requireSupportThread(threadId, scope);
   return addImage(threadId, { senderRole: 'cashier', senderId: staffId, file });
 };
 
-export const markSupportThreadRead = async (threadId) => {
-  await requireSupportThread(threadId);
+export const markSupportThreadRead = async (threadId, scope) => {
+  await requireSupportThread(threadId, scope);
   const { error } = await supabaseAdmin
     .from(THREADS)
     .update({ staff_read_at: new Date().toISOString() })
@@ -253,7 +265,7 @@ export const markSupportThreadRead = async (threadId) => {
 const loadDeliveryOrder = async (orderId) => {
   const { data, error } = await supabaseAdmin
     .from('orders')
-    .select('id, order_number, status, fulfillment_type, customer_id, customer_name, rider_id')
+    .select('id, order_number, status, fulfillment_type, customer_id, customer_name, rider_id, branch_id')
     .eq('id', orderId)
     .maybeSingle();
   if (error) throw fromPostgrestError(error);
@@ -270,7 +282,7 @@ const requireParticipant = (order, userId, as) => {
 
 // A rider may release an order and another may take it, so the thread follows
 // the order, not the rider, and history stays readable.
-const findOrCreateDeliveryThread = async (orderId) => {
+const findOrCreateDeliveryThread = async ({ id: orderId, branch_id: branchId }) => {
   const find = () => supabaseAdmin.from(THREADS).select('id').eq('order_id', orderId).maybeSingle();
 
   const existing = await find();
@@ -279,7 +291,8 @@ const findOrCreateDeliveryThread = async (orderId) => {
 
   const { data, error } = await supabaseAdmin
     .from(THREADS)
-    .insert({ kind: 'delivery', order_id: orderId })
+    // The branch's staff can read the conversation, like they can the order.
+    .insert({ kind: 'delivery', order_id: orderId, branch_id: branchId })
     .select('id')
     .single();
   if (!error) return data.id;
@@ -312,7 +325,7 @@ export const getOrderChat = async (orderId, userId, as) => {
     .maybeSingle();
   if (error) throw fromPostgrestError(error);
 
-  const threadId = thread?.id ?? (order.rider_id ? await findOrCreateDeliveryThread(orderId) : null);
+  const threadId = thread?.id ?? (order.rider_id ? await findOrCreateDeliveryThread(order) : null);
 
   return {
     thread_id: threadId,
@@ -334,7 +347,7 @@ const openDeliveryThread = async (orderId, userId, as) => {
   if (!isOpen(order)) {
     throw ApiError.conflict('Chat is only open while the order is out for delivery');
   }
-  return findOrCreateDeliveryThread(orderId);
+  return findOrCreateDeliveryThread(order);
 };
 
 export const postOrderMessage = async (orderId, userId, as, body) => {

@@ -1,6 +1,8 @@
+import * as branchService from '../services/branch.service.js';
 import * as orderService from '../services/order.service.js';
 import * as paymentService from '../services/payment.service.js';
 import { ApiError } from '../utils/ApiError.js';
+import { assertOrderTime } from '../utils/schedule.js';
 import { buildMeta } from '../utils/pagination.js';
 
 /**
@@ -28,8 +30,11 @@ export const getMine = async (req, res) => {
 
 export const create = async (req, res) => {
   const body = req.body;
+  const branch = await branchService.getActiveBranchOrFail(body.branch_id);
+  assertOrderTime(branch, body.scheduled_for ?? null);
 
   const data = await orderService.createOrder({
+    branchId: branch.id,
     items: body.items,
     channel: 'online',
     fulfillmentType: body.fulfillment_type,
@@ -39,6 +44,7 @@ export const create = async (req, res) => {
     paymentMethod: body.payment_method,
     deliveryAddress: body.fulfillment_type === 'delivery' ? body.delivery_address : null,
     notes: body.notes ?? null,
+    scheduledFor: body.scheduled_for ? new Date(body.scheduled_for).toISOString() : null,
   });
 
   res.status(201).json({ data });

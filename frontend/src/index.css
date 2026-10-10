@@ -61,6 +61,33 @@ body {
   }
 }
 
+/* Tailwind v4 resets buttons to the default arrow cursor. Everything clickable
+   gets the pointer back, and anything disabled says so. */
+@layer base {
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']),
+  summary,
+  select:not(:disabled),
+  label:has(> input[type='checkbox'], > input[type='radio']),
+  input[type='checkbox']:not(:disabled),
+  input[type='radio']:not(:disabled),
+  input[type='file']:not(:disabled) {
+    cursor: pointer;
+  }
+  button:disabled,
+  select:disabled,
+  input:disabled {
+    cursor: not-allowed;
+  }
+}
+
+/* In-page links (#branches, #menu) glide instead of jumping, unless the visitor prefers less motion. */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
 :focus-visible {
   outline: 2px solid var(--color-brand);
   outline-offset: 2px;
@@ -69,4 +96,113 @@ body {
 .scroll-thin {
   scrollbar-width: thin;
   scrollbar-color: var(--color-line) transparent;
+}
+
+/* --- Maps: quiet and minimal --------------------------------------------------
+   One look for every Leaflet map: pale tiles, flat controls, small dot markers on
+   the branch map, and plain popups and labels in the app's own font. Each rule is
+   scoped under .leaflet-container so it outranks leaflet.css, which a map chunk
+   loads after this file. */
+.leaflet-container.leaflet-container {
+  font-family: var(--font-sans);
+  background: #f4f1ec;
+}
+
+/* The OpenStreetMap fallback (no CARTO key), greyed out to match the light style. */
+.map-tiles-muted {
+  filter: grayscale(1) sepia(0.12) brightness(1.16) contrast(0.7);
+}
+
+/* The landing-page branch map: washed out to near-white, so only the logos stand out. */
+.map-tiles-white {
+  filter: grayscale(1) contrast(0.4) brightness(1.55);
+}
+.map-tiles-white-soft {
+  filter: grayscale(1) brightness(1.04);
+}
+.branch-map.branch-map {
+  background: #fff;
+}
+
+.leaflet-container .leaflet-control-zoom.leaflet-bar {
+  border: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+}
+.leaflet-container .leaflet-control-zoom.leaflet-bar a {
+  width: 30px;
+  height: 30px;
+  line-height: 30px;
+  font-weight: 400;
+  color: var(--color-ink);
+  border-bottom-color: var(--color-line);
+}
+
+.leaflet-container .leaflet-control-attribution.leaflet-control {
+  background: rgb(255 255 255 / 0.7);
+  font-size: 10px;
+  color: var(--color-ink-soft);
+  border-top-left-radius: 6px;
+}
+.leaflet-container .leaflet-control-attribution a {
+  color: inherit;
+}
+
+.leaflet-container .leaflet-popup-content-wrapper {
+  border-radius: 14px;
+  box-shadow: var(--shadow-lg);
+}
+.leaflet-container .leaflet-popup-content {
+  margin: 14px 16px;
+  font-family: var(--font-sans);
+}
+
+.leaflet-container .leaflet-tooltip {
+  border: 0;
+  border-radius: 8px;
+  padding: 3px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-ink);
+  box-shadow: var(--shadow-md);
+}
+.leaflet-container .leaflet-tooltip-top::before {
+  display: none;
+}
+
+/* Branch pins: a red teardrop with the logo in its head (see logoIcon in mapPins.js). */
+.map-pin {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 3px 4px rgb(43 24 18 / 0.25));
+  transform-origin: 50% 86%;
+  transition: transform 0.15s ease;
+}
+.map-pin:hover {
+  transform: scale(1.08);
+}
+.map-pin svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.map-pin__body {
+  fill: var(--color-brand);
+}
+.map-pin__ring {
+  fill: none;
+  stroke: var(--color-brand);
+  stroke-width: 2.5;
+}
+.map-pin--selected {
+  filter: drop-shadow(0 6px 8px rgb(232 32 42 / 0.35));
+}
+.map-pin--selected .map-pin__ring {
+  fill: rgb(232 32 42 / 0.14);
+  stroke-width: 3;
 }

@@ -21,15 +21,16 @@ request ─▶ routes ─▶ middleware ─▶ controller ─▶ service ─▶ 
 ```
 backend/src/
   config/        env.js (validated at boot), supabase.js (the three clients)
-  constants/     orders.js (statuses, allowed moves, roles, selects)
+  constants/     orders.js (statuses, allowed moves, roles and role groups, selects)
   validators/    zod schemas, one file per area; fields.js holds the shared field rules
-  middleware/    auth.js (login + roles + active check), kiosk.js (device key), validate.js,
-                 upload.js (raw image bodies), errorHandler.js
+  middleware/    auth.js (login + roles + active check), branch.js (branch scope, order-in-scope),
+                 kiosk.js (device key + its branch), validate.js, upload.js (raw image bodies), errorHandler.js
   controllers/   read the request, call a service, shape the response (no queries)
   services/      the business rules and all database access (no req/res)
   routes/        path + middleware chain + controller, nothing else
   utils/         ApiError, asyncHandler, pagination, password hashing, manilaDate,
-                 postgrest (safe search), findUser
+                 postgrest (safe search), findUser, branchScope (who may see which branch),
+                 schedule (when an online order may be for)
   app.js         the middleware pipeline          server.js   entry point
 ```
 
@@ -51,14 +52,15 @@ file reads as a table of contents.
 
 | Interface | Base path | Who may call it |
 | --- | --- | --- |
-| Public | `/menu`, `/categories`, `/products` (reads), `/site/images`, `/health`, `/chat/visitor/*` | Anyone |
+| Public | `/branches`, `/menu`, `/categories`, `/products` (reads), `/site/images`, `/health`, `/chat/visitor/*` | Anyone |
 | Auth | `/auth/*` | Login, register, refresh; profile and password need a token |
-| Employee gates | `/employee/cashier/login`, `/employee/kiosk/unlock` | Anyone with the shared password (rate limited) |
-| Kiosk | `/kiosk/*` | A device key (`X-Kiosk-Key`) |
-| POS | `/pos/*` | `cashier` or `admin` |
+| Employee gates | `/employee/cashier/login`, `/employee/kiosk/unlock` | Anyone with the branch's shared password (rate limited) |
+| Kiosk | `/kiosk/*` | A device key (`X-Kiosk-Key`), acting for its branch |
+| POS | `/pos/*` | `cashier`, `admin` or `super_admin`, active, limited to their branches |
 | Online customer | `/orders/*` | Any signed-in user, scoped to their own orders |
-| Rider | `/rider/*` | `rider`, and not deactivated |
-| Admin | `/admin/*` | `admin` |
+| Rider | `/rider/*` | `rider`, and not deactivated, limited to their branch |
+| Admin | `/admin/*` | `admin` (their branches) or `super_admin` (all, plus branches, admins, site images, roles), active |
+| Menu writes | `/categories`, `/products` (writes) | `super_admin` |
 | Webhooks | `/webhooks/paymongo` | PayMongo, by signature |
 
 One shared `/orders` that behaves differently per caller was rejected on purpose: it makes each app's contract
@@ -78,8 +80,14 @@ impossible to document and test. See [decisions.md](./decisions.md).
 - `requireAuth`: validates the bearer token with Supabase and attaches `req.user`.
 - `requireRole(...roles)`: reads the role **only** from `app_metadata.role` (server-written). No role means `customer`.
   `user_metadata` is editable by users and is never trusted. See [security.md](./security.md).
-- `requireActive`: refuses accounts an admin deactivated (used on rider routes).
-- `middleware/kiosk.js`: the kiosk's device key, compared by hash.
+- `requireActive`: refuses accounts that were deactivated (rider, POS and admin routes).
+- `middleware/branch.js`:
+  - `loadBranchScope` attaches `req.branchScope`: `{ all: true }` for a super admin, otherwise the branch ids in
+    `branch_staff`, **read on every request** so a change applies at once.
+  - `requireOrderInScope` loads `:id` into `req.order`, or 404s if it belongs to another branch.
+  - The rules themselves are pure functions in `utils/branchScope.js`: `branchFilter` (a list's branches; 403 for one
+    outside the scope), `resolveBranch` (the one branch an action happens at), `assertBranchAccess`.
+- `middleware/kiosk.js`: the kiosk's device key, compared by hash; attaches the device and its branch.
 
 ### Errors
 
@@ -103,13 +111,15 @@ frontend/src/
     cashier/     CashierApp (password gate), Pos
     kiosk/       KioskApp (gate), KioskFlow, KioskPaymentResult
     driver/      Driver
-    admin/       AdminApp (menu + routes), AdminSales, AdminOrders, AdminMenu, AdminRiders,
-                 AdminKiosks, AdminBranding, AdminSettings
+    admin/       AdminApp (menu + routes + branch switcher), AdminSales, AdminOrders, AdminMenu, AdminRiders,
+                 AdminKiosks, AdminSettings, AdminBranches, AdminAdmins, AdminBranding
   components/    ui.jsx (Button, Card, Field, Input, Modal, Segmented…), MenuBrowser, AddressFields,
-                 AddressMap, PhoneInput, ImageField, BottomDock, Avatar, Layouts, guards, chat/*
-  context/       AuthContext (session + login), CartContext, ToastContext
+                 AddressMap, BranchMap, BranchList, OrderBranchPicker, ScheduleField, StaffBranch,
+                 mapPins, PhoneInput, ImageField, BottomDock, Avatar, Layouts, guards, chat/*
+  context/       AuthContext (session + login), CartContext, ToastContext (sonner's Toaster + useToast)
   lib/           api.js, session.js, supabase.js, oauth.js, chat.js, hooks.js, format.js,
-                 validation.js, image.js, geocode.js, siteImages.js, kiosk.js
+                 validation.js, image.js, geocode.js, siteImages.js, kiosk.js, branches.js,
+                 geo.js (hours, location, distance), schedule.js (order time slots)
 ```
 
 Key modules:
@@ -122,6 +132,11 @@ Key modules:
 | `lib/hooks.js` | `useFetch` with stable `refresh`/`reload` so subscriptions are not rebuilt on every render |
 | `lib/validation.js` | The field rules, mirroring the backend |
 | `context/CartContext` | The cart in `localStorage` (`3k.cart`); cleared on sign-out; quantities clamped |
+| `lib/branches.js` | The branch list (`GET /branches`, fetched once) and the customer's branch: `useSelectedBranch()` returns their pick, or the nearest branch once the location is known, or the first |
+| `lib/geo.js` | Manila opening hours (`isOpenNow`, `hoursLabel`), the customer's location (asked once per page load, shared), distances and the nearest branch |
+| `lib/schedule.js` | The 15-minute slots a branch offers for a scheduled order; mirrors `backend/src/utils/schedule.js` |
+| `components/StaffBranch.jsx` | The staff branch context and switcher (admin, POS), built from the account's branches in `/auth/profile` |
+| `components/BranchMap.jsx` | The landing-page map: every branch, fitted to their bounds; lazy-loaded with Leaflet |
 | `components/ui.jsx` | The design system: buttons (also as links), cards, inputs, dialogs with focus trapping, segmented control |
 | `components/BottomDock` | The one fixed bottom stack for the cart bar and chat button, so they never overlap; toasts appear at the top |
 
@@ -138,6 +153,9 @@ whole app inherits them.
 | --- | --- | --- |
 | `3k.session` | The login (tokens + user) | Sign-out, or when the server rejects the session |
 | `3k.cart` | The cart | Sign-out; after an order |
+| `3k.branch` | The customer's branch and whether they chose it (`{ id, explicit }`) | Never automatically |
+| `3k.adminBranch`, `3k.posBranch` | The branch a staff screen is looking at | Never automatically |
+| `3k.registerBranch` | The branch a register (cashier gate) belongs to | Never automatically |
 | `3k.chat` | A guest's conversation id and secret token | Never automatically (the guest's own conversation) |
 | `3k.kioskKey` | A kiosk's device key | When the kiosk is locked or the key is revoked |
 | `3k.oauth*` | Google sign-in's temporary state | Immediately after sign-in |
@@ -150,7 +168,7 @@ Three mechanisms, chosen by who can authenticate:
 
 | Who | Mechanism | Why |
 | --- | --- | --- |
-| Cashier, customer, rider (logged in) | Supabase **postgres_changes** on `orders`, `chat_messages`, `chat_threads` | Row-level security scopes the feed to what each may read, so a customer is never sent another's order |
+| Cashier, admin, customer, rider (logged in) | Supabase **postgres_changes** on `orders`, `chat_messages`, `chat_threads` | Row-level security scopes the feed to what each may read, so a customer is never sent another's order and a cashier never another branch's |
 | Guests chatting | **Broadcast** ping on `chat:<thread id>`, then a fetch with the guest's token | A guest has no login to scope a feed; the ping carries no content |
 | Kiosk | **Polling** `GET /kiosk/orders/:id` every 2 s | It has no login either |
 
@@ -213,16 +231,17 @@ Other side refetches messages ─▶ service signs short-lived links ─▶ <img
   migration exists because of that).
 - **Server-only tables** (no policies at all): `kiosk_devices`, `order_counters`, `webhook_events`,
   `employee_credentials`, `chat_thread_secrets`.
-- **SQL functions:** `auth_role()` (role from the token, used by policies), `handle_new_user()` (creates a profile at
-  sign-up), `next_order_number()` / `set_order_number()` (per-day numbering in Manila time), `sales_report()` (the
-  dashboard). Table-by-table detail is in [data-dictionary.md](./data-dictionary.md).
+- **SQL functions:** `auth_role()` (role from the token, used by policies), `has_branch_access(branch)` (super admin,
+  or the caller works at that branch; used by the staff policies), `handle_new_user()` (creates a profile at sign-up),
+  `next_order_number()` / `set_order_number()` (per-branch, per-day numbering in Manila time), `sales_report()` (the
+  dashboard, optionally for some branches). Table-by-table detail is in [data-dictionary.md](./data-dictionary.md).
 - **Where each business rule is enforced** (form, API, database) is tabulated in the data dictionary's *Input rules*.
 
 ## Storage
 
 | Bucket | Visibility | Holds |
 | --- | --- | --- |
-| `menu-images` | Public read | Product photos, logo, promo |
+| `menu-images` | Public read | Product photos, the logo |
 | `chat-images` | **Private** | Chat photos, shown only via short-lived signed links |
 
 Neither bucket has any policy that lets a browser write; uploads go through the API with the secret key.
@@ -238,6 +257,8 @@ Neither bucket has any policy that lets a browser write; uploads go through the 
 | The shape of an HTTP response | `controllers/` |
 | A business rule, or anything touching the database | `services/` |
 | A status name or allowed move | `constants/orders.js` |
+| Who may see which branch | `utils/branchScope.js`, `middleware/branch.js`, and the policies using `has_branch_access()` |
+| When an online order may be for | `utils/schedule.js` and `frontend/src/lib/schedule.js` together |
 | The database structure | a **new** migration, then [data-dictionary.md](./data-dictionary.md) |
 | A screen | `frontend/src/pages/<audience>/` |
 | Something shared by several screens | `frontend/src/components/` |

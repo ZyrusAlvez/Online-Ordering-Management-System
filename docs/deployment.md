@@ -62,7 +62,8 @@ proxy), set `2`; otherwise every visitor looks like one address and shares one r
 | `VITE_API_URL` | **yes** | The API's full address including the prefix, e.g. `https://api.example.com/api/v1` |
 | `VITE_SUPABASE_URL` | **yes** | Project URL |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | **yes** | Publishable key only; **never** the secret key |
-| `VITE_MAP_DEFAULT_LAT`, `VITE_MAP_DEFAULT_LNG` | no | Where the delivery map opens (default General Mariano Alvarez, Cavite) |
+| `VITE_CARTO_BASEMAPS_KEY` | no, but wanted | A free [CARTO Basemaps key](https://carto.com/basemaps/apikey) for the light map style on every map. CARTO no longer serves tiles without one (they show "API KEY REQUIRED"), so **without it the maps fall back to standard OpenStreetMap tiles**. Add your site's address as a restriction on the key in CARTO's dashboard |
+| `VITE_MAP_DEFAULT_LAT`, `VITE_MAP_DEFAULT_LNG` | no | Where the delivery-address map opens (default General Mariano Alvarez, Cavite). The landing-page branch map frames the branches themselves and needs no setting |
 
 Because Vite bakes these in when you build, change them and **rebuild** to take effect.
 
@@ -136,8 +137,14 @@ npm run build                        # produces frontend/dist
 Upload `frontend/dist` to a static host and configure the SPA fallback. Cache `assets/*` for a long time (file names
 contain a content hash) and `index.html` not at all. Also set security headers there, in particular a
 **Content-Security-Policy** (the app sets none itself); it needs to allow the API, Supabase (including websockets),
-OpenStreetMap tiles (`tile.openstreetmap.org`) and Nominatim (`nominatim.openstreetmap.org`), Google Fonts, and images
+CARTO map tiles (`basemaps.cartocdn.com`; or `tile.openstreetmap.org` without a CARTO key) and Nominatim (`nominatim.openstreetmap.org`), Google Fonts, and images
 from Supabase Storage.
+
+**Map tiles.** Every map uses CARTO's *light* basemap, which needs a key (`VITE_CARTO_BASEMAPS_KEY`, free from
+<https://carto.com/basemaps/apikey>, sent by email). The free tier allows 1 million tile requests a month for commercial
+use (5 million non-commercial), counted across your keys; above that CARTO sells plans. Keep the "© OpenStreetMap
+contributors, © CARTO" attribution (the maps show it). Without the key the maps use OpenStreetMap's own tiles, whose
+fair-use policy suits light traffic only. The choice lives in one place: `frontend/src/components/mapPins.js`.
 
 **One address or two:** serving the website and API from different origins needs `CORS_ORIGIN` set to the website's
 origin. Serving both from one domain (the proxy sending `/api` to Node) avoids CORS entirely.
@@ -167,7 +174,7 @@ origin. Serving both from one domain (the proxy sending `/api` to Node) avoids C
 
 **Content**
 - [ ] Menu prices checked (a dish with no price cannot be ordered); real photos uploaded or placeholders accepted
-      (their credits are in `seed-data/product-images.json`); logo and promo set.
+      (their credits are in `seed-data/product-images.json`); logo set.
 - [ ] Kiosk devices unlocked and listed in Admin → Kiosks; a test order taken through every channel.
 
 **Verification**

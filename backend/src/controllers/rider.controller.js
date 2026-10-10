@@ -1,8 +1,8 @@
 import * as riderService from '../services/rider.service.js';
 import { buildMeta } from '../utils/pagination.js';
 
-export const pool = async (_req, res) => {
-  res.json({ data: await riderService.listPool() });
+export const pool = async (req, res) => {
+  res.json({ data: await riderService.listPool(req.branchScope.ids) });
 };
 
 export const listMine = async (req, res) => {
@@ -13,7 +13,7 @@ export const listMine = async (req, res) => {
 };
 
 export const claim = async (req, res) => {
-  res.json({ data: await riderService.claimOrder(req.params.id, req.user.id) });
+  res.json({ data: await riderService.claimOrder(req.params.id, req.user.id, req.branchScope.ids) });
 };
 
 export const unclaim = async (req, res) => {

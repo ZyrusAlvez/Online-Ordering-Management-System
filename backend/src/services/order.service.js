@@ -1,6 +1,8 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { ALLOWED_TRANSITIONS, WITH_ITEMS } from '../constants/orders.js';
 import { ApiError, fromPostgrestError } from '../utils/ApiError.js';
+import { canAccessBranch } from '../utils/branchScope.js';
+import { soldOutAt } from './branch.service.js';
 import { applyRange } from '../utils/pagination.js';
 import { anyColumnContains } from '../utils/postgrest.js';
 
@@ -41,6 +43,16 @@ export const getOrderOrFail = async (orderId, client = supabaseAdmin) => {
 };
 
 /**
+ * fetchOrder for staff: 404 unless the order belongs to a branch in `scope`, so
+ * a cashier or branch admin cannot act on (or even confirm) another branch's order.
+ */
+export const getScopedOrderOrFail = async (orderId, scope) => {
+  const order = await fetchOrder(orderId);
+  if (!order || !canAccessBranch(scope, order.branch_id)) throw ApiError.notFound('Order not found');
+  return order;
+};
+
+/**
  * Lists orders with the filters every caller needs. `client` decides the
  * visibility: pass a caller-scoped client to let RLS narrow rows to that user,
  * or the default admin client for staff views that must see everything.
@@ -55,7 +67,11 @@ export const listOrders = async ({
   search,
   createdAfter,
   createdBefore,
+  branchIds = null,
 } = {}) => {
+  // An admin with no branches assigned sees nothing, not everything.
+  if (branchIds && branchIds.length === 0) return { data: [], total: 0 };
+
   let query = applyRange(
     client
       .from('orders')
@@ -66,6 +82,7 @@ export const listOrders = async ({
     { page, limit },
   );
 
+  if (branchIds) query = query.in('branch_id', branchIds);
   if (status) query = query.eq('status', status);
   if (paymentStatus) query = query.eq('payment_status', paymentStatus);
   if (channel) query = query.eq('channel', channel);
@@ -88,16 +105,15 @@ export const listOrders = async ({
 /**
  * Resolves cart lines against live menu prices. A client-supplied total is
  * never trusted — only product/variant ids and quantities come from the
- * request. Throws if anything is unknown, unavailable, or unpriced.
+ * request. Throws if anything is unknown, unavailable (everywhere, or sold out
+ * at `branchId`), or unpriced.
  */
-export const priceOrder = async (items) => {
-  const { data: products, error } = await supabaseAdmin
-    .from('products')
-    .select('id, name, price, is_available, product_variants(id, price)')
-    .in(
-      'id',
-      items.map((item) => item.product_id),
-    );
+export const priceOrder = async (items, branchId = null) => {
+  const ids = items.map((item) => item.product_id);
+  const [{ data: products, error }, soldOut] = await Promise.all([
+    supabaseAdmin.from('products').select('id, name, price, is_available, product_variants(id, price)').in('id', ids),
+    soldOutAt(branchId, ids),
+  ]);
 
   if (error) throw fromPostgrestError(error);
 
@@ -108,6 +124,9 @@ export const priceOrder = async (items) => {
     if (!product) throw ApiError.badRequest(`Unknown product: ${item.product_id}`);
     if (product.is_available === false) {
       throw ApiError.conflict(`Product is unavailable: ${product.name}`);
+    }
+    if (soldOut.has(product.id)) {
+      throw ApiError.conflict(`Sold out at this branch: ${product.name}`);
     }
 
     let unitPrice = product.price;
@@ -149,6 +168,7 @@ export const priceOrder = async (items) => {
  * `order_number` is assigned by the orders_set_order_number trigger.
  */
 export const createOrder = async ({
+  branchId,
   items,
   channel,
   fulfillmentType,
@@ -159,12 +179,14 @@ export const createOrder = async ({
   kioskDeviceId = null,
   deliveryAddress = null,
   notes = null,
+  scheduledFor = null,
 }) => {
-  const { lines, totalCentavos } = await priceOrder(items);
+  const { lines, totalCentavos } = await priceOrder(items, branchId);
 
   const { data: order, error: orderError } = await supabaseAdmin
     .from('orders')
     .insert({
+      branch_id: branchId,
       customer_id: customerId,
       customer_name: customerName,
       customer_phone: customerPhone,
@@ -177,6 +199,7 @@ export const createOrder = async ({
       kiosk_device_id: kioskDeviceId,
       delivery_address: deliveryAddress,
       notes,
+      scheduled_for: scheduledFor,
     })
     .select()
     .single();
@@ -221,7 +244,7 @@ export const replaceOrderItems = async (orderId, items) => {
     throw ApiError.conflict(`Cannot modify an order whose payment is ${order.payment_status}`);
   }
 
-  const { lines, totalCentavos } = await priceOrder(items);
+  const { lines, totalCentavos } = await priceOrder(items, order.branch_id);
 
   // Remember the current lines so a failed insert can put them back instead of
   // leaving an order with no items and a stale total.

@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { CartProvider, useCart } from '../context/CartContext.jsx';
 import Avatar from './Avatar.jsx';
-import { Logo } from './Logo.jsx';
+import { Logo, RESTAURANT } from './Logo.jsx';
 import { Button } from './ui.jsx';
 import { Cart, Logout } from './icons.jsx';
 
@@ -130,8 +130,8 @@ export function CustomerLayout() {
   );
 }
 
-/** Header bar for staff-facing screens (cashier, driver, admin). */
-export function StaffBar({ title, children, onLogout }) {
+/** Header bar for staff-facing screens (cashier, driver, admin). `subtitle` names the branch. */
+export function StaffBar({ title, subtitle, children, onLogout }) {
   const { user } = useAuth();
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-white">
@@ -141,7 +141,7 @@ export function StaffBar({ title, children, onLogout }) {
           <div className="leading-tight">
             <p className="font-display text-lg">{title}</p>
             <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-sun-dark">
-              3K Kitchen · GMA Terminal
+              {subtitle ? `${RESTAURANT} · ${subtitle}` : RESTAURANT}
             </p>
           </div>
         </div>

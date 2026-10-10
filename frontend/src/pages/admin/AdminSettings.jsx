@@ -3,8 +3,9 @@ import { api } from '../../lib/api.js';
 import { useToast } from '../../context/ToastContext.jsx';
 import { Button, Card, ErrorNote, Field, Input } from '../../components/ui.jsx';
 import { Lock } from '../../components/icons.jsx';
+import { BranchSelect, useStaffBranch } from '../../components/StaffBranch.jsx';
 
-function PasswordCard({ role, title, description }) {
+function PasswordCard({ role, title, description, branch }) {
   const toast = useToast();
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -18,8 +19,8 @@ function PasswordCard({ role, title, description }) {
     setBusy(true);
     setError(null);
     try {
-      await api.put(`/admin/employee-passwords/${role}`, { password }, { auth: true });
-      toast.success(`${title} password updated`);
+      await api.put(`/admin/employee-passwords/${role}`, { branch_id: branch.id, password }, { auth: true });
+      toast.success(`${branch.name} ${title.toLowerCase()} password updated`);
       setPassword('');
       setConfirm('');
     } catch (err) {
@@ -55,26 +56,44 @@ function PasswordCard({ role, title, description }) {
 }
 
 export default function AdminSettings() {
+  const { branchId: viewing, branches } = useStaffBranch();
+  // Passwords are per branch, so this page always works on exactly one.
+  const [picked, setPicked] = useState('');
+  const branchId = picked || viewing || branches[0]?.id || '';
+  const branch = branches.find((b) => b.id === branchId);
+
   return (
     <div className="space-y-4">
       <h1 className="font-display text-4xl">Employee passwords</h1>
       <p className="max-w-2xl text-sm text-ink-soft">
-        These passwords protect the <strong>/cashier</strong> and <strong>/kiosk</strong> pages. Share
-        them only with staff. Changing the cashier password signs out nobody already using the
-        register, but the new password is required next time.
+        Each branch has its own passwords for the <strong>/cashier</strong> and <strong>/kiosk</strong> pages.
+        Staff choose their branch, then type its password. Share them only with that branch's staff.
+        Changing the cashier password signs out nobody already using the register, but the new password is
+        required next time.
       </p>
-      <div className="grid gap-4 lg:grid-cols-2">
-        <PasswordCard
-          role="cashier"
-          title="Cashier"
-          description="Unlocks the register at /cashier."
-        />
-        <PasswordCard
-          role="kiosk"
-          title="Kiosk"
-          description="Unlocks a browser as a self-order kiosk at /kiosk. Kiosks already unlocked keep working until you revoke their device."
-        />
-      </div>
+      {branches.length > 1 && (
+        <div className="max-w-xs">
+          <BranchSelect value={branchId} onChange={setPicked} />
+        </div>
+      )}
+      {branch && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <PasswordCard
+            key={`cashier-${branch.id}`}
+            role="cashier"
+            title="Cashier"
+            branch={branch}
+            description={`Unlocks the register at /cashier for ${branch.name}. Setting it the first time creates the branch's register login.`}
+          />
+          <PasswordCard
+            key={`kiosk-${branch.id}`}
+            role="kiosk"
+            title="Kiosk"
+            branch={branch}
+            description={`Unlocks a browser as a ${branch.name} self-order kiosk at /kiosk. Kiosks already unlocked keep working until you revoke their device.`}
+          />
+        </div>
+      )}
     </div>
   );
 }

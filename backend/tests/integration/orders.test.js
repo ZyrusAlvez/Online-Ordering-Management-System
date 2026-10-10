@@ -3,7 +3,7 @@ import { after, before, describe, it } from 'node:test';
 import { get, post } from '../helpers/client.js';
 import { tokenFor } from '../helpers/auth.js';
 import { setOrderState } from '../helpers/db.js';
-import { cleanup, flatPricedProduct, placeOnlineOrder } from '../helpers/fixtures.js';
+import { branchId, cleanup, flatPricedProduct, orderTime, placeOnlineOrder } from '../helpers/fixtures.js';
 
 let customer;
 let otherCustomer;
@@ -45,10 +45,40 @@ describe('POST /orders', () => {
     assert.ok(order.customer_id);
   });
 
+  it('requires a branch, and refuses one that is not taking orders', async () => {
+    const missing = await post(
+      '/orders',
+      { fulfillment_type: 'pickup', payment_method: 'cash', items: [{ product_id: flat.id, quantity: 1 }] },
+      { token: customer },
+    );
+    assert.equal(missing.status, 400);
+    assert.ok(missing.body.error.details.branch_id);
+
+    const unknown = await post(
+      '/orders',
+      {
+        branch_id: '00000000-0000-4000-8000-000000000000',
+        fulfillment_type: 'pickup',
+        payment_method: 'cash',
+        items: [{ product_id: flat.id, quantity: 1 }],
+      },
+      { token: customer },
+    );
+    assert.equal(unknown.status, 400);
+  });
+
+  it('records the chosen branch on the order', async () => {
+    const order = await placeOnlineOrder('customer', { branch_id: await branchId('imus') });
+    assert.equal(order.branch_id, await branchId('imus'));
+    assert.equal(order.branch.name, 'Imus');
+  });
+
   it('requires an address for delivery, naming the field', async () => {
     const res = await post(
       '/orders',
       {
+        branch_id: await branchId(),
+        ...(await orderTime()),
         fulfillment_type: 'delivery',
         payment_method: 'cash',
         items: [{ product_id: flat.id, quantity: 1 }],
@@ -73,6 +103,8 @@ describe('POST /orders', () => {
       const res = await post(
         '/orders',
         {
+          branch_id: await branchId(),
+          ...(await orderTime()),
           fulfillment_type: type,
           payment_method: 'cash',
           items: [{ product_id: flat.id, quantity: 1 }],
@@ -85,6 +117,7 @@ describe('POST /orders', () => {
 
   it('401s without a token', async () => {
     const res = await post('/orders', {
+      branch_id: await branchId(),
       fulfillment_type: 'pickup',
       payment_method: 'cash',
       items: [{ product_id: flat.id, quantity: 1 }],

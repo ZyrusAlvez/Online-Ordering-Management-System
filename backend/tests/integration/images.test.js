@@ -42,9 +42,7 @@ after(async () => {
   for (const [key, bytes] of Object.entries(originalBytes)) {
     await put(`/admin/site-images/${key}`, bytes, { ...png, headers: { 'Content-Type': bytes.type }, token: admin });
   }
-  for (const key of ['logo', 'promo']) {
-    if (!originalBytes[key]) await del(`/admin/site-images/${key}`, { token: admin });
-  }
+  if (!originalBytes.logo) await del('/admin/site-images/logo', { token: admin });
 });
 
 const originalBytes = {};
@@ -78,9 +76,9 @@ describe('PUT /products/:id/image', () => {
     assert.equal(await existsInStorage(before), false);
   });
 
-  it('lets a cashier upload too, like other product edits', async () => {
+  it('403s a cashier: the shared menu is edited by the super admin only', async () => {
     const res = await put(`/products/${productId}/image`, PNG, { ...png, token: cashier });
-    assert.equal(res.status, 200);
+    assert.equal(res.status, 403);
   });
 
   it('rejects bytes that are not an image even when labelled as one', async () => {
@@ -136,23 +134,24 @@ describe('site images', () => {
     const res = await get('/site/images');
 
     assert.equal(res.status, 200);
-    assert.ok('logo' in res.body.data && 'promo' in res.body.data);
+    assert.deepEqual(Object.keys(res.body.data), ['logo'], 'the promo photo is gone');
   });
 
-  it('lets an admin replace and reset an image', async () => {
-    const set = await put('/admin/site-images/promo', PNG, { ...png, token: admin });
+  it('lets the super admin replace and reset the logo', async () => {
+    const set = await put('/admin/site-images/logo', PNG, { ...png, token: admin });
     assert.equal(set.status, 200);
-    assert.match(set.body.data.promo, /menu-images\/site\/promo\//);
-    assert.equal(await fetchStatus(set.body.data.promo), 200);
-    assert.equal((await get('/site/images')).body.data.promo, set.body.data.promo);
+    assert.match(set.body.data.logo, /menu-images\/site\/logo\//);
+    assert.equal(await fetchStatus(set.body.data.logo), 200);
+    assert.equal((await get('/site/images')).body.data.logo, set.body.data.logo);
 
-    const reset = await del('/admin/site-images/promo', { token: admin });
-    assert.equal(reset.body.data.promo, null);
-    assert.equal(await existsInStorage(set.body.data.promo), false);
+    const reset = await del('/admin/site-images/logo', { token: admin });
+    assert.equal(reset.body.data.logo, null);
+    assert.equal(await existsInStorage(set.body.data.logo), false);
   });
 
   it('rejects an unknown key and non-admins', async () => {
     assert.equal((await put('/admin/site-images/banner', PNG, { ...png, token: admin })).status, 400);
+    assert.equal((await put('/admin/site-images/promo', PNG, { ...png, token: admin })).status, 400, 'promo was removed');
     assert.equal((await put('/admin/site-images/logo', PNG, { ...png, token: cashier })).status, 403);
     assert.equal((await put('/admin/site-images/logo', PNG, png)).status, 401);
   });

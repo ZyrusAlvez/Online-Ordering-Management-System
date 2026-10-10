@@ -3,7 +3,7 @@
 The significant choices, each with the reason, so nobody has to rediscover it (or undo it by accident). Format:
 **Decision**, **Why**, **Trade-off**. Add an entry whenever you make a choice you would have to explain again.
 
-**Contents:** [Architecture](#architecture) · [Security and access](#security-and-access) · [Orders and money](#orders-and-money) ·
+**Contents:** [Architecture](#architecture) · [Branches](#branches) · [Security and access](#security-and-access) · [Orders and money](#orders-and-money) ·
 [Chat and images](#chat-and-images) · [Reporting](#reporting) · [Frontend and design](#frontend-and-design) ·
 [Process](#process)
 
@@ -32,6 +32,69 @@ directly, which allowed free and self-"paid" orders ([security.md](./security.md
 
 ---
 
+## Branches
+
+### One shared menu, sold out per branch
+**Decision.** Dishes, sizes, photos and prices are one list for every branch, edited only by the super admin. A branch
+can only mark a dish **sold out** for itself (`branch_unavailable_products`).
+**Why.** The branches sell the same food at the same prices; keeping one menu avoids seven copies drifting apart. What really
+differs day to day is what a branch has run out of.
+**Trade-off.** A branch cannot have its own dish or price. That would need per-branch prices on top of this table.
+
+### Branch access is read from the database on every request
+**Decision.** Which branches an account works at lives in `branch_staff` and is read on each staff request
+(`loadBranchScope`) and by the row-level-security helper `has_branch_access()`, rather than being copied into the login
+token like the role.
+**Why.** Taking a branch away from an admin must apply at once, not when their token next refreshes (up to an hour); and
+there is one source of truth instead of two copies to keep in step.
+**Trade-off.** One small extra query per staff request, and per row for live-feed policies. Negligible at this size.
+
+### Two admin roles: `admin` per branch, `super_admin` for everything
+**Decision.** `admin` is limited to the branches in `branch_staff` (one or several); `super_admin` sees every branch and
+alone manages what they share: branches, admin accounts, the menu and prices, site images and roles. Existing admins
+were promoted to super admin.
+**Why.** Branch managers need full control of their own branch and nothing else; the owner needs the whole picture.
+**Trade-off.** Another branch's order answers 404 to an admin, which can puzzle someone who expected to see it.
+
+### One shared cashier login and one kiosk password per branch
+**Decision.** Each branch has its own register account (`cashier.<code>@…`, created the first time its password is set;
+GMA Terminal keeps `cashier@3k.local`) and its own kiosk password. The gates ask for the branch first, and remember it.
+**Why.** A register and a kiosk physically belong to one branch, and the API then scopes them without any per-request
+choice. One branch's password can never open another.
+**Trade-off.** Cash is still attributed to the branch's shared account, not a person.
+
+### Order numbers count per branch
+**Decision.** `K-0042` keeps its format; the daily count is per branch, and uniqueness is per branch per day.
+**Why.** Staff read numbers aloud and only ever look at their own branch's queue, so short numbers matter more than
+global uniqueness. A branch prefix would make every number longer for no benefit at the counter.
+**Trade-off.** Two branches can show the same number on the same day. Every screen that spans branches also shows the branch.
+
+### Scheduled orders: 15-minute slots, two days ahead, inside opening hours; ASAP only while open
+**Decision.** Online orders are for "as soon as possible" (only while the branch is open) or a 15-minute slot at least 30
+minutes ahead, up to the end of the day after tomorrow, starting inside the branch's hours. The same rules live in
+`backend/src/utils/schedule.js` and `frontend/src/lib/schedule.js`, so the checkout offers only slots the API accepts.
+**Why.** Customers want to order ahead (and at night); the kitchen needs a bounded, readable list. Refusing ASAP when
+closed avoids orders nobody will see until morning being treated as urgent.
+**Trade-off.** No overnight hours (a branch closing after midnight); `closes_at` must be after `opens_at`.
+
+### Scheduled orders are in the queue at once, marked rather than hidden
+**Decision.** They appear immediately, sorted by their time, with an amber edge and badge that turns orange an hour before.
+**Why.** The cashier can confirm and take payment early and see what is coming; hiding them until due risks forgetting them.
+
+### The customer's branch defaults to the nearest, but their pick wins
+**Decision.** The browser's location is asked once per page load; until the customer picks a branch, the nearest one is
+selected. An explicit pick is remembered (`3k.branch`) and never overridden. Without location, the first branch.
+**Why.** Most people want the closest branch, and asking them first slows the order down; but a deliberate choice (say,
+near work) must stick.
+**Trade-off.** Straight-line distance, not travel time.
+
+### The branch map frames the branches, not a fixed centre
+**Decision.** The landing map fits its view to all active branches (`fitBounds`), instead of a hard-coded centre and zoom.
+**Why.** It opens on the middle of the branches as asked, and stays right when a branch is added or closed. The visitor's
+own location is shown as a dot but does not move the framing.
+
+---
+
 ## Security and access
 
 ### A role comes only from `app_metadata`, and no role means customer
@@ -39,8 +102,9 @@ directly, which allowed free and self-"paid" orders ([security.md](./security.md
 by the server. Defaulting to customer matches the database helper `auth_role()`, so the API and the policies agree.
 
 ### Shared employee passwords for the cashier and the kiosk
-**Decision.** The cashier screen and the kiosk ask for one shared password, not personal accounts. The cashier password is
-the shared cashier account's password; the kiosk password is a hash that mints a per-device key.
+**Decision.** The cashier screen and the kiosk ask for one shared password (per branch), not personal accounts. The cashier
+password is the branch's shared cashier account's password; the kiosk password is a hash that mints a per-device key bound
+to the branch.
 **Why.** The shop wants a screen anyone on shift can open without managing logins, and the kiosk is a public terminal.
 **Trade-off.** Cash payments cannot be attributed to a person (they record the shared account). Accepted for now; per-cashier
 names are the upgrade ([security.md](./security.md#known-gaps-and-accepted-risks)).
@@ -91,7 +155,8 @@ dispatch.
 
 ### Order numbers restart each Manila day and are unique per day
 **Why.** Staff read them aloud, so they should be short. They were globally unique at first, which meant the first order of
-the next day collided with yesterday's and the channel could never issue another number.
+the next day collided with yesterday's and the channel could never issue another number. With branches they are also
+counted per branch (see [Branches](#order-numbers-count-per-branch)).
 
 ---
 
@@ -145,10 +210,31 @@ label and the daily figures are available as a table, so nothing depends on colo
 
 ## Frontend and design
 
-### OpenStreetMap with Leaflet, not Google Maps
+### OpenStreetMap data with Leaflet, not Google Maps
 **Why.** No API key, account or billing card; works immediately. Plain Leaflet because the React wrapper requires React 19
-and the app is on 18; the pin is inline SVG so no marker image files need bundling. The map loads only when delivery is chosen.
-**Trade-off.** The free address lookup is rate-limited (the app debounces) and sends the searched address to OpenStreetMap.
+and the app is on 18; the pin is inline SVG so no marker image files need bundling. The map loads only when it is shown.
+**Trade-off.** The free address lookup (Nominatim) is rate-limited (the app debounces) and sends the searched address to
+OpenStreetMap.
+
+### Minimal maps
+**Decision.** Every map is pared down: pale tiles (CARTO light, or the OpenStreetMap fallback greyed out with a CSS filter),
+zoom buttons tucked bottom-right, credits without the Leaflet prefix, and the app's own font in popups and labels. The
+branch map is washed out to near-white, and each branch is a **red pin with the 3K Kitchen logo** (the one set in Site
+images) in the white disc of its head, standing on a ring, so the branches are unmistakable; the customer's branch is
+larger and labelled, the rest show their name on hover. Pins shrink on phone-width maps so nearby branches do not
+overlap. The logo is an `<image>` inside the pin's SVG, clipped to the disc: Leaflet's stylesheet resizes ordinary
+`<img>` elements in markers.
+The delivery map keeps a full pin, since its point must be precise. All of it lives in `index.css` and `mapPins.js`.
+**Why.** The map is the landing page's hero; the branches should be the only thing that stands out on it.
+
+### CARTO light tiles on every map
+**Decision.** All maps draw CARTO's light basemap (OpenStreetMap data, *Positron* style), set once in
+`frontend/src/components/mapPins.js`.
+**Why.** A quiet, pale map keeps attention on the red branch pins and fits the warm, minimal design; the default
+OpenStreetMap style is busy and colourful.
+**Trade-off.** CARTO requires a (free) key, `VITE_CARTO_BASEMAPS_KEY`, with a monthly request allowance, and sees which
+area is viewed. Without the key the maps fall back to standard OpenStreetMap tiles rather than CARTO's "API KEY
+REQUIRED" placeholders. Swapping providers is a one-file change ([deployment.md](./deployment.md)).
 
 ### The pin is optional, and typed addresses always win
 **Why.** Plenty of addresses are better typed; a pin is a precision aid for the rider. A field the customer typed is never
@@ -161,6 +247,13 @@ ended only when the server rejects it. The Google client must never call sign-ou
 ### Toasts at the top, one bottom dock for the cart bar and chat button
 **Why.** Two things pinned to the same bottom spot overlapped. Stacking the persistent items in one flow layout guarantees
 they never collide at any height; temporary messages go where nothing else lives.
+
+### Toasts by sonner, with rich colours
+**Decision.** Notifications use the `sonner` library (`<Toaster richColors />`, top centre under the header), behind the
+existing `useToast()` hook, which simply returns sonner's `toast`.
+**Why.** Tinted success and error toasts with icons, stacking, swipe to dismiss and accessible announcements, without
+maintaining our own; keeping `useToast()` meant no page had to change.
+**Trade-off.** One more dependency (small, no other dependencies of its own).
 
 ### Modern, minimal design that keeps the brand
 **Decision.** Same logo, red/orange/ink palette and Poppins, but flat white surfaces with hairline borders, small radii, red only

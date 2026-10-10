@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { api } from './api.js';
 
-// Bundled fallbacks, used until the admin uploads their own (and if the API is unreachable).
-const DEFAULTS = { logo: '/brand/logo.jpg', promo: '/brand/promo.jpg' };
+// Bundled fallback, used until the super admin uploads their own (and if the API is unreachable).
+const DEFAULTS = { logo: '/brand/logo.jpg' };
 
 let images = {};
 let loaded = null;

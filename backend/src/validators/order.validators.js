@@ -6,7 +6,7 @@ import {
   PAYMENT_STATUSES,
   REMOTE_FULFILLMENT,
 } from '../constants/orders.js';
-import { itemsSchema, paginationQuery } from './common.validators.js';
+import { branchId, itemsSchema, paginationQuery } from './common.validators.js';
 import { latitude, longitude, optionalText, phone, requiredText } from './fields.js';
 
 export const deliveryAddressSchema = z
@@ -31,6 +31,8 @@ export const myOrdersQuery = paginationQuery.extend({
 
 export const createOnlineOrderSchema = z
   .object({
+    // The branch the customer orders from (their preferred or nearest one).
+    branch_id: branchId,
     // The online app is the only channel that delivers or is picked up.
     fulfillment_type: z.enum(REMOTE_FULFILLMENT),
     payment_method: z.enum(PAYMENT_METHODS),
@@ -38,6 +40,9 @@ export const createOnlineOrderSchema = z
     customer_phone: phone.optional(),
     items: itemsSchema,
     notes: optionalText(1000).optional(),
+    // Omitted = as soon as possible. Otherwise a 15-minute slot within the
+    // branch's hours, up to two days ahead (checked against the branch).
+    scheduled_for: z.string().datetime({ offset: true }).optional(),
   })
   .refine((body) => body.fulfillment_type !== 'delivery' || body.delivery_address, {
     message: 'delivery_address is required when fulfillment_type is "delivery"',
@@ -53,6 +58,7 @@ export const statusBody = z.object({ status: z.enum(ORDER_STATUSES) });
 
 /** Filters shared by the POS queue and the admin order list. */
 export const orderFilterQuery = paginationQuery.extend({
+  branch_id: branchId.optional(),
   status: z.enum(ORDER_STATUSES).optional(),
   payment_status: z.enum(PAYMENT_STATUSES).optional(),
   channel: z.enum(CHANNELS).optional(),

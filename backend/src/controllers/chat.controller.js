@@ -1,10 +1,18 @@
+import * as branchService from '../services/branch.service.js';
 import * as chatService from '../services/chat.service.js';
+import { branchFilter } from '../utils/branchScope.js';
 
 const CHAT_TOKEN_HEADER = 'x-chat-token';
 
 // --- visitor (no account) ---
 export const createVisitorThread = async (req, res) => {
-  res.status(201).json({ data: await chatService.createVisitorThread(req.body) });
+  const branch = await branchService.getActiveBranchOrFail(req.body.branch_id);
+  const data = await chatService.createVisitorThread({
+    name: req.body.name,
+    body: req.body.body,
+    branchId: branch.id,
+  });
+  res.status(201).json({ data });
 };
 
 export const visitorMessages = async (req, res) => {
@@ -28,28 +36,30 @@ export const visitorSendImage = async (req, res) => {
 };
 
 // --- cashier inbox ---
-export const listThreads = async (_req, res) => {
-  res.json({ data: await chatService.listSupportThreads() });
+// Each branch has its own inbox; req.branchScope comes from the /pos router.
+export const listThreads = async (req, res) => {
+  const branchIds = branchFilter(req.branchScope, req.query.branch_id);
+  res.json({ data: await chatService.listSupportThreads(branchIds) });
 };
 
 export const threadMessages = async (req, res) => {
-  res.json({ data: await chatService.getSupportMessages(req.params.id) });
+  res.json({ data: await chatService.getSupportMessages(req.params.id, req.branchScope) });
 };
 
 export const staffSend = async (req, res) => {
   res.status(201).json({
-    data: await chatService.postStaffMessage(req.params.id, req.user.id, req.body.body),
+    data: await chatService.postStaffMessage(req.params.id, req.branchScope, req.user.id, req.body.body),
   });
 };
 
 export const staffSendImage = async (req, res) => {
   res.status(201).json({
-    data: await chatService.postStaffImage(req.params.id, req.user.id, req.body),
+    data: await chatService.postStaffImage(req.params.id, req.branchScope, req.user.id, req.body),
   });
 };
 
 export const markRead = async (req, res) => {
-  await chatService.markSupportThreadRead(req.params.id);
+  await chatService.markSupportThreadRead(req.params.id, req.branchScope);
   res.status(204).send();
 };
 

@@ -6,7 +6,9 @@ import { tokenFor, userIdFor } from '../helpers/auth.js';
 import { db, orderRow, paymentsFor, setOrderState } from '../helpers/db.js';
 import {
   allProducts,
+  branchId,
   cleanup,
+  orderTime,
   flatPricedProduct,
   placeOnlineOrder,
   placeWalkInOrder,
@@ -19,6 +21,7 @@ let customer;
 let customer2;
 let rider;
 let flat;
+let gma;
 
 before(async () => {
   [admin, cashier, customer, customer2, rider] = await Promise.all([
@@ -29,6 +32,7 @@ before(async () => {
     tokenFor('rider'),
   ]);
   flat = await flatPricedProduct();
+  gma = await branchId('gma');
 });
 
 after(cleanup);
@@ -131,7 +135,7 @@ describe('order numbers', () => {
   const insertOrder = (fields) =>
     db
       .from('orders')
-      .insert({ channel: 'pos', fulfillment_type: 'take_out', customer_name: 'Number Test', total_amount: 1, ...fields })
+      .insert({ branch_id: gma, channel: 'pos', fulfillment_type: 'take_out', customer_name: 'Number Test', total_amount: 1, ...fields })
       .select('id, order_number, created_at')
       .single();
 
@@ -153,6 +157,15 @@ describe('order numbers', () => {
     const second = await insertOrder({ order_number: 'T-9002' });
 
     assert.equal(second.error?.code, '23505');
+  });
+
+  it('counts per branch: two branches may issue the same number on the same day', async () => {
+    const here = await insertOrder({ order_number: 'T-9003' });
+    track(here.data.id);
+    const there = await insertOrder({ order_number: 'T-9003', branch_id: await branchId('imus') });
+
+    assert.equal(there.error, null);
+    track(there.data.id);
   });
 });
 
@@ -359,7 +372,12 @@ describe('deactivated riders', () => {
 
 describe('phone numbers and field limits through the API', () => {
   const base = { fulfillment_type: 'pickup', payment_method: 'cash', items: [{ product_id: null, quantity: 1 }] };
-  const order = (extra) => post('/orders', { ...base, items: [{ product_id: flat.id, quantity: 1 }], ...extra }, { token: customer });
+  const order = async (extra) =>
+    post(
+      '/orders',
+      { ...base, branch_id: gma, ...(await orderTime(gma)), items: [{ product_id: flat.id, quantity: 1 }], ...extra },
+      { token: customer },
+    );
 
   it('requires exactly 11 digits starting 09', async () => {
     for (const bad of ['0917123456', '091712345678', '19171234567', '0917-123-4567', '+639171234567']) {
@@ -423,7 +441,7 @@ describe('phone numbers and field limits through the API', () => {
   it('applies the same phone rule to riders created by an admin', async () => {
     const res = await post(
       '/admin/riders',
-      { email: `bad-phone-${Date.now()}@3k.local`, password: 'password123', full_name: 'Bad Phone', phone: '12345' },
+      { branch_id: gma, email: `bad-phone-${Date.now()}@3k.local`, password: 'password123', full_name: 'Bad Phone', phone: '12345' },
       { token: admin },
     );
     assert.equal(res.status, 400);
@@ -434,7 +452,7 @@ describe('database limits (the rules hold even for scripts)', () => {
   it('rejects a malformed phone number', async () => {
     const { error } = await db
       .from('orders')
-      .insert({ channel: 'pos', fulfillment_type: 'take_out', customer_name: 'X', customer_phone: '123' });
+      .insert({ branch_id: gma, channel: 'pos', fulfillment_type: 'take_out', customer_name: 'X', customer_phone: '123' });
     assert.equal(error?.code, '23514');
   });
 
@@ -442,6 +460,7 @@ describe('database limits (the rules hold even for scripts)', () => {
     const { data, error } = await db
       .from('orders')
       .insert({
+        branch_id: gma,
         channel: 'online',
         fulfillment_type: 'delivery',
         customer_name: 'Pin Test',
@@ -459,6 +478,7 @@ describe('database limits (the rules hold even for scripts)', () => {
       db
         .from('orders')
         .insert({
+          branch_id: gma,
           channel: 'online',
           fulfillment_type: 'delivery',
           customer_name: 'Pin Test',

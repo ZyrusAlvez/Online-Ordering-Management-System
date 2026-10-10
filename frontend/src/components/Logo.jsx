@@ -2,9 +2,10 @@ import { Link } from 'react-router-dom';
 import { useSiteImage } from '../lib/siteImages.js';
 
 export const RESTAURANT = '3K Kitchen';
-export const BRANCH = 'GMA Terminal Branch';
+/** Shown under the name where no particular branch applies. */
+export const REGION = 'Cavite';
 
-export function Logo({ to = '/', size = 44, text = true, light = false, className = '' }) {
+export function Logo({ to = '/', size = 44, text = true, light = false, subtitle = REGION, className = '' }) {
   const logo = useSiteImage('logo');
   const body = (
     <span className={`inline-flex items-center gap-3 ${className}`}>
@@ -24,7 +25,7 @@ export function Logo({ to = '/', size = 44, text = true, light = false, classNam
           <span
             className={`block text-[10px] font-medium uppercase tracking-[0.2em] max-[420px]:hidden ${light ? 'text-sun' : 'text-sun-dark'}`}
           >
-            {BRANCH}
+            {subtitle}
           </span>
         </span>
       )}

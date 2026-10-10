@@ -9,18 +9,11 @@ import {
   searchPlaces,
   toFormAddress,
 } from '../lib/geocode.js';
+import { getPosition } from '../lib/geo.js';
+import { BASEMAP_OPTIONS, BASEMAP_URL, minimalControls, pinIcon } from './mapPins.js';
 import { Button, Input } from './ui.jsx';
 
-// Leaflet's stock marker loads image files that bundlers do not copy across, so the
-// pin is drawn as inline SVG instead.
-const pinIcon = L.divIcon({
-  className: '',
-  iconSize: [34, 44],
-  iconAnchor: [17, 42],
-  html: `<svg width="34" height="44" viewBox="0 0 34 44" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-    <path d="M17 1C8.7 1 2 7.6 2 15.8 2 26.6 17 42 17 42s15-15.4 15-26.2C32 7.6 25.3 1 17 1Z" fill="#e8202a" stroke="#fff" stroke-width="2"/>
-    <circle cx="17" cy="15.5" r="5.5" fill="#fff"/></svg>`,
-});
+const pin = pinIcon();
 
 /**
  * Lets the customer pin where the rider should go: tap the map, drag the pin, use
@@ -81,14 +74,12 @@ export default function AddressMap({ value, onChange, onSuggest }) {
 
   // Build the map once.
   useEffect(() => {
-    const m = L.map(box.current, { zoomControl: true, scrollWheelZoom: false }).setView(
+    const m = L.map(box.current, { zoomControl: false, scrollWheelZoom: false }).setView(
       hasPin ? [lat, lng] : DEFAULT_CENTER,
       hasPin ? 17 : 13,
     );
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    }).addTo(m);
+    L.tileLayer(BASEMAP_URL, BASEMAP_OPTIONS).addTo(m);
+    minimalControls(m);
     m.on('click', (e) => place(e.latlng.lat, e.latlng.lng));
     map.current = m;
     // The container may be laid out after mounting (a modal, a card that just appeared).
@@ -114,7 +105,7 @@ export default function AddressMap({ value, onChange, onSuggest }) {
       return;
     }
     if (!marker.current) {
-      marker.current = L.marker([lat, lng], { icon: pinIcon, draggable: true, keyboard: false }).addTo(m);
+      marker.current = L.marker([lat, lng], { icon: pin, draggable: true, keyboard: false }).addTo(m);
       marker.current.on('dragend', () => {
         const p = marker.current.getLatLng();
         place(p.lat, p.lng);
@@ -126,30 +117,27 @@ export default function AddressMap({ value, onChange, onSuggest }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasPin, lat, lng]);
 
-  const locate = () => {
+  const locate = async () => {
     if (!navigator.geolocation) {
       setStatus({ tone: 'error', text: 'This device can’t share its location. Tap the map instead.' });
       return;
     }
     setBusy(true);
     setStatus({ tone: 'info', text: 'Finding you…' });
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setBusy(false);
-        place(pos.coords.latitude, pos.coords.longitude, { fly: true });
-      },
-      (err) => {
-        setBusy(false);
-        setStatus({
-          tone: 'error',
-          text:
-            err.code === 1
-              ? 'Location is blocked. Allow it in your browser settings, or tap the map instead.'
-              : 'Couldn’t get your location. Tap the map instead.',
-        });
-      },
-      { enableHighAccuracy: true, timeout: 12_000, maximumAge: 30_000 },
-    );
+    try {
+      const here = await getPosition({ highAccuracy: true });
+      place(here.latitude, here.longitude, { fly: true });
+    } catch (err) {
+      setStatus({
+        tone: 'error',
+        text:
+          err.code === 1
+            ? 'Location is blocked. Allow it in your browser settings, or tap the map instead.'
+            : 'Couldn’t get your location. Tap the map instead.',
+      });
+    } finally {
+      setBusy(false);
+    }
   };
 
   const search = async (e) => {
@@ -178,19 +166,24 @@ export default function AddressMap({ value, onChange, onSuggest }) {
 
   return (
     <div className="space-y-3">
-      <form onSubmit={search} className="flex gap-2">
+      {/* Not a <form>: this map sits inside the checkout and branch forms, and a
+          nested form is invalid HTML (Enter could submit the outer one). */}
+      <div role="search" className="flex gap-2">
         <Input
           type="search"
           value={query}
           maxLength={200}
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') search(e);
+          }}
           placeholder="Search your street or barangay"
           aria-label="Search for your address"
         />
-        <Button type="submit" tone="outline" disabled={busy || query.trim().length < 3}>
+        <Button type="button" tone="outline" onClick={search} disabled={busy || query.trim().length < 3}>
           Search
         </Button>
-      </form>
+      </div>
 
       {results.length > 0 && (
         <ul className="overflow-hidden rounded-xl border border-line bg-white text-sm" role="listbox" aria-label="Matching places">

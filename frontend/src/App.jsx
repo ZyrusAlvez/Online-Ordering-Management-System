@@ -2,6 +2,7 @@ import { Suspense, lazy } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { CustomerLayout } from './components/Layouts.jsx';
 import { RequireRole } from './components/guards.jsx';
+import { ADMIN_ROLES } from './context/AuthContext.jsx';
 import { PageLoader } from './components/ui.jsx';
 import Landing from './pages/Landing.jsx';
 import AuthCallback from './pages/AuthCallback.jsx';
@@ -80,7 +81,7 @@ export default function App() {
       <Route
         path="/admin/*"
         element={
-          <RequireRole roles={['admin']}>
+          <RequireRole roles={ADMIN_ROLES}>
             <AdminApp />
           </RequireRole>
         }

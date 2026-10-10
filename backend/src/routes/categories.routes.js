@@ -8,20 +8,21 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 
 const router = Router();
 
-const staff = [requireAuth, requireRole('admin', 'cashier')];
-const adminOnly = [requireAuth, requireRole('admin')];
+// One menu and price list for every branch, so only the super admin edits it.
+// (A branch marks items sold out for itself through /admin/branches.)
+const superAdmin = [requireAuth, requireRole('super_admin')];
 
 router.get('/', asyncHandler(categories.list));
 
-router.post('/', staff, validate({ body: categoryBody }), asyncHandler(categories.create));
+router.post('/', superAdmin, validate({ body: categoryBody }), asyncHandler(categories.create));
 
 router.patch(
   '/:id',
-  staff,
+  superAdmin,
   validate({ params: idParam, body: categoryBody.partial() }),
   asyncHandler(categories.update),
 );
 
-router.delete('/:id', adminOnly, validate({ params: idParam }), asyncHandler(categories.remove));
+router.delete('/:id', superAdmin, validate({ params: idParam }), asyncHandler(categories.remove));
 
 export default router;

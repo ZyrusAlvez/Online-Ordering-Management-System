@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../../lib/api.js';
 import { useFetch } from '../../lib/hooks.js';
 import { subscribeToOrders } from '../../lib/supabase.js';
-import { dateTime, money } from '../../lib/format.js';
+import { dateTime, money, scheduleLabel } from '../../lib/format.js';
 import { Button, Card, Empty, ErrorNote, PageLoader, Pagination } from '../../components/ui.jsx';
 import { MethodLabel, PaymentBadge, StatusBadge } from '../../components/OrderParts.jsx';
 
@@ -44,7 +44,13 @@ export default function Orders() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-lg font-bold">{o.order_number}</p>
-                  <p className="text-xs text-ink-soft">{dateTime(o.created_at)}</p>
+                  <p className="text-xs text-ink-soft">
+                    {dateTime(o.created_at)}
+                    {o.branch?.name ? ` · ${o.branch.name}` : ''}
+                  </p>
+                  {o.scheduled_for && (
+                    <p className="text-xs font-semibold text-amber-800">For {scheduleLabel(o.scheduled_for)}</p>
+                  )}
                   <MethodLabel order={o} />
                 </div>
                 <div className="text-right">

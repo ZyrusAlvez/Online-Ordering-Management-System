@@ -1,14 +1,14 @@
 # Automated testing
 
-**475 tests** on Node's built-in runner (`node:test` + `node:assert`): no Jest, Mocha or Supertest. Node 20+ ships
+**525 tests** on Node's built-in runner (`node:test` + `node:assert`): no Jest, Mocha or Supertest. Node 20+ ships
 everything needed. For poking at the API by hand, see [testing-manual.md](./testing-manual.md); for logins to try the
 app yourself, [test-accounts.md](./test-accounts.md).
 
 ```bash
 cd backend
-npm test                  # everything                          (475 tests, about 3 minutes)
-npm run test:unit         # pure logic, no server needed        (116 tests, about 1 s)
-npm run test:integration  # one endpoint at a time              (313 tests, about 2 minutes)
+npm test                  # everything                          (525 tests, about 8 minutes)
+npm run test:unit         # pure logic, no server needed        (125 tests, about 1 s)
+npm run test:integration  # one endpoint at a time              (354 tests, about 7 minutes)
 npm run test:e2e          # multi-step journeys                 (46 tests, about 40 s)
 npm run test:coverage     # everything, with coverage
 node --env-file=.env scripts/dev/check-rls.mjs   # what each role is allowed to see (see below)
@@ -22,8 +22,8 @@ The suite runs against the **real Supabase project**, not mocks, so it needs the
 seeded accounts:
 
 ```bash
-node --env-file=.env scripts/seed-accounts.mjs        # admin, cashier and kiosk passwords
-node --env-file=.env scripts/dev/seed-test-users.mjs  # customers and a rider
+node --env-file=.env scripts/seed-accounts.mjs        # super admin, GMA cashier and GMA kiosk passwords
+node --env-file=.env scripts/dev/seed-test-users.mjs  # customers, a GMA rider, and the Imus admin, cashier and rider
 ```
 
 `seed-accounts.mjs` writes the passwords into `.env` (`TEST_ADMIN_PASSWORD`, `TEST_CASHIER_PASSWORD`,
@@ -84,7 +84,7 @@ backend/tests/
   e2e/            multi-step journeys across several actors
 ```
 
-### Unit (116)
+### Unit (125)
 
 | File | Covers |
 | --- | --- |
@@ -97,8 +97,10 @@ backend/tests/
 | `kioskKey.test.js` | Key entropy, hashing, non-reversibility |
 | `password.test.js` | Salted hashing and verification of the kiosk password |
 | `webhookSignature.test.js` | Signature check, replay window, tampering |
+| `branchScope.test.js` | Who may see which branch: super admin, one branch, none; which branch an action happens at |
+| `schedule.test.js` | Manila opening hours, ASAP only while open, 15-minute slots, 30-minute lead, two days ahead, next open slot (with a fixed clock) |
 
-### Integration (313)
+### Integration (354)
 
 | File | Covers |
 | --- | --- |
@@ -116,9 +118,13 @@ backend/tests/
 | `chat.test.js` | Guest chat (token, inbox, replies, live ping), delivery chat windows and access, rate limit, guest numbers |
 | `chat-images.test.js` | Photos in all four conversations: privacy, size, fake files, the 30-photo cap, closed chats |
 | `sales.test.js` | The sales report with exact figures (see below) |
-| `hardening.test.js` | The bug sweep: no direct order writes, order numbers per day, search escaping, double cash payment, product/option edits after ordering, deactivated riders, phone and field rules, database limits |
+| `hardening.test.js` | The bug sweep: no direct order writes, order numbers per day and per branch, search escaping, double cash payment, product/option edits after ordering, deactivated riders, phone and field rules, database limits |
 | `payments-fake.test.js` | GCash retries, refunds, voids and late payments against a **fake PayMongo server** (see below) |
 | `webhooks.test.js` | Signature enforcement, idempotency, paid/failed handling |
+| `branch-scope.test.js` | Branch isolation: the Imus admin, cashier and rider against GMA Terminal (orders, sales, riders, kiosks, refunds, walk-ins, the rider pool, chat inbox, row-level security); admin accounts; super-admin-only pages |
+| `branches.test.js` | Adding and editing branches, hours, deactivating, validation, super admin only |
+| `branch-availability.test.js` | Sold out at one branch: hidden from that branch's menu, refused in its orders, other branches unaffected, branch admins only |
+| `scheduling.test.js` | Scheduled online orders against two throwaway branches (always open, and one closed now): ASAP refused while closed, valid and invalid slots, online orders only |
 
 ### End-to-end (46)
 
@@ -135,7 +141,8 @@ Whole journeys; each `it()` is one step, so a failure names the step that broke.
 ### Row-level security check
 
 `scripts/dev/check-rls.mjs` signs in as each role and asks the database directly what it can read: customers see only
-their own orders and chats, cashiers and admins see everything, riders see the ready pool plus their own deliveries,
+their own orders and chats, cashiers and admins see their branches' orders and chats (the Imus cashier and admin see
+none of GMA Terminal's), the super admin sees everything, riders see their branch's ready pool plus their own deliveries,
 anonymous sees nothing, and (for chat) a rider loses a delivery chat when the order is released. API routes use the
 secret key and bypass these policies, so the API tests say nothing about them; this script is the only check. Since the
 live feed delivers exactly what a read would return, correct policies mean correct subscriptions.
@@ -196,8 +203,12 @@ after(cleanup);                          // deletes them; items, payments and de
 - **Files are not deleted by the database.** Any test that stores a chat photo removes the files itself in `after()`
   (see `chat-images.test.js`); a leftover file in `chat-images` is a test leak.
 - Tests that flip a product to unavailable restore it in a `finally`.
-- Sample users (`customer@3k.local`, `customer2@3k.local`, `rider1@3k.local`) are **fixtures**: created once by the seed
-  script, never deleted. A test that needs a throwaway user creates it and deletes it.
+- Sample users (`customer@3k.local`, `customer2@3k.local`, `rider1@3k.local`, and the Imus `admin.imus@`,
+  `cashier.imus@` and `rider.imus@`) are **fixtures**: created once by the seed script, never deleted. A test that
+  needs a throwaway user creates it and deletes it; so do branches (`branches.test.js`, `scheduling.test.js`).
+- **Branches and opening hours.** Test orders go to GMA Terminal (`branchId()` in `fixtures.js`). Online orders are
+  refused "as soon as possible" while a branch is closed, so `orderTime()` adds the next open slot when GMA is closed:
+  the suite gives the same results at any hour. Spread it into any online order body a test builds by hand.
 - **Rate limits:** a few limits count per server run (for example five guest chats per hour). A test that needs a guest
   conversation without using that budget creates one directly in the database, as `chat-images.test.js` does.
 
