@@ -219,9 +219,11 @@ OpenStreetMap.
 ### Minimal maps
 **Decision.** Every map is pared down: pale tiles (CARTO light, or the OpenStreetMap fallback greyed out with a CSS filter),
 zoom buttons tucked bottom-right, credits without the Leaflet prefix, and the app's own font in popups and labels. The
-branch map is washed out to near-white, and each branch is the **3K Kitchen logo** in a round red-ringed badge (the logo
-set in Site images), so the branches are unmistakable; the customer's branch is larger, haloed and labelled, the rest
-show their name on hover. Badges shrink on phone-width maps so nearby branches do not overlap.
+branch map is washed out to near-white, and each branch is a **red pin with the 3K Kitchen logo** (the one set in Site
+images) in the white disc of its head, standing on a ring, so the branches are unmistakable; the customer's branch is
+larger and labelled, the rest show their name on hover. Pins shrink on phone-width maps so nearby branches do not
+overlap. The logo is an `<image>` inside the pin's SVG, clipped to the disc: Leaflet's stylesheet resizes ordinary
+`<img>` elements in markers.
 The delivery map keeps a full pin, since its point must be precise. All of it lives in `index.css` and `mapPins.js`.
 **Why.** The map is the landing page's hero; the branches should be the only thing that stands out on it.
 
@@ -245,6 +247,13 @@ ended only when the server rejects it. The Google client must never call sign-ou
 ### Toasts at the top, one bottom dock for the cart bar and chat button
 **Why.** Two things pinned to the same bottom spot overlapped. Stacking the persistent items in one flow layout guarantees
 they never collide at any height; temporary messages go where nothing else lives.
+
+### Toasts by sonner, with rich colours
+**Decision.** Notifications use the `sonner` library (`<Toaster richColors />`, top centre under the header), behind the
+existing `useToast()` hook, which simply returns sonner's `toast`.
+**Why.** Tinted success and error toasts with icons, stacking, swipe to dismiss and accessible announcements, without
+maintaining our own; keeping `useToast()` meant no page had to change.
+**Trade-off.** One more dependency (small, no other dependencies of its own).
 
 ### Modern, minimal design that keeps the brand
 **Decision.** Same logo, red/orange/ink palette and Poppins, but flat white surfaces with hairline borders, small radii, red only

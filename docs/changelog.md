@@ -15,8 +15,9 @@ listed in [security.md](./security.md#issues-found-and-fixed).
 - **Landing page polish:** sticky header with section links, the map right after the headline on phones, a clearer
   branch card (hours and distance with icons, **Directions**), branch cards with a distance pill and an even footer,
   compact *How it works* on phones, smooth in-page scrolling; every clickable element shows a pointer cursor.
-- **Minimal maps:** the branch map is near-white with each branch shown as the 3K Kitchen logo in a red-ringed badge
+- **Minimal maps:** the branch map is near-white with each branch shown as a red pin holding the 3K Kitchen logo
   (your branch larger and labelled); pale tiles, quiet controls and credits, the app's font in popups on every map.
+- **Toasts** now come from the `sonner` library with rich colours (green success, red errors), still at the top.
 - Every map uses **CARTO's light tiles** (OpenStreetMap data) when `VITE_CARTO_BASEMAPS_KEY` (a free CARTO key) is set,
   and standard OpenStreetMap tiles otherwise; chosen once in `frontend/src/components/mapPins.js`.
 

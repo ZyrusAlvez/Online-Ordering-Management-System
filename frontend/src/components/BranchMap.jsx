@@ -80,8 +80,8 @@ export default function BranchMap({ branches, selectedId, userPos, onSelect, cla
     const m = map.current;
     if (!m || branches.length === 0) return;
     const bounds = L.latLngBounds(branches.map((b) => [b.latitude, b.longitude]));
-    // Room for the logo badges at the edges, and more at the top for the selected branch's name.
-    m.fitBounds(bounds, { paddingTopLeft: [56, 88], paddingBottomRight: [56, 48], maxZoom: 15 });
+    // Pins stand above their spot, so most of the room goes at the top (plus the selected branch's name).
+    m.fitBounds(bounds, { paddingTopLeft: [48, 108], paddingBottomRight: [48, 28], maxZoom: 15 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [framing]);
 

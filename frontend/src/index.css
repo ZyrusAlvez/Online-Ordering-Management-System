@@ -171,33 +171,38 @@ body {
   display: none;
 }
 
-.map-logo {
+/* Branch pins: a red teardrop with the logo in its head (see logoIcon in mapPins.js). */
+.map-pin {
+  position: relative;
   display: block;
   width: 100%;
   height: 100%;
-  border-radius: 9999px;
-  overflow: hidden;
-  background: #fff;
-  border: 2px solid #fff;
-  /* A red ring around every logo, so the branches stand out on the white map. */
-  box-shadow:
-    0 0 0 2px var(--color-brand),
-    0 4px 12px rgb(43 24 18 / 0.3);
+  filter: drop-shadow(0 3px 4px rgb(43 24 18 / 0.25));
+  transform-origin: 50% 86%;
   transition: transform 0.15s ease;
 }
-.map-logo img {
-  display: block;
+.map-pin:hover {
+  transform: scale(1.08);
+}
+.map-pin svg {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  border-radius: 9999px;
+  overflow: visible;
 }
-.map-logo:hover {
-  transform: scale(1.12);
+.map-pin__body {
+  fill: var(--color-brand);
 }
-.map-logo--selected {
-  box-shadow:
-    0 0 0 3px var(--color-brand),
-    0 0 0 9px rgb(232 32 42 / 0.18),
-    0 6px 18px rgb(43 24 18 / 0.32);
+.map-pin__ring {
+  fill: none;
+  stroke: var(--color-brand);
+  stroke-width: 2.5;
+}
+.map-pin--selected {
+  filter: drop-shadow(0 6px 8px rgb(232 32 42 / 0.35));
+}
+.map-pin--selected .map-pin__ring {
+  fill: rgb(232 32 42 / 0.14);
+  stroke-width: 3;
 }

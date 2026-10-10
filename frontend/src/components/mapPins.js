@@ -35,22 +35,46 @@ export const BASEMAP_OPTIONS = CARTO_KEY
   ? { maxZoom: 20, attribution: `${OSM_ATTRIBUTION} &copy; <a href="https://carto.com/attributions">CARTO</a>` }
   : { maxZoom: 19, attribution: OSM_ATTRIBUTION, className: 'map-tiles-muted' };
 
+// The branch pin, drawn on a 64 x 84 grid: a red teardrop whose round head holds
+// a white disc (centre 32,28, radius 17) showing the logo, standing on a ring at
+// its tip (32,72). The logo is an <image> inside the SVG, clipped to the disc, so
+// no outside stylesheet (Leaflet's resets marker images) can move or hide it.
+const PIN_W = 64;
+const PIN_H = 84;
+const PIN_TIP_Y = 72;
+let clipIds = 0;
+
+const escapeAttr = (value) => String(value).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+
+const pinSvg = (logoUrl) => {
+  const clip = `map-pin-disc-${(clipIds += 1)}`;
+  return `<svg viewBox="0 0 ${PIN_W} ${PIN_H}" aria-hidden="true">
+  <defs><clipPath id="${clip}"><circle cx="32" cy="28" r="15.5" /></clipPath></defs>
+  <ellipse class="map-pin__ring" cx="32" cy="${PIN_TIP_Y}" rx="20" ry="5.5" />
+  <path class="map-pin__body" d="M32 2C17.6 2 6 13.6 6 28c0 18.5 26 44 26 44s26-25.5 26-44C58 13.6 46.4 2 32 2Z" />
+  <circle cx="32" cy="28" r="17" fill="#fff" />
+  <image href="${escapeAttr(logoUrl)}" x="16.5" y="12.5" width="31" height="31" preserveAspectRatio="xMidYMid slice" clip-path="url(#${clip})" />
+</svg>`;
+};
+
 /**
- * A branch on the branch map: the restaurant's logo in a round badge, so every
- * branch reads as 3K Kitchen at a glance. The customer's branch is larger with a
- * red ring. Styled in index.css (`.map-logo`).
+ * A branch on the branch map: a red pin with the restaurant's logo in its head,
+ * so every branch reads as 3K Kitchen at a glance. The customer's branch is the
+ * larger one. Styled in index.css (`.map-pin`).
  */
 export const logoIcon = (logoUrl, selected = false, compact = false) => {
   // Smaller on a phone-width map, where nearby branches would otherwise overlap.
-  const size = compact ? (selected ? 42 : 30) : selected ? 58 : 44;
-  const src = String(logoUrl).replace(/"/g, '%22');
+  const width = compact ? (selected ? 40 : 30) : selected ? 54 : 40;
+  const height = Math.round((width * PIN_H) / PIN_W);
+  const tipY = Math.round((height * PIN_TIP_Y) / PIN_H);
   return L.divIcon({
     className: '',
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
-    popupAnchor: [0, -size / 2 - 2],
-    tooltipAnchor: [0, -size / 2 - 4],
-    html: `<span class="map-logo${selected ? ' map-logo--selected' : ''}"><img src="${src}" alt="" draggable="false" /></span>`,
+    iconSize: [width, height],
+    // The tip of the pin is the branch's exact spot.
+    iconAnchor: [width / 2, tipY],
+    popupAnchor: [0, -tipY + 4],
+    tooltipAnchor: [0, -tipY],
+    html: `<span class="map-pin${selected ? ' map-pin--selected' : ''}">${pinSvg(logoUrl)}</span>`,
   });
 };
 

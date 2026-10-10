@@ -116,7 +116,7 @@ frontend/src/
   components/    ui.jsx (Button, Card, Field, Input, Modal, Segmented…), MenuBrowser, AddressFields,
                  AddressMap, BranchMap, BranchList, OrderBranchPicker, ScheduleField, StaffBranch,
                  mapPins, PhoneInput, ImageField, BottomDock, Avatar, Layouts, guards, chat/*
-  context/       AuthContext (session + login), CartContext, ToastContext
+  context/       AuthContext (session + login), CartContext, ToastContext (sonner's Toaster + useToast)
   lib/           api.js, session.js, supabase.js, oauth.js, chat.js, hooks.js, format.js,
                  validation.js, image.js, geocode.js, siteImages.js, kiosk.js, branches.js,
                  geo.js (hours, location, distance), schedule.js (order time slots)
