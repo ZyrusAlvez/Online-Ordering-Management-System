@@ -120,3 +120,7 @@ export const nearestBranch = (branches, from) => (from && branches.length ? byDi
 
 /** "850 m" / "4.2 km" */
 export const formatKm = (km) => (km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(km < 10 ? 1 : 0)} km`);
+
+/** Turn-by-turn directions to a branch in the phone's maps app (or Google Maps on a computer). */
+export const directionsUrl = (branch) =>
+  `https://www.google.com/maps/dir/?api=1&destination=${branch.latitude},${branch.longitude}`;

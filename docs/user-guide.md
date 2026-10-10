@@ -20,9 +20,11 @@ opens on them:
   **open now**, how far it is from you, and **Order here**.
 - **Your branch card** beside the headline: the branch you will order from (**Nearest to you** when you allow the
   browser to use your **location**, which it asks once; otherwise the first branch, or the one you picked), with its
-  hours, open or closed now, distance, and **Order from …** to jump to its menu. **See all branches** scrolls to the
-  list.
-- **Find us in Cavite** lists every branch as a card, nearest first when your location is known, with **Order here**.
+  hours, open or closed now, distance, **Order from …** to jump to its menu, and **Directions** (opens your maps app).
+  **Not this one? Choose another branch** scrolls to the list.
+- **Find us in Cavite** lists every branch as a card, nearest first when your location is known, with its distance,
+  **Directions** and **Order here**.
+- The header stays at the top as you scroll, with **Branches**, **How it works** and **Menu** (just **Menu** on a phone).
   A blue dot on the map shows where you are.
 - The **footer** lists all branches with their hours and whether each is open now.
 - Choosing a branch yourself (any **Order here**) is remembered in your browser and always wins over the nearest.

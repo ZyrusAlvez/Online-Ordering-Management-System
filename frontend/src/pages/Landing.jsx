@@ -2,7 +2,7 @@ import { Suspense, lazy } from 'react';
 import { useAuth, HOME_FOR_ROLE } from '../context/AuthContext.jsx';
 import { Logo, REGION, RESTAURANT } from '../components/Logo.jsx';
 import { useSelectedBranch } from '../lib/branches.js';
-import { byDistance, formatKm, haversineKm, hoursLabel, isOpenNow, useUserPosition } from '../lib/geo.js';
+import { byDistance, directionsUrl, formatKm, haversineKm, hoursLabel, isOpenNow, useUserPosition } from '../lib/geo.js';
 import BranchList from '../components/BranchList.jsx';
 import { Badge, Button, Card, Spinner } from '../components/ui.jsx';
 import { BottomDock, CartBar } from '../components/BottomDock.jsx';
@@ -10,7 +10,7 @@ import MenuBrowser from '../components/MenuBrowser.jsx';
 import VisitorChat from '../components/chat/VisitorChat.jsx';
 import { CartProvider, useCart } from '../context/CartContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
-import { Bike, ChefHat, Clock, Pin, Store } from '../components/icons.jsx';
+import { Bike, ChefHat, Clock, Navigate, Pin, Store } from '../components/icons.jsx';
 
 // Leaflet only loads with the map, not with the rest of the app.
 const BranchMap = lazy(() => import('../components/BranchMap.jsx'));
@@ -19,7 +19,7 @@ const STEPS = [
   { icon: Store, title: 'Pick your branch', body: 'The one nearest you is chosen for you, or pick any of them on the map.' },
   { icon: ChefHat, title: 'Choose your dishes', body: 'Ala carte, sets, budget meals, bilao and drinks: the same menu at every branch.' },
   { icon: Clock, title: 'Now or later', body: 'Order for right away, or schedule a time up to two days ahead.' },
-  { icon: Bike, title: 'Pickup or delivery', body: 'Collect it at the counter or have a rider bring it. Pay cash or GCash.' },
+  { icon: Bike, title: 'Pickup or delivery', body: 'Collect it at the counter or have a rider bring it.' },
 ];
 
 const scrollTo = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
@@ -49,26 +49,41 @@ function YourBranchCard({ branch, explicit, isNearest, position, status, onOrder
           {open ? 'Open now' : 'Closed now'}
         </Badge>
       </div>
-      <p className="mt-2 text-sm text-ink-soft">
-        {hoursLabel(branch)}
-        {km != null && ` · ${formatKm(km)} away`}
-      </p>
-      {branch.address && (
-        <p className="mt-1 flex items-start gap-1 text-sm text-ink-soft">
-          <Pin size={15} className="mt-0.5 shrink-0" /> {branch.address}
+      <ul className="mt-3 space-y-1 text-sm text-ink-soft">
+        <li className="flex items-center gap-2">
+          <Clock size={15} className="shrink-0" /> {hoursLabel(branch)}
+        </li>
+        {(km != null || branch.address) && (
+          <li className="flex items-start gap-2">
+            <Pin size={15} className="mt-0.5 shrink-0" />
+            <span>{[km != null && `${formatKm(km)} away`, branch.address].filter(Boolean).join(' · ')}</span>
+          </li>
+        )}
+      </ul>
+      {!open && (
+        <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          Closed right now, but you can order ahead for later.
         </p>
       )}
-      {!open && <p className="mt-2 text-sm text-amber-800">Closed right now, but you can order ahead for later.</p>}
-      {!explicit && status === 'asking' && <p className="mt-2 text-xs text-ink-soft">Finding the branch nearest you…</p>}
+      {!explicit && status === 'asking' && <p className="mt-3 text-xs text-ink-soft">Finding the branch nearest you…</p>}
       {!explicit && status === 'denied' && (
-        <p className="mt-2 text-xs text-ink-soft">Allow location access to have the nearest branch picked for you.</p>
+        <p className="mt-3 text-xs text-ink-soft">Allow location access to have the nearest branch picked for you.</p>
       )}
       <div className="mt-4 flex flex-wrap gap-2">
-        <Button onClick={onOrder}>Order from {branch.name}</Button>
-        <Button tone="ghost" onClick={() => scrollTo('branches')}>
-          See all branches
+        <Button onClick={onOrder} className="grow sm:grow-0">
+          Order from {branch.name}
+        </Button>
+        <Button tone="outline" href={directionsUrl(branch)} target="_blank" rel="noreferrer">
+          <Navigate size={16} /> Directions
         </Button>
       </div>
+      <button
+        type="button"
+        onClick={() => scrollTo('branches')}
+        className="mt-3 text-sm font-medium text-ink-soft underline-offset-4 hover:text-ink hover:underline"
+      >
+        Not this one? Choose another branch
+      </button>
     </Card>
   );
 }
@@ -101,39 +116,74 @@ function LandingPage() {
 
   return (
     <div className="min-h-screen bg-cream">
-      <header className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-5">
-        <Logo />
-        <nav className="hidden items-center gap-1 text-sm font-medium text-ink-soft md:flex">
-          <a href="#branches" className="rounded-lg px-3 py-1.5 hover:text-ink">Branches</a>
-          <a href="#how" className="rounded-lg px-3 py-1.5 hover:text-ink">How it works</a>
-          <a href="#menu" className="rounded-lg px-3 py-1.5 hover:text-ink">Menu</a>
-        </nav>
-        <div className="flex items-center gap-2">
-          {isAuthed ? (
-            <Button to={home}>Go to my page</Button>
-          ) : (
-            <>
-              <Button to="/login" tone="ghost">Log in</Button>
-              <Button to="/register" className="!hidden sm:!inline-flex">Sign up</Button>
-            </>
-          )}
+      {/* Stays at the top, so the section links and sign-in are always one tap away. */}
+      <header className="sticky top-0 z-40 border-b border-line/70 bg-cream/85 backdrop-blur">
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4">
+          <Logo size={40} />
+          <nav aria-label="Sections" className="hidden items-center gap-1 text-sm font-medium text-ink-soft md:flex">
+            {[
+              ['#branches', 'Branches'],
+              ['#how', 'How it works'],
+              ['#menu', 'Menu'],
+            ].map(([href, label]) => (
+              <a key={href} href={href} className="rounded-lg px-3 py-1.5 transition hover:bg-ink/5 hover:text-ink">
+                {label}
+              </a>
+            ))}
+          </nav>
+          <div className="flex items-center gap-2">
+            <a href="#menu" className="rounded-lg px-2 py-1.5 text-sm font-medium text-ink-soft hover:text-ink md:hidden">
+              Menu
+            </a>
+            {isAuthed ? (
+              <Button to={home} size="sm">Go to my page</Button>
+            ) : (
+              <>
+                <Button to="/login" tone="ghost" size="sm">Log in</Button>
+                <Button to="/register" size="sm" className="!hidden sm:!inline-flex">Sign up</Button>
+              </>
+            )}
+          </div>
         </div>
       </header>
 
       {/* Hero: the branches are the picture. */}
-      <section className="mx-auto grid max-w-6xl items-center gap-8 px-4 pb-16 pt-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] md:gap-10 md:pt-8">
-        <div>
+      {/* On a phone the map follows the headline (it is the hero), then the branch card; on a
+          wide screen the map fills the right column beside both. */}
+      <section className="mx-auto grid max-w-6xl gap-x-10 gap-y-6 px-4 pb-16 pt-8 md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] md:pt-12">
+        <div className="md:self-end">
           <p className="inline-flex items-center gap-2 rounded-full bg-paper px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-sun-dark ring-1 ring-line">
             <Store size={14} /> {count > 1 ? `${count} branches across ${REGION}` : REGION}
           </p>
-          <h1 className="mt-5 font-script text-5xl leading-[1.08] text-ink sm:text-6xl">
-            Home-style favorites, <span className="text-brand">near you</span>.
+          <h1 className="mt-5 text-balance font-script text-[2.75rem] leading-[1.08] text-ink sm:text-6xl">
+            Home-style favorites, <span className="whitespace-nowrap text-brand">near you</span>.
           </h1>
-          <p className="mt-4 max-w-md text-lg text-ink-soft">
+          <p className="mt-4 max-w-md text-base text-ink-soft sm:text-lg">
             Sizzling sisig, lechon kawali, pancit and bilao from the {RESTAURANT} branch closest to you. Pick it up, have
             it delivered, or order ahead.
           </p>
-          <div className="mt-7 max-w-md">
+        </div>
+
+        <div className="relative md:col-start-2 md:row-span-2 md:row-start-1">
+          <Suspense
+            fallback={
+              <div className="flex h-72 items-center justify-center rounded-3xl border border-line bg-paper text-brand sm:h-96 md:h-full md:min-h-[520px]">
+                <Spinner />
+              </div>
+            }
+          >
+            <BranchMap
+              className="h-72 rounded-3xl sm:h-96 md:h-full md:min-h-[520px]"
+              branches={branches}
+              selectedId={branch?.id}
+              userPos={position}
+              onSelect={choose}
+            />
+          </Suspense>
+        </div>
+
+        <div className="md:self-start">
+          <div className="max-w-md">
             <YourBranchCard
               branch={branch}
               explicit={explicit}
@@ -144,7 +194,7 @@ function LandingPage() {
             />
           </div>
           <ul className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-sm font-medium text-ink-soft">
-            {[count > 1 ? `${count} branches` : 'Branches near you', 'Pickup & delivery', 'Order ahead', 'Cash or GCash'].map(
+            {[count > 1 ? `${count} branches` : 'Branches near you', 'Pickup & delivery', 'Order ahead'].map(
               (fact) => (
                 <li key={fact} className="flex items-center gap-2">
                   <span className="h-1.5 w-1.5 rounded-full bg-brand" aria-hidden="true" /> {fact}
@@ -153,27 +203,9 @@ function LandingPage() {
             )}
           </ul>
         </div>
-
-        <div className="relative">
-          <Suspense
-            fallback={
-              <div className="flex h-80 items-center justify-center rounded-3xl border border-line bg-paper text-brand md:h-[540px]">
-                <Spinner />
-              </div>
-            }
-          >
-            <BranchMap
-              className="h-80 rounded-3xl md:h-[540px]"
-              branches={branches}
-              selectedId={branch?.id}
-              userPos={position}
-              onSelect={choose}
-            />
-          </Suspense>
-        </div>
       </section>
 
-      <section id="branches" className="scroll-mt-4 border-y border-line bg-paper py-16">
+      <section id="branches" className="scroll-mt-16 border-y border-line bg-paper py-16">
         <div className="mx-auto max-w-6xl px-4">
           <h2 className="font-display text-2xl sm:text-3xl">Find us in {REGION}</h2>
           <p className="mt-2 text-ink-soft">
@@ -185,25 +217,27 @@ function LandingPage() {
         </div>
       </section>
 
-      <section id="how" className="mx-auto max-w-6xl scroll-mt-4 px-4 py-16">
+      <section id="how" className="mx-auto max-w-6xl scroll-mt-16 px-4 py-16">
         <h2 className="font-display text-2xl sm:text-3xl">How it works</h2>
-        <ol className="mt-10 grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
+        <ol className="mt-8 grid gap-6 sm:mt-10 sm:grid-cols-2 sm:gap-10 lg:grid-cols-4">
           {STEPS.map(({ icon: Icon, title, body }, i) => (
-            <li key={title}>
-              <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-cream-deep text-brand">
+            <li key={title} className="flex items-start gap-4 sm:block">
+              <div className="flex shrink-0 items-center gap-3">
+                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-cream-deep text-brand">
                   <Icon size={20} />
                 </span>
-                <span className="text-sm font-medium text-ink-soft">0{i + 1}</span>
+                <span className="hidden text-sm font-medium text-ink-soft sm:inline">0{i + 1}</span>
               </div>
-              <h3 className="mt-4 text-lg font-semibold">{title}</h3>
-              <p className="mt-1.5 text-sm leading-relaxed text-ink-soft">{body}</p>
+              <div>
+                <h3 className="text-base font-semibold sm:mt-4 sm:text-lg">{title}</h3>
+                <p className="mt-1 text-sm leading-relaxed text-ink-soft sm:mt-1.5">{body}</p>
+              </div>
             </li>
           ))}
         </ol>
       </section>
 
-      <section id="menu" className="scroll-mt-4 border-t border-line">
+      <section id="menu" className="scroll-mt-16 border-t border-line">
         <div className="mx-auto max-w-6xl px-4 py-16">
           <h2 className="font-display text-2xl sm:text-3xl">Our menu</h2>
           <p className="mt-2 text-ink-soft">
@@ -218,7 +252,7 @@ function LandingPage() {
           <div className="mt-6">
             <MenuBrowser
               branchId={branch?.id}
-              stickyTop="top-0"
+              stickyTop="top-16"
               onAdd={(line) => {
                 cart.add(line);
                 toast.success(`Added ${line.quantity}× ${line.name}`);

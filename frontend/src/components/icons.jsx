@@ -106,6 +106,7 @@ export function ChefHat({ size = 24, className = '' }) {
 }
 
 export const Clock = make(<><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>);
+export const Navigate = make(<path d="m3 11 18-8-8 18-2-8-8-2Z" />);
 export const Chat = make(<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z" />);
 export const Send = make(<path d="m22 2-7 20-4-9-9-4 20-7ZM22 2 11 13" />);
 
