@@ -218,8 +218,10 @@ OpenStreetMap.
 
 ### Minimal maps
 **Decision.** Every map is pared down: pale tiles (CARTO light, or the OpenStreetMap fallback greyed out with a CSS filter),
-zoom buttons tucked bottom-right, credits without the Leaflet prefix, and the app's own font in popups and labels. On the
-branch map each branch is a small dot; only the customer's branch is red and labelled, the rest show their name on hover.
+zoom buttons tucked bottom-right, credits without the Leaflet prefix, and the app's own font in popups and labels. The
+branch map is washed out to near-white, and each branch is the **3K Kitchen logo** in a round red-ringed badge (the logo
+set in Site images), so the branches are unmistakable; the customer's branch is larger, haloed and labelled, the rest
+show their name on hover. Badges shrink on phone-width maps so nearby branches do not overlap.
 The delivery map keeps a full pin, since its point must be precise. All of it lives in `index.css` and `mapPins.js`.
 **Why.** The map is the landing page's hero; the branches should be the only thing that stands out on it.
 

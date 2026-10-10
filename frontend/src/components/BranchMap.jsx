@@ -2,11 +2,11 @@ import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { formatKm, haversineKm, hoursLabel, isOpenNow } from '../lib/geo.js';
-import { BASEMAP_OPTIONS, BASEMAP_URL, dotIcon, minimalControls } from './mapPins.js';
+import { useSiteImage } from '../lib/siteImages.js';
+import { BASEMAP_URL, WHITE_BASEMAP_OPTIONS, logoIcon, minimalControls } from './mapPins.js';
 
 const BRAND = '#e8202a';
 const INK = '#3a2a22';
-const dots = { idle: dotIcon(false), selected: dotIcon(true) };
 
 /** Popup body, built as DOM so the "Order here" button can carry a handler. */
 const popupFor = (branch, { selected, userPos, onSelect }) => {
@@ -56,11 +56,14 @@ export default function BranchMap({ branches, selectedId, userPos, onSelect, cla
   const me = useRef(null);
   const handlers = useRef({ onSelect });
   handlers.current = { onSelect };
+  // Each branch is drawn as the restaurant's logo (the one set in Admin → Site images).
+  const logo = useSiteImage('logo');
 
   // Build the map once.
   useEffect(() => {
-    const m = L.map(box.current, { scrollWheelZoom: false, zoomControl: false });
-    L.tileLayer(BASEMAP_URL, BASEMAP_OPTIONS).addTo(m);
+    // Quarter zoom steps let the view fit the branches tightly, spreading the logos apart.
+    const m = L.map(box.current, { scrollWheelZoom: false, zoomControl: false, zoomSnap: 0.25 });
+    L.tileLayer(BASEMAP_URL, WHITE_BASEMAP_OPTIONS).addTo(m);
     minimalControls(m);
     layer.current = L.layerGroup().addTo(m);
     map.current = m;
@@ -77,8 +80,8 @@ export default function BranchMap({ branches, selectedId, userPos, onSelect, cla
     const m = map.current;
     if (!m || branches.length === 0) return;
     const bounds = L.latLngBounds(branches.map((b) => [b.latitude, b.longitude]));
-    // A little more room at the top for the selected branch's name label.
-    m.fitBounds(bounds, { paddingTopLeft: [48, 64], paddingBottomRight: [48, 40], maxZoom: 15 });
+    // Room for the logo badges at the edges, and more at the top for the selected branch's name.
+    m.fitBounds(bounds, { paddingTopLeft: [56, 88], paddingBottomRight: [56, 48], maxZoom: 15 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [framing]);
 
@@ -87,10 +90,11 @@ export default function BranchMap({ branches, selectedId, userPos, onSelect, cla
     const group = layer.current;
     if (!group) return;
     group.clearLayers();
+    const compact = (box.current?.clientWidth ?? 0) < 520;
     for (const branch of branches) {
       const selected = branch.id === selectedId;
       const marker = L.marker([branch.latitude, branch.longitude], {
-        icon: selected ? dots.selected : dots.idle,
+        icon: logoIcon(logo, selected, compact),
         riseOnHover: true,
         title: branch.name,
         zIndexOffset: selected ? 1000 : 0,
@@ -104,7 +108,7 @@ export default function BranchMap({ branches, selectedId, userPos, onSelect, cla
       if (selected) marker.on('popupclose', () => marker.openTooltip());
       group.addLayer(marker);
     }
-  }, [branches, selectedId, userPos]);
+  }, [branches, selectedId, userPos, logo]);
 
   // "You are here"
   useEffect(() => {

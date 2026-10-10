@@ -15,7 +15,8 @@ you need the logins in [test-accounts.md](./test-accounts.md).
 3K Kitchen has several branches; every order is made and collected (or delivered) by one of them. The website (`/`)
 opens on them:
 
-- **The map** at the top shows every branch, framed on all of them. Tap a pin for its address, hours, whether it is
+- **The map** at the top shows every branch as the 3K Kitchen logo, framed on all of them; yours is the larger one
+  ringed in red. Tap a pin for its address, hours, whether it is
   **open now**, how far it is from you, and **Order here**.
 - **Your branch card** beside the headline: the branch you will order from (**Nearest to you** when you allow the
   browser to use your **location**, which it asks once; otherwise the first branch, or the one you picked), with its

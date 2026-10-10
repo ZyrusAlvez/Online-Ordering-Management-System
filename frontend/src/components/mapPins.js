@@ -35,17 +35,32 @@ export const BASEMAP_OPTIONS = CARTO_KEY
   ? { maxZoom: 20, attribution: `${OSM_ATTRIBUTION} &copy; <a href="https://carto.com/attributions">CARTO</a>` }
   : { maxZoom: 19, attribution: OSM_ATTRIBUTION, className: 'map-tiles-muted' };
 
-/** A small round marker for the branch map; the selected branch is larger and red. Styled in index.css. */
-export const dotIcon = (selected = false) => {
-  const size = selected ? 20 : 14;
+/**
+ * A branch on the branch map: the restaurant's logo in a round badge, so every
+ * branch reads as 3K Kitchen at a glance. The customer's branch is larger with a
+ * red ring. Styled in index.css (`.map-logo`).
+ */
+export const logoIcon = (logoUrl, selected = false, compact = false) => {
+  // Smaller on a phone-width map, where nearby branches would otherwise overlap.
+  const size = compact ? (selected ? 42 : 30) : selected ? 58 : 44;
+  const src = String(logoUrl).replace(/"/g, '%22');
   return L.divIcon({
     className: '',
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
     popupAnchor: [0, -size / 2 - 2],
-    tooltipAnchor: [0, -size / 2 - 2],
-    html: `<span class="map-dot${selected ? ' map-dot--selected' : ''}"></span>`,
+    tooltipAnchor: [0, -size / 2 - 4],
+    html: `<span class="map-logo${selected ? ' map-logo--selected' : ''}"><img src="${src}" alt="" draggable="false" /></span>`,
   });
+};
+
+/**
+ * Tile options for the landing-page branch map: the same tiles, washed out to
+ * near-white. CARTO's light tiles are already pale, so they only lose their tint.
+ */
+export const WHITE_BASEMAP_OPTIONS = {
+  ...BASEMAP_OPTIONS,
+  className: CARTO_KEY ? 'map-tiles-white-soft' : 'map-tiles-white',
 };
 
 /** Quiet controls shared by every map: zoom bottom-right, and only the data credits (no Leaflet prefix). */

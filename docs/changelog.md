@@ -12,8 +12,8 @@ listed in [security.md](./security.md#issues-found-and-fixed).
 - **Landing page revamp:** the hero is the branch map, beside a "Your branch" card (nearest to you, open now, hours,
   distance, *Order from …*) and quick facts; then every branch as a card (*Find us in Cavite*), a four-step *How it
   works* that starts with picking a branch, the menu, and a footer listing all branches with their hours.
-- **Minimal maps:** small dot markers (only your branch red and labelled), pale tiles, quiet controls and credits, the
-  app's font in popups.
+- **Minimal maps:** the branch map is near-white with each branch shown as the 3K Kitchen logo in a red-ringed badge
+  (your branch larger and labelled); pale tiles, quiet controls and credits, the app's font in popups on every map.
 - Every map uses **CARTO's light tiles** (OpenStreetMap data) when `VITE_CARTO_BASEMAPS_KEY` (a free CARTO key) is set,
   and standard OpenStreetMap tiles otherwise; chosen once in `frontend/src/components/mapPins.js`.
 
