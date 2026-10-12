@@ -52,6 +52,13 @@ const forgetOAuthClientState = () => {
   }
 };
 
+/**
+ * True when the browser no longer holds the PKCE code verifier for this code:
+ * sign-in was started on another address (localhost vs 127.0.0.1, or the live
+ * site), or the callback page was reloaded after it had already been used.
+ */
+export const isMissingVerifier = (err) => /code verifier/i.test(err?.message ?? '');
+
 let exchange = null;
 
 /**
