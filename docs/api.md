@@ -47,7 +47,7 @@ Schema-level errors that belong to no single field appear under `details._errors
 | `404` | Not found — or not visible to you (for example another branch's order), which is deliberately indistinguishable |
 | `409` | Conflict: illegal state transition, already paid (or paid twice at once), already claimed, item unavailable or sold out at the branch, branch closed for an ASAP order, a product or option that appears in past orders can't be deleted/removed, chat closed, duplicate branch code |
 | `429` | Rate limited |
-| `503` | GCash requested but PayMongo is not configured |
+| `503` | GCash requested but no GCash account is configured (`GCASH_*` in `backend/.env`) |
 
 **Field rules.** The same limits apply on every endpoint (and are repeated in the
 forms and as database constraints). The full list, with the reason for each, is in
@@ -279,35 +279,14 @@ X-Kiosk-Key: kiosk_…
   "data": {
     "order": { "id": "…", "order_number": "K-0042", "status": "pending",
                "payment_status": "unpaid", "total_amount": 330, "order_items": [ … ] },
-    "payment": null
   }
 }
 ```
 
-**Cash** → `payment` is `null`. Show the order number and tell the customer to
-pay at the counter.
-
-**GCash** → `payment` is populated:
-
-```json
-{ "intent_id": "pi_…", "checkout_url": "https://…", "amount": 330 }
-```
-
-Send the customer to `checkout_url` (redirect, or render it as a QR). Then poll:
-
-```http
-GET /kiosk/orders/:id
-```
-
-until `payment_status` becomes `paid` (the order also flips to `confirmed`
-automatically and goes straight to the kitchen) or `failed`. Poll every ~2s and
-give up after a couple of minutes.
-
-> A kiosk cannot use Supabase Realtime — it has no signed-in user, so row-level
-> security would return it nothing. Polling this endpoint is the intended path.
-
-If the customer abandons payment, `POST /kiosk/orders/:id/payment` starts a
-fresh attempt and returns a new `checkout_url`.
+The order waits at the counter either way: show the order number and tell the
+customer to pay at the counter. For **GCash**, also show the restaurant's QR and
+number from `GET /site/gcash`; the customer pays on their phone and shows the
+receipt to the cashier, who records it with `POST /pos/orders/:id/payment/gcash`.
 
 Orders are scoped to the device that created them: another kiosk's order
 returns `404`.
@@ -342,7 +321,8 @@ sort by `scheduled_for ?? created_at`.
 | Accept | `POST /pos/orders/:id/confirm` |
 | Advance | `PATCH /pos/orders/:id/status` — `{ "status": "preparing" }` |
 | Take cash | `POST /pos/orders/:id/payment/cash` — `{ "tendered_amount": 500 }` |
-| Take GCash | `POST /pos/orders/:id/payment/gcash` |
+| Take GCash | `POST /pos/orders/:id/payment/gcash` — `{ "reference_number": "1012345678901" }`, copied off the customer's receipt |
+| Verify an online GCash payment | `POST /pos/orders/:id/payment/gcash/verify` — `{ "approve": true }` or `{ "approve": false, "reason": "…" }` (the customer sees the reason and can resend) |
 | Void | `POST /pos/orders/:id/void` — `{ "reason": "customer changed mind" }` |
 
 Cash payment returns the change to pop on screen:
@@ -361,9 +341,15 @@ Cash payment returns the change to pop on screen:
 | `ready` | `completed` |
 | `out_for_delivery` | `completed` |
 
+`GET /pos/orders/:id` adds `gcash_payment` to a GCash order: the latest
+submission, `{ status, reference_number, receipt_url, failure_reason, … }`, where
+`receipt_url` is a signed link valid for an hour.
+
 Modifying items only works while `pending` or `confirmed`. Voiding works any
-time before `completed`; voiding a paid GCash order auto-refunds and returns
-`meta.refund_id`.
+time before `completed`, except while a GCash payment is waiting to be verified
+(`409`: approve or reject it first). Voiding a paid GCash order moves it to
+`refund_pending` and returns `meta.refund_pending: true`; send the money back by
+hand, then `POST /admin/orders/:id/refund`.
 
 ---
 
@@ -437,14 +423,19 @@ tomorrow (Manila), and inside the branch's opening hours (`400` with
 `details.scheduled_for` otherwise). A dish sold out at the branch is `409`. The
 response carries `branch_id`, `branch` and `scheduled_for`.
 
-For GCash, follow with `POST /orders/:id/payment` to get a `checkout_url`
-(also used to retry a failed attempt).
+For GCash, the customer pays the restaurant's account (`GET /site/gcash`) from
+their own GCash app, then sends proof: optionally upload a receipt screenshot
+first (raw image body, like chat photos), then submit a reference number, the
+receipt path, or both. The order goes to `payment_status: "processing"` (awaiting
+verification) until staff approve (`paid`) or reject it (`failed`, with
+`gcash_payment.failure_reason`; the customer can submit again).
 
 | Method | Path | Notes |
 | --- | --- | --- |
 | `GET` | `/orders?page&limit&status` | The caller's own orders |
-| `GET` | `/orders/:id` | |
-| `POST` | `/orders/:id/payment` | Start/retry GCash |
+| `GET` | `/orders/:id` | Adds `gcash_payment` (latest submission, or `null`) |
+| `POST` | `/orders/:id/payment/receipt` | Raw `image/jpeg`, `image/png` or `image/webp` body (5 MB). `201 { data: { receipt_path } }` |
+| `POST` | `/orders/:id/payment` | `{ reference_number?, receipt_path? }` (at least one). Only for a GCash order that is `unpaid` or `failed` |
 | `POST` | `/orders/:id/cancel` | Only while `pending`/`confirmed` **and** unpaid — otherwise `409`. A paid order must be voided by staff (refund path). |
 
 ---
@@ -485,7 +476,7 @@ are `404`. A deactivated admin is `403` on every route.
 | Method | Path | Notes |
 | --- | --- | --- |
 | `GET` | `/admin/orders` | Orders of the caller's branches. `?branch_id&status&payment_status&channel&from&to&page&limit` (`from`/`to` are ISO 8601) |
-| `POST` | `/admin/orders/:id/refund/retry` | Retry a refund PayMongo rejected |
+| `POST` | `/admin/orders/:id/refund` | Mark a `refund_pending` order `refunded`, once the GCash money has been sent back by hand |
 | `GET` | `/admin/sales` | Sales report for a range of **Manila days**: `?from=YYYY-MM-DD&to=YYYY-MM-DD&branch_id` (both included; default is the last 7 days ending today, at most 366 days). See [Sales report](#sales-report). |
 | `GET` | `/admin/riders` | `?branch_id&page&limit`. Each rider has `branches` |
 | `POST` | `/admin/riders` | `{ branch_id, email, password (8–72), full_name, phone? }` |
@@ -563,6 +554,7 @@ checked, not just the header.
 | `PUT` | `/admin/site-images/:key` | Super admin. `key` is `logo` (the only site image; anything else is `400`). Returns `{ data: { logo } }`. |
 | `DELETE` | `/admin/site-images/:key` | Super admin. Back to the bundled default (`null`). |
 | `GET` | `/site/images` | Public. `{ data: { logo } }`; `null` means use the bundled `/brand/logo.jpg`. |
+| `GET` | `/site/gcash` | Public. `{ data: { name, number, qr_image } }`, the GCash account customers pay into; `null` when GCash is off. `qr_image` may be a path on the frontend site. |
 
 `image_url` on `PATCH /products/:id` also accepts an external URL, or `null` to
 clear it. Seed the logo from `frontend/public/brand` with
@@ -668,6 +660,8 @@ rules.
 | Place a kiosk order | `POST /kiosk/orders` |
 | Find a customer's order at the till | `GET /pos/orders?q=<name or number>` |
 | Take payment | `POST /pos/orders/:id/payment/cash` |
+| GCash at the counter / verify online GCash | `POST /pos/orders/:id/payment/gcash` / `…/gcash/verify` |
+| Customer sends GCash proof | `POST /orders/:id/payment` |
 | Send to kitchen | `POST /pos/orders/:id/confirm` then `PATCH …/status` |
 | Order for delivery | `POST /orders` with `branch_id` and `fulfillment_type: "delivery"` |
 | Order for later | `POST /orders` with `scheduled_for` (15-minute slot within the branch's hours) |

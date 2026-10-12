@@ -4,6 +4,21 @@ What has been built, grouped by feature, with the database migration that goes w
 numbers are the dates in the file names under `backend/supabase/migrations/`. Security-relevant changes are also
 listed in [security.md](./security.md#issues-found-and-fixed).
 
+## Manual GCash replaces PayMongo
+*Migrations `20261012000000_manual_gcash.sql`, `20261012000100_drop_paymongo.sql`*
+- **No payment provider.** PayMongo (payment intents, the GCash redirect, signed webhooks, automatic refunds) is removed,
+  with its settings, the `/webhooks/paymongo` route, the kiosk "try GCash again" route, both payment-result pages, the
+  `webhook_events` table and the PayMongo columns on `payments`.
+- **The restaurant's own GCash account** (`GCASH_NAME`, `GCASH_NUMBER`, `GCASH_QR_IMAGE` in `backend/.env`, served by
+  `GET /site/gcash`) is shown on the order page, the kiosk and the cashier screen. The bundled QR is a placeholder.
+- **Online:** the customer pays, then sends a reference number and/or a receipt screenshot (private `payment-receipts`
+  bucket). The order is **Awaiting verification** until a cashier or admin approves it, or rejects it with a reason the
+  customer sees and can answer by sending again.
+- **Kiosk:** shows the QR with the order number and asks the customer to show the receipt to the cashier.
+  **Counter:** the cashier checks the receipt and records its reference number.
+- **Refunds by hand:** voiding a paid GCash order leaves it **Refund pending**; an admin marks it **Refunded** once the
+  money is sent back. An order cannot be voided while its GCash proof is waiting. `refund_failed` is retired.
+
 ## Landing page built around the branches; no promo photo; CARTO light maps
 *Migration `20261011000000_remove_promo_image.sql`*
 - The **promo photo is gone**: from the landing page, Admin → Site images (now the logo only), the API (`promo` is an

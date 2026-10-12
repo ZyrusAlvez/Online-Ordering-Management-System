@@ -7,8 +7,8 @@ the Supabase project and applying the database.
 
 - Node.js 20 or newer (the project is developed on 22) and npm
 - A free [Supabase](https://supabase.com) project
-- Optional, only for the features that need them: a Google Cloud project (Google sign-in) and a PayMongo account
-  (GCash). Everything else, including all cash flows, works without them.
+- Optional, only for the feature that needs it: a Google Cloud project (Google sign-in). Everything else works
+  without it.
 
 ---
 
@@ -30,7 +30,7 @@ Open the Supabase **SQL Editor**, paste each file in turn and run it (or use the
 | # | File | What it adds |
 | --- | --- | --- |
 | 1 | `20260903000000_init_schema.sql` | Menu tables (categories, products, variants), orders and items, first policies |
-| 2 | `20260912000000_multichannel_orders.sql` | Channels (kiosk, counter, online), order numbers, profiles and roles, payments, kiosk devices, webhook log, row-level security, live updates |
+| 2 | `20260912000000_multichannel_orders.sql` | Channels (kiosk, counter, online), order numbers, profiles and roles, payments, kiosk devices, row-level security, live updates |
 | 3 | `20260912010000_harden_functions.sql` | Locks down the database functions |
 | 4 | `20260912020000_revoke_function_execute_from_public.sql` | Closes the functions to the public |
 | 5 | `20260920000000_employee_credentials.sql` | Hashed kiosk password |
@@ -49,6 +49,8 @@ Open the Supabase **SQL Editor**, paste each file in turn and run it (or use the
 | 18 | `20261010020000_branch_availability.sql` | Sold out at one branch |
 | 19 | `20261010030000_scheduled_orders.sql` | Scheduled online orders |
 | 20 | `20261011000000_remove_promo_image.sql` | Removes the promo photo: the logo is the only site image |
+| 21 | `20261012000000_manual_gcash.sql` | Manual GCash: reference number, receipt and verifier on payments, private `payment-receipts` bucket |
+| 22 | `20261012000100_drop_paymongo.sql` | Drops the PayMongo columns and the webhook log |
 
 Then load the menu: run `backend/supabase/seed.sql` in the same editor. It is safe to run twice. It is generated from
 `backend/supabase/seed-data/menu.json`; to change the menu, edit that file and run `npm run seed:menu` in `backend/`
@@ -146,8 +148,8 @@ cd frontend && npm run dev      # app on http://localhost:5173
 Check the API is alive: `curl localhost:4000/api/v1/health` should answer `{"status":"ok",…}`.
 Open <http://localhost:5173>. Each screen's address is in [overview.md](./overview.md#the-people-and-the-screens).
 
-> The backend port (4000) and the frontend port (5173) are what the CORS settings and the GCash return addresses
-> assume. If you change them, change `CORS_ORIGIN`, `PUBLIC_APP_URL` and `KIOSK_RETURN_URL` too.
+> The backend port (4000) and the frontend port (5173) are what the CORS settings assume. If you change them,
+> change `CORS_ORIGIN` too.
 
 ## 8. Check everything works
 
@@ -176,10 +178,20 @@ The "Continue with Google" button works once Google is enabled in Supabase.
 
 Google accounts become ordinary customers. They never get staff roles.
 
-## Optional: GCash
+## GCash
 
-Needs a PayMongo account; see [deployment.md](./deployment.md#gcash-paymongo). Without it the server starts normally
-and only the GCash buttons answer "not configured".
+GCash is paid by hand into the restaurant's own GCash account; there is no payment provider. Set the account in
+`backend/.env`:
+
+```
+GCASH_NAME=Ruchell Quesada
+GCASH_NUMBER=0907 131 2306
+GCASH_QR_IMAGE=/brand/gcash-qr.svg
+```
+
+`GCASH_QR_IMAGE` is a full URL or a path on the frontend site. `/brand/gcash-qr.svg` is a **placeholder**: put the
+real QR exported from the GCash app in `frontend/public/brand/` and point this at it. Leave any of the three empty and
+GCash is hidden everywhere (cash only). See [how-it-works.md](./how-it-works.md#gcash-manual).
 
 ---
 

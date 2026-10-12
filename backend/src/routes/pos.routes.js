@@ -11,9 +11,11 @@ import { messageBody } from '../validators/chat.validators.js';
 import { statusBody } from '../validators/order.validators.js';
 import {
   cashPaymentSchema,
+  counterGcashSchema,
   createWalkInOrderSchema,
   posQueueQuery,
   replaceItemsSchema,
+  verifyGcashSchema,
   voidSchema,
 } from '../validators/pos.validators.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
@@ -48,7 +50,18 @@ router.post(
   validate({ body: cashPaymentSchema }),
   asyncHandler(pos.payCash),
 );
-router.post('/orders/:id/payment/gcash', order, asyncHandler(pos.payGcash));
+router.post(
+  '/orders/:id/payment/gcash',
+  order,
+  validate({ body: counterGcashSchema }),
+  asyncHandler(pos.payGcash),
+);
+router.post(
+  '/orders/:id/payment/gcash/verify',
+  order,
+  validate({ body: verifyGcashSchema }),
+  asyncHandler(pos.verifyGcash),
+);
 router.post('/orders/:id/void', order, validate({ body: voidSchema }), asyncHandler(pos.voidOrder));
 
 // --- chat inbox (visitors messaging from the landing page) ---

@@ -32,11 +32,4 @@ router.post(
 
 router.get('/orders/:id', validate({ params: idParam }), asyncHandler(kiosk.getOrder));
 
-router.post(
-  '/orders/:id/payment',
-  kioskLimiter,
-  validate({ params: idParam }),
-  asyncHandler(kiosk.retryPayment),
-);
-
 export default router;

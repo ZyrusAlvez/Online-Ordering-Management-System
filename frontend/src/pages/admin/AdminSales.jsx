@@ -271,7 +271,7 @@ export default function AdminSales() {
             <p role="status" className="rounded-xl border border-sun/40 bg-sun/10 px-4 py-3 text-sm">
               <strong>{report.refunds_pending.orders}</strong> voided {report.refunds_pending.orders === 1 ? 'order' : 'orders'} (
               {money(report.refunds_pending.amount)}) {report.refunds_pending.orders === 1 ? 'is' : 'are'} still waiting on a
-              GCash refund. They are not counted as sales.
+              GCash refund to be sent back by hand. They are not counted as sales.
             </p>
           )}
 

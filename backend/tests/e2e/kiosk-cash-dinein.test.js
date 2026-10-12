@@ -64,7 +64,6 @@ describe('E2E: kiosk dine-in paid with cash', () => {
 
     assert.equal(order.status, 'pending');
     assert.equal(order.payment_status, 'unpaid');
-    assert.equal(res.body.data.payment, null, 'cash is settled at the counter');
     assert.equal(Number(order.total_amount), flat.price * 2 + variant.price);
   });
 

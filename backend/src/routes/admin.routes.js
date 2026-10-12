@@ -36,10 +36,10 @@ const superAdmin = requireRole('super_admin');
 // --- orders oversight ---
 router.get('/orders', validate({ query: adminOrderQuery }), asyncHandler(admin.listOrders));
 router.post(
-  '/orders/:id/refund/retry',
+  '/orders/:id/refund',
   validate({ params: idParam }),
   requireOrderInScope,
-  asyncHandler(admin.retryRefund),
+  asyncHandler(admin.markRefunded),
 );
 
 // --- sales report (paid, non-voided orders by Manila day) ---

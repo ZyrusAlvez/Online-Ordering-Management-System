@@ -25,7 +25,7 @@ export const getMine = async (req, res) => {
   const data = await orderService.fetchOrder(req.params.id, req.supabase);
   if (!data) throw ApiError.notFound('Order not found');
 
-  res.json({ data });
+  res.json({ data: await paymentService.withGcashPayment(data) });
 };
 
 export const create = async (req, res) => {
@@ -50,13 +50,28 @@ export const create = async (req, res) => {
   res.status(201).json({ data });
 };
 
-export const startPayment = async (req, res) => {
-  // Read through the caller-scoped client first so RLS confirms ownership
-  // before the payment service touches the order with the secret key.
+// Read through the caller-scoped client first so RLS confirms ownership
+// before the payment service touches the order with the secret key.
+const assertOwned = async (req) => {
   const owned = await orderService.fetchOrder(req.params.id, req.supabase);
   if (!owned) throw ApiError.notFound('Order not found');
+};
 
-  res.json({ data: await paymentService.startGcashPayment(req.params.id) });
+/** Upload a GCash receipt screenshot; the returned path goes in the submission. */
+export const uploadReceipt = async (req, res) => {
+  await assertOwned(req);
+  const path = await paymentService.uploadGcashReceipt(req.params.id, req.body);
+  res.status(201).json({ data: { receipt_path: path } });
+};
+
+/** "I've paid": a reference number and/or receipt, for staff to verify. */
+export const submitPayment = async (req, res) => {
+  await assertOwned(req);
+  const data = await paymentService.submitGcashProof(req.params.id, {
+    referenceNumber: req.body.reference_number ?? null,
+    receiptPath: req.body.receipt_path ?? null,
+  });
+  res.json({ data });
 };
 
 export const cancel = async (req, res) => {

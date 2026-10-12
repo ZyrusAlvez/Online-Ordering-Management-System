@@ -1,3 +1,4 @@
+import { env } from '../config/env.js';
 import { supabaseAdmin } from '../config/supabase.js';
 import { ALLOWED_TRANSITIONS, WITH_ITEMS } from '../constants/orders.js';
 import { ApiError, fromPostgrestError } from '../utils/ApiError.js';
@@ -11,8 +12,7 @@ export { WITH_ITEMS };
 /**
  * Money is handled as integer centavos throughout this module. Prices come
  * back from Postgres as numeric strings, and multiplying those as floats
- * accumulates rounding error; PayMongo also bills in centavos, so this is the
- * representation needed at that boundary anyway.
+ * accumulates rounding error.
  */
 export const toCentavos = (amount) => Math.round(Number(amount) * 100);
 export const toPesos = (centavos) => Number((centavos / 100).toFixed(2));
@@ -181,6 +181,11 @@ export const createOrder = async ({
   notes = null,
   scheduledFor = null,
 }) => {
+  // GCash is only offered while an account is configured to pay into.
+  if (paymentMethod === 'gcash' && !env.gcash) {
+    throw ApiError.badRequest('GCash is not available right now; please pay in cash');
+  }
+
   const { lines, totalCentavos } = await priceOrder(items, branchId);
 
   const { data: order, error: orderError } = await supabaseAdmin
@@ -220,16 +225,6 @@ export const createOrder = async ({
 };
 
 /**
- * Hard-deletes an order. Only for rolling back an order the caller never
- * successfully received — a real order that must go away is `voided`, which
- * keeps the audit trail.
- */
-export const discardOrder = async (orderId) => {
-  const { error } = await supabaseAdmin.from('orders').delete().eq('id', orderId);
-  if (error) throw fromPostgrestError(error);
-};
-
-/**
  * Replaces an order's items and recomputes its total — the POS "modify order"
  * action. Only valid before the kitchen has committed to the order.
  */
@@ -238,8 +233,8 @@ export const replaceOrderItems = async (orderId, items) => {
   if (!['pending', 'confirmed'].includes(order.status)) {
     throw ApiError.conflict(`Cannot modify an order that is ${order.status}`);
   }
-  // Once money is moving the total is fixed: a GCash intent for PHP 100 on an
-  // order edited up to PHP 500 would mark it paid in full.
+  // Once money is moving the total is fixed: a GCash receipt for PHP 100 on an
+  // order edited up to PHP 500 would be approved as paid in full.
   if (!['unpaid', 'failed'].includes(order.payment_status)) {
     throw ApiError.conflict(`Cannot modify an order whose payment is ${order.payment_status}`);
   }
@@ -330,7 +325,7 @@ export const advanceStatus = async (orderId, nextStatus) => {
  * Customer-initiated cancel. Ownership is checked here (`customer_id`), since
  * customers have no write access to orders at all: it only applies while the
  * order is unstarted and not paid. Cancelling a paid order is a void, which
- * carries a refund. A failed GCash attempt counts as unpaid.
+ * carries a refund. A rejected GCash payment counts as unpaid.
  */
 export const cancelOwnOrder = async (orderId, customerId) => {
   const { data, error } = await supabaseAdmin
@@ -353,12 +348,15 @@ export const cancelOwnOrder = async (orderId, customerId) => {
 
 /**
  * Guards the void preconditions, separately from performing the void, because
- * a paid GCash order must be refunded *between* the two — and a failed refund
- * must leave the order un-voided rather than voided with the money kept.
+ * a paid GCash order must be flagged for a refund *between* the two.
  */
 export const assertVoidable = (order) => {
   if (order.status === 'voided') throw ApiError.conflict('Order is already voided');
   if (order.status === 'completed') throw ApiError.conflict('Cannot void a completed order');
+  // The customer may well have sent the money: staff must look before deciding.
+  if (order.payment_status === 'processing') {
+    throw ApiError.conflict('Verify or reject the GCash payment before voiding this order');
+  }
 };
 
 /** Marks an order voided with an audit trail. Refunds are handled by the caller. */

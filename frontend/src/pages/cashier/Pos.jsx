@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
 import { api } from '../../lib/api.js';
 import { useInbox } from '../../lib/chat.js';
 import { useDebounced, useFetch, useTick } from '../../lib/hooks.js';
@@ -19,6 +18,7 @@ import { StaffBar } from '../../components/Layouts.jsx';
 import { BranchPicker, StaffBranchProvider, useStaffBranch } from '../../components/StaffBranch.jsx';
 import StaffInbox from '../../components/chat/StaffInbox.jsx';
 import ItemsEditor, { linesFromOrder } from '../../components/ItemsEditor.jsx';
+import GcashAccount from '../../components/GcashAccount.jsx';
 import {
   DUE_SOON_MINUTES,
   MapLink,
@@ -189,55 +189,136 @@ function CashModal({ order, onClose, onPaid }) {
   );
 }
 
-function GcashModal({ order, onClose }) {
+/**
+ * GCash at the counter: the customer scans our QR (or already paid at the kiosk),
+ * shows their receipt, and the cashier copies the reference number off it.
+ */
+function GcashModal({ order, onClose, onPaid }) {
   const toast = useToast();
-  const [url, setUrl] = useState(null);
+  const [reference, setReference] = useState('');
+  const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    let live = true;
-    api
-      .post(`/pos/orders/${order.id}/payment/gcash`, undefined, { auth: true })
-      .then((res) => live && setUrl(res.data.checkout_url))
-      .catch((err) => {
-        toast.error(err.friendly);
-        onClose();
-      });
-    return () => {
-      live = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [order.id]);
-
-  // The webhook flips the order to paid; Realtime refreshes it, so close on success.
-  useEffect(() => {
-    if (order.payment_status === 'paid') {
+  const pay = async () => {
+    setBusy(true);
+    try {
+      await api.post(
+        `/pos/orders/${order.id}/payment/gcash`,
+        { reference_number: reference.trim() },
+        { auth: true },
+      );
       toast.success(`${order.order_number} paid with GCash`);
+      onPaid();
       onClose();
+    } catch (err) {
+      toast.error(err.friendly);
+      setBusy(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [order.payment_status]);
+  };
 
   return (
     <Modal open onClose={onClose} title={`GCash · ${order.order_number}`}>
-      {!url ? (
-        <PageLoader label="Creating payment…" />
-      ) : (
-        <div className="space-y-4 text-center">
-          <p className="text-lg">
-            Amount due <strong>{money(order.total_amount)}</strong>
-          </p>
-          <div className="mx-auto w-fit rounded-3xl bg-white p-4 shadow">
-            <QRCodeSVG value={url} size={240} />
+      <div className="space-y-5">
+        <GcashAccount amount={order.total_amount} />
+        <p className="text-center text-sm text-ink-soft">
+          Check the customer's GCash receipt: our account name, the amount, and today's date.
+        </p>
+        <Field label="Reference no. on the receipt">
+          <Input
+            autoFocus
+            value={reference}
+            onChange={(e) => setReference(e.target.value)}
+            maxLength={40}
+            autoComplete="off"
+            placeholder="e.g. 1012 345 678901"
+          />
+        </Field>
+        <Button size="lg" className="w-full" loading={busy} disabled={reference.trim().length < 6} onClick={pay}>
+          Mark paid
+        </Button>
+      </div>
+    </Modal>
+  );
+}
+
+/** An online customer's GCash reference number / receipt, waiting for staff to check it. */
+function GcashReview({ order, onDone }) {
+  const toast = useToast();
+  const [rejecting, setRejecting] = useState(false);
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(null);
+  const sent = order.gcash_payment;
+
+  const verify = async (approve) => {
+    setBusy(approve ? 'approve' : 'reject');
+    try {
+      await api.post(
+        `/pos/orders/${order.id}/payment/gcash/verify`,
+        approve ? { approve } : { approve, reason: reason.trim() },
+        { auth: true },
+      );
+      toast.success(approve ? `${order.order_number} marked paid` : 'Payment rejected; the customer can resend it');
+      setRejecting(false);
+      setReason('');
+      await onDone();
+    } catch (err) {
+      toast.error(err.friendly);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="space-y-3 rounded-2xl bg-sky-50 p-4 text-sm text-sky-950">
+      <p className="font-semibold">GCash payment to verify</p>
+      <p>
+        Check your GCash app for <strong>{money(order.total_amount)}</strong>
+        {sent?.reference_number ? (
+          <>
+            {' '}with reference no. <strong className="font-mono">{sent.reference_number}</strong>
+          </>
+        ) : null}
+        .
+      </p>
+      {sent?.receipt_url && (
+        <a href={sent.receipt_url} target="_blank" rel="noreferrer" className="block w-fit">
+          <img
+            src={sent.receipt_url}
+            alt="Customer's GCash receipt"
+            className="max-h-64 rounded-xl ring-1 ring-sky-200"
+          />
+        </a>
+      )}
+      {rejecting ? (
+        <div className="space-y-2">
+          <Field label="Why? (the customer sees this)">
+            <Input
+              autoFocus
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              maxLength={500}
+              placeholder="e.g. No payment with this reference number"
+            />
+          </Field>
+          <div className="flex gap-2">
+            <Button tone="outline" onClick={() => setRejecting(false)}>
+              Back
+            </Button>
+            <Button tone="danger" loading={busy === 'reject'} disabled={!reason.trim()} onClick={() => verify(false)}>
+              Reject payment
+            </Button>
           </div>
-          <p className="text-sm text-ink-soft">
-            Have the customer scan this to pay. This window closes when payment is received.
-          </p>
-          <a href={url} target="_blank" rel="noreferrer" className="text-sm font-semibold text-brand underline">
-            Open payment page
-          </a>
+        </div>
+      ) : (
+        <div className="flex gap-2">
+          <Button tone="green" loading={busy === 'approve'} onClick={() => verify(true)}>
+            Approve
+          </Button>
+          <Button tone="outline" onClick={() => setRejecting(true)}>
+            Reject
+          </Button>
         </div>
       )}
-    </Modal>
+    </div>
   );
 }
 
@@ -250,7 +331,7 @@ function VoidModal({ order, onClose, onDone }) {
     setBusy(true);
     try {
       const res = await api.post(`/pos/orders/${order.id}/void`, { reason: reason.trim() }, { auth: true });
-      toast.success(res.meta?.refund_id ? 'Order voided and GCash refund started' : 'Order voided');
+      toast.success(res.meta?.refund_pending ? 'Order voided. Send the GCash refund to the customer.' : 'Order voided');
       onDone();
       onClose();
     } catch (err) {
@@ -264,7 +345,8 @@ function VoidModal({ order, onClose, onDone }) {
       <div className="space-y-4">
         {order.payment_status === 'paid' && order.payment_method === 'gcash' && (
           <p className="rounded-2xl bg-amber-100 p-3 text-sm text-amber-900">
-            This order was paid by GCash. Voiding it will refund the customer automatically.
+            This order was paid by GCash. After voiding, send {money(order.total_amount)} back to the
+            customer's GCash; an admin then marks the refund done.
           </p>
         )}
         <Field label="Reason">
@@ -369,6 +451,7 @@ function OrderPanel({ orderId, onChanged, onClose }) {
         <span className="text-brand">{money(order.total_amount)}</span>
       </div>
       {order.notes && <p className="text-sm text-ink-soft">Note: “{order.notes}”</p>}
+      {order.payment_status === 'processing' && <GcashReview order={order} onDone={async () => { await refresh(); onChanged(); }} />}
       {order.void_reason && (
         <p className="rounded-2xl bg-brand/10 p-3 text-sm text-brand-dark">Voided: {order.void_reason}</p>
       )}
@@ -380,7 +463,7 @@ function OrderPanel({ orderId, onChanged, onClose }) {
               Take cash
             </Button>
             <Button tone="sun" onClick={() => setModal('gcash')}>
-              GCash QR
+              GCash
             </Button>
           </>
         )}
@@ -421,7 +504,8 @@ function OrderPanel({ orderId, onChanged, onClose }) {
             Edit items
           </Button>
         )}
-        {open && (
+        {/* A GCash payment waiting on staff is approved or rejected first: the money may be in. */}
+        {open && order.payment_status !== 'processing' && (
           <Button tone="danger" onClick={() => setModal('void')}>
             Void
           </Button>
@@ -436,7 +520,9 @@ function OrderPanel({ orderId, onChanged, onClose }) {
       {modal === 'cash' && (
         <CashModal order={order} onClose={() => setModal(null)} onPaid={() => { refresh(); onChanged(); }} />
       )}
-      {modal === 'gcash' && <GcashModal order={order} onClose={() => { setModal(null); onChanged(); }} />}
+      {modal === 'gcash' && (
+        <GcashModal order={order} onClose={() => setModal(null)} onPaid={() => { refresh(); onChanged(); }} />
+      )}
       {modal === 'void' && (
         <VoidModal order={order} onClose={() => setModal(null)} onDone={() => { refresh(); onChanged(); }} />
       )}

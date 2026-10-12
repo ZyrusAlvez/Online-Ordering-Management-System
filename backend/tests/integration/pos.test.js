@@ -9,6 +9,7 @@ import {
   flatPricedProduct,
   issueKioskKey,
   placeKioskOrder,
+  placeOnlineOrder,
   placeWalkInOrder,
 } from '../helpers/fixtures.js';
 
@@ -360,7 +361,144 @@ describe('POST /pos/orders/:id/void', () => {
     );
 
     assert.equal(res.status, 200);
-    assert.equal(res.body.meta.refund_id, null, 'cash is refunded from the drawer');
+    assert.equal(res.body.meta.refund_pending, false, 'cash is refunded from the drawer');
+  });
+});
+
+describe('POST /pos/orders/:id/payment/gcash (receipt shown at the counter)', () => {
+  it('settles a kiosk GCash order with the reference number', async () => {
+    const { order } = await placeKioskOrder(kioskKey, { payment_method: 'gcash' });
+    const res = await post(
+      `/pos/orders/${order.id}/payment/gcash`,
+      { reference_number: '1012345678901' },
+      { token: cashier },
+    );
+
+    assert.equal(res.status, 200);
+    assert.equal(res.body.data.payment_status, 'paid');
+    assert.equal(res.body.data.payment_method, 'gcash');
+    assert.equal(res.body.data.gcash_payment.reference_number, '1012345678901');
+
+    const [payment] = await paymentsFor(order.id);
+    assert.equal(payment.provider, 'gcash');
+    assert.equal(payment.status, 'paid');
+    assert.ok(payment.verified_by, 'records which cashier checked the receipt');
+  });
+
+  it('switches a cash walk-in to GCash', async () => {
+    const order = await placeWalkInOrder();
+    const res = await post(
+      `/pos/orders/${order.id}/payment/gcash`,
+      { reference_number: '1012345678902' },
+      { token: cashier },
+    );
+    assert.equal(res.status, 200);
+    assert.equal(res.body.data.payment_method, 'gcash');
+  });
+
+  it('needs a reference number', async () => {
+    const order = await placeWalkInOrder();
+    const res = await post(`/pos/orders/${order.id}/payment/gcash`, {}, { token: cashier });
+    assert.equal(res.status, 400);
+  });
+
+  it('refuses an order that is already paid', async () => {
+    const order = await placeWalkInOrder();
+    await post(`/pos/orders/${order.id}/payment/cash`, {}, { token: cashier });
+    const res = await post(
+      `/pos/orders/${order.id}/payment/gcash`,
+      { reference_number: '1012345678903' },
+      { token: cashier },
+    );
+    assert.equal(res.status, 409);
+  });
+});
+
+describe('POST /pos/orders/:id/payment/gcash/verify', () => {
+  let customer;
+  before(async () => {
+    customer = await tokenFor('customer');
+  });
+
+  const submitted = async () => {
+    const order = await placeOnlineOrder('customer', { payment_method: 'gcash' });
+    const res = await post(
+      `/orders/${order.id}/payment`,
+      { reference_number: '2012345678901' },
+      { token: customer },
+    );
+    assert.equal(res.status, 200);
+    return order;
+  };
+
+  it('shows the cashier what the customer submitted', async () => {
+    const order = await submitted();
+    const res = await get(`/pos/orders/${order.id}`, { token: cashier });
+    assert.equal(res.body.data.payment_status, 'processing');
+    assert.equal(res.body.data.gcash_payment.reference_number, '2012345678901');
+  });
+
+  it('approves: the order is paid', async () => {
+    const order = await submitted();
+    const res = await post(
+      `/pos/orders/${order.id}/payment/gcash/verify`,
+      { approve: true },
+      { token: cashier },
+    );
+
+    assert.equal(res.status, 200);
+    assert.equal(res.body.data.payment_status, 'paid');
+    assert.equal(res.body.data.gcash_payment.status, 'paid');
+
+    const again = await post(
+      `/pos/orders/${order.id}/payment/gcash/verify`,
+      { approve: true },
+      { token: cashier },
+    );
+    assert.equal(again.status, 409, 'nothing left to verify');
+  });
+
+  it('rejects with a reason the customer sees, and lets them resubmit', async () => {
+    const order = await submitted();
+    const res = await post(
+      `/pos/orders/${order.id}/payment/gcash/verify`,
+      { approve: false, reason: 'No such reference in our GCash history' },
+      { token: cashier },
+    );
+    assert.equal(res.status, 200);
+    assert.equal(res.body.data.payment_status, 'failed');
+
+    const mine = await get(`/orders/${order.id}`, { token: customer });
+    assert.equal(mine.body.data.gcash_payment.failure_reason, 'No such reference in our GCash history');
+
+    const resubmit = await post(
+      `/orders/${order.id}/payment`,
+      { reference_number: '2012345678999' },
+      { token: customer },
+    );
+    assert.equal(resubmit.status, 200);
+    assert.equal(resubmit.body.data.payment_status, 'processing');
+    assert.equal((await paymentsFor(order.id)).length, 2, 'the rejected attempt is kept');
+  });
+
+  it('needs a reason to reject', async () => {
+    const order = await submitted();
+    const res = await post(
+      `/pos/orders/${order.id}/payment/gcash/verify`,
+      { approve: false },
+      { token: cashier },
+    );
+    assert.equal(res.status, 400);
+  });
+
+  it('cash at the counter replaces a submission still waiting', async () => {
+    const order = await submitted();
+    const res = await post(`/pos/orders/${order.id}/payment/cash`, {}, { token: cashier });
+    assert.equal(res.status, 200);
+
+    const rows = await paymentsFor(order.id);
+    const gcash = rows.find((p) => p.provider === 'gcash');
+    assert.equal(gcash.status, 'failed', 'cannot be approved on top of the cash payment');
   });
 });
 

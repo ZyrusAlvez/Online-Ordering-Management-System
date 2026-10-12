@@ -95,14 +95,13 @@ sends is ignored.
  pending ─────────┤        (or straight to preparing)             └─ rider claims ─▶ out_for_delivery ─▶ completed
    │              └─ "Send to kitchen" = confirm + preparing
    ├─ customer cancels ─▶ cancelled   (while pending/confirmed and not paid)
-   └─ cashier/admin voids ─▶ voided   (any open order; refunds GCash)
+   └─ cashier/admin voids ─▶ voided   (any open order; a paid GCash order is owed a refund)
 ```
 
 - Moves are checked on the server. The only allowed moves are: `pending → confirmed` or `preparing`;
   `confirmed → preparing` or `ready`; `preparing → ready`; `ready → completed`; `out_for_delivery → completed`.
   Going backwards, jumping ahead (for example `pending → ready`) or moving a finished order is refused with a 409.
 - A **delivery** order stops at `ready` for the cashier; a **rider** takes it (`out_for_delivery`) and completes it.
-- A **kiosk** order paid by GCash is confirmed automatically, going straight to the kitchen with no cashier step.
 - A **completed** order can no longer be voided.
 - **Edit items** works only while *pending* or *confirmed*, and only if no payment has started (the amount is fixed
   once money is moving).
@@ -112,9 +111,9 @@ sends is ignored.
 | | Cancel | Void |
 | --- | --- | --- |
 | Who | The customer, on their own order | Cashier or admin of the order's branch |
-| When | Pending or confirmed, and **not paid** (a failed GCash attempt counts as unpaid) | Any order not yet completed |
+| When | Pending or confirmed, and **not paid** (a rejected GCash payment counts as unpaid) | Any order not yet completed, except while a GCash payment waits to be verified |
 | Needs | Nothing | A **reason**, recorded with who voided it and when |
-| Money | None involved | GCash is refunded; cash is returned by hand |
+| Money | None involved | Both are returned by hand: cash from the drawer, GCash sent back and then marked **refunded** |
 
 ---
 
@@ -132,7 +131,7 @@ orders are always now.
 | Hours | The slot must start inside the branch's opening hours (from opening, before closing). A branch with no hours takes any slot |
 
 The checkout offers only valid slots; the server checks them again. Payment works the same as for any order (GCash is
-paid when ordering; cash at pickup or on delivery).
+paid and verified when ordering; cash at pickup or on delivery).
 
 **At the counter** a scheduled order is in the queue from the moment it is placed, so it can be confirmed and paid
 early, but it is marked so nobody starts it too soon or forgets it:
@@ -152,12 +151,12 @@ Riders, admins and the customer also see the time on the order.
 finished (or finished before it is paid).
 
 ```
-unpaid ──(GCash started)──▶ processing ──(PayMongo confirms)──▶ paid
-   │                            └──(PayMongo reports failure)──▶ failed ──(try again)──▶ processing
-   └──(cash taken)────────────────────────────────────────────▶ paid
+unpaid ──(customer sends GCash ref/receipt)──▶ processing ──(staff approve)──▶ paid
+   │                                                 └──(staff reject)──▶ failed ──(send again)──▶ processing
+   ├──(cashier records a GCash receipt at the counter)──────────────────▶ paid
+   └──(cash taken)───────────────────────────────────────────────────────▶ paid
 
-paid ──(void a GCash order)──▶ refund_pending ──▶ refunded
-                                     └──▶ refund_failed ──(void again / admin retry)──▶ refund_pending
+paid ──(void a GCash order)──▶ refund_pending ──(money sent back, admin marks it)──▶ refunded
 ```
 
 ### Cash
@@ -169,26 +168,31 @@ paid ──(void a GCash order)──▶ refund_pending ──▶ refunded
 - Each cash payment is recorded once, with **who took it, how much was handed over and the change**, for the
   end-of-day count. A second payment attempt (a double tap, two cashiers) is refused.
 
-### GCash (PayMongo)
+### GCash (manual)
 
-1. The server creates a payment for the order total and returns a link; the customer pays in GCash.
-2. **Only PayMongo's signed notification marks an order paid**, never the customer returning to the site, which could
-   be faked or simply never happen.
-3. The notification is checked (signature, and no older than 5 minutes), recorded by its id so a repeat does nothing,
-   then applied. If applying fails, the record is removed and the server answers with an error so PayMongo **retries**.
+There is no payment provider. Customers pay the restaurant's own GCash account (QR, name and number set in
+`backend/.env`, served by `GET /site/gcash`), and a person checks every payment against the GCash app.
+
+- **Online:** after placing the order, the order page shows the QR and the amount. The customer pays, then sends the
+  **reference number**, a **receipt screenshot**, or both. The order shows **Awaiting verification** until a cashier
+  or admin **approves** it (paid) or **rejects** it with a reason (the customer sees it and can send again).
+- **Kiosk:** the done screen shows the QR next to the order number and tells the customer to **show the GCash
+  receipt to the cashier**. The order waits at the counter like a cash order.
+- **Counter:** the cashier presses **GCash**, the customer scans the QR (or shows the receipt from the kiosk), and the
+  cashier types the reference number off the receipt. That marks it paid.
 
 Rules that protect the customer from being charged twice or losing money:
 
 | Situation | What happens |
 | --- | --- |
-| The customer starts GCash again | The earlier attempt is cancelled first. If PayMongo says it is already going through, the new attempt is **refused** instead |
-| The cashier takes cash while a GCash attempt is open | The GCash attempt is cancelled first, or the cash is refused if that payment is completing |
-| GCash money arrives for an order already voided or cancelled | It is **refunded automatically**; if that fails the order is flagged for an admin |
-| Voiding after a refund failed | The refund is **tried again**; the order is not voided while the money is still held |
-| The amount paid differs from the order total | The order is marked paid and the mismatch is logged for review |
-| Minimum | GCash needs an order of at least ₱20.00 |
+| The customer sends proof twice | Refused while one is still waiting to be verified |
+| The order is paid in cash (counter or rider) while GCash proof is waiting | The waiting proof is marked replaced, so it cannot be approved as well |
+| Voiding an order whose GCash proof is waiting | Refused: approve or reject it first (the money may be in) |
+| Voiding a paid GCash order | It becomes **refund pending**; staff send the money back, then an admin marks it **refunded** |
+| Editing items | Refused once proof has been sent or the order is paid (the amount is fixed) |
 
-Without PayMongo credentials the server runs normally; only the GCash actions answer "not configured" (503).
+Receipt screenshots are kept in a private bucket and shown only through links that expire after an hour. With any of
+`GCASH_NAME`, `GCASH_NUMBER` or `GCASH_QR_IMAGE` unset, GCash is hidden everywhere and orders are cash only.
 
 ---
 

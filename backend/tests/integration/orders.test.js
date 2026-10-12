@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 import { get, post } from '../helpers/client.js';
 import { tokenFor } from '../helpers/auth.js';
-import { setOrderState } from '../helpers/db.js';
+import { db, setOrderState } from '../helpers/db.js';
 import { branchId, cleanup, flatPricedProduct, orderTime, placeOnlineOrder } from '../helpers/fixtures.js';
 
 let customer;
@@ -225,18 +225,90 @@ describe('POST /orders/:id/cancel', () => {
   });
 });
 
-describe('POST /orders/:id/payment', () => {
-  it('503s while PayMongo is unconfigured', async (t) => {
-    const order = await placeOnlineOrder('customer');
-    const res = await post(`/orders/${order.id}/payment`, undefined, { token: customer });
-
-    if (res.status === 200) return t.skip('PayMongo is configured in this environment');
-    assert.equal(res.status, 503);
+describe('POST /orders/:id/payment (manual GCash)', () => {
+  it('404s for someone else’s order', async () => {
+    const order = await placeOnlineOrder('customer', { payment_method: 'gcash' });
+    const res = await post(
+      `/orders/${order.id}/payment`,
+      { reference_number: '1234567890123' },
+      { token: otherCustomer },
+    );
+    assert.equal(res.status, 404);
   });
 
-  it('404s before reaching the payment provider for someone else’s order', async () => {
-    const order = await placeOnlineOrder('customer');
-    const res = await post(`/orders/${order.id}/payment`, undefined, { token: otherCustomer });
-    assert.equal(res.status, 404);
+  it('needs a reference number or a receipt', async () => {
+    const order = await placeOnlineOrder('customer', { payment_method: 'gcash' });
+    const res = await post(`/orders/${order.id}/payment`, {}, { token: customer });
+    assert.equal(res.status, 400);
+  });
+
+  it('refuses a cash order', async () => {
+    const order = await placeOnlineOrder('customer', { payment_method: 'cash' });
+    const res = await post(
+      `/orders/${order.id}/payment`,
+      { reference_number: '1234567890123' },
+      { token: customer },
+    );
+    assert.equal(res.status, 409);
+  });
+
+  it('refuses a receipt path that belongs to another order', async () => {
+    const order = await placeOnlineOrder('customer', { payment_method: 'gcash' });
+    const res = await post(
+      `/orders/${order.id}/payment`,
+      { receipt_path: `${crypto.randomUUID()}/${crypto.randomUUID()}.png` },
+      { token: customer },
+    );
+    assert.equal(res.status, 400);
+  });
+
+  it('puts the order up for verification, once', async () => {
+    const order = await placeOnlineOrder('customer', { payment_method: 'gcash' });
+    const res = await post(
+      `/orders/${order.id}/payment`,
+      { reference_number: '1234 567 891234' },
+      { token: customer },
+    );
+
+    assert.equal(res.status, 200);
+    assert.equal(res.body.data.payment_status, 'processing');
+    assert.equal(res.body.data.gcash_payment.status, 'processing');
+    assert.equal(res.body.data.gcash_payment.reference_number, '1234 567 891234');
+
+    const again = await post(
+      `/orders/${order.id}/payment`,
+      { reference_number: '1234567890123' },
+      { token: customer },
+    );
+    assert.equal(again.status, 409, 'already waiting to be verified');
+
+    const cancel = await post(`/orders/${order.id}/cancel`, undefined, { token: customer });
+    assert.equal(cancel.status, 409, 'cannot cancel once the money may have been sent');
+  });
+
+  it('stores a receipt privately and returns a signed link to the owner', async (t) => {
+    const order = await placeOnlineOrder('customer', { payment_method: 'gcash' });
+    const png = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+      'base64',
+    );
+    const upload = await post(`/orders/${order.id}/payment/receipt`, png, {
+      token: customer,
+      raw: true,
+      headers: { 'Content-Type': 'image/png' },
+    });
+    assert.equal(upload.status, 201);
+    assert.ok(upload.body.data.receipt_path.startsWith(`${order.id}/`));
+    t.after(() => db.storage.from('payment-receipts').remove([upload.body.data.receipt_path]));
+
+    const res = await post(
+      `/orders/${order.id}/payment`,
+      { receipt_path: upload.body.data.receipt_path },
+      { token: customer },
+    );
+    assert.equal(res.status, 200);
+
+    const mine = await get(`/orders/${order.id}`, { token: customer });
+    assert.match(mine.body.data.gcash_payment.receipt_url, /^https?:\/\/.+token=/);
   });
 });

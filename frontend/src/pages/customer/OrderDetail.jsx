@@ -4,8 +4,10 @@ import { api } from '../../lib/api.js';
 import { useFetch } from '../../lib/hooks.js';
 import { subscribeToOrders } from '../../lib/supabase.js';
 import { dateTime, money, scheduleLabel } from '../../lib/format.js';
+import { prepareImage } from '../../lib/image.js';
 import { useToast } from '../../context/ToastContext.jsx';
-import { Button, Card, ErrorNote, PageLoader } from '../../components/ui.jsx';
+import { Button, Card, ErrorNote, Field, Input, PageLoader } from '../../components/ui.jsx';
+import GcashAccount from '../../components/GcashAccount.jsx';
 import {
   MethodLabel,
   OrderLines,
@@ -59,6 +61,99 @@ function Timeline({ order }) {
   );
 }
 
+/**
+ * Manual GCash: our QR and number, then a reference number and/or receipt
+ * screenshot for the branch to check against their GCash app.
+ */
+function GcashPayment({ order, onSubmitted }) {
+  const toast = useToast();
+  const [reference, setReference] = useState('');
+  const [file, setFile] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const sent = order.gcash_payment;
+
+  if (order.payment_status === 'processing') {
+    return (
+      <div className="space-y-1 rounded-2xl bg-sky-50 p-4 text-sm text-sky-900">
+        <p className="font-semibold">We're checking your GCash payment</p>
+        <p>
+          {sent?.reference_number ? `Reference no. ${sent.reference_number}. ` : ''}
+          This page updates to "Paid" once the branch confirms it.
+        </p>
+        {sent?.receipt_url && (
+          <a href={sent.receipt_url} target="_blank" rel="noreferrer" className="font-semibold underline">
+            View the receipt you sent
+          </a>
+        )}
+      </div>
+    );
+  }
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      let receiptPath;
+      if (file) {
+        const blob = await prepareImage(file);
+        const res = await api.post(`/orders/${order.id}/payment/receipt`, blob, { auth: true });
+        receiptPath = res.data.receipt_path;
+      }
+      await api.post(
+        `/orders/${order.id}/payment`,
+        { reference_number: reference.trim() || undefined, receipt_path: receiptPath },
+        { auth: true },
+      );
+      toast.success("Thanks! We'll confirm your payment shortly.");
+      setReference('');
+      setFile(null);
+      await onSubmitted();
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4 rounded-2xl border border-line p-4">
+      <h2 className="font-display text-2xl">Pay with GCash</h2>
+      {order.payment_status === 'failed' && (
+        <p className="rounded-xl bg-brand/10 px-3 py-2 text-sm text-brand-dark">
+          We couldn't confirm your last payment
+          {sent?.failure_reason ? `: ${sent.failure_reason}` : '.'} Please check and send it again.
+        </p>
+      )}
+      <GcashAccount amount={order.total_amount} />
+      <form onSubmit={submit} className="space-y-3">
+        <Field label="Reference no." hint="The 13-digit number on your GCash receipt">
+          <Input
+            value={reference}
+            onChange={(e) => setReference(e.target.value)}
+            maxLength={40}
+            autoComplete="off"
+            placeholder="e.g. 1012 345 678901"
+          />
+        </Field>
+        <Field label="Receipt screenshot" hint="Optional if you entered the reference no.">
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            className="block w-full cursor-pointer text-sm file:mr-3 file:cursor-pointer file:rounded-full file:border-0 file:bg-cream-deep file:px-4 file:py-2 file:font-semibold"
+          />
+        </Field>
+        <ErrorNote error={error} />
+        <Button type="submit" loading={busy} disabled={!reference.trim() && !file}>
+          I've paid
+        </Button>
+      </form>
+    </div>
+  );
+}
+
 export default function OrderDetail() {
   const { id } = useParams();
   const toast = useToast();
@@ -77,17 +172,6 @@ export default function OrderDetail() {
   );
 
   const order = data?.data;
-
-  const payWithGcash = async () => {
-    setBusy('pay');
-    try {
-      const res = await api.post(`/orders/${id}/payment`, undefined, { auth: true });
-      window.location.href = res.data.checkout_url;
-    } catch (err) {
-      toast.error(err.friendly);
-      setBusy(null);
-    }
-  };
 
   const cancel = async () => {
     if (!window.confirm('Cancel this order?')) return;
@@ -115,10 +199,10 @@ export default function OrderDetail() {
     );
   }
 
-  const canPay =
+  const payByGcash =
     order.payment_method === 'gcash' &&
     ['unpaid', 'failed', 'processing'].includes(order.payment_status) &&
-    ['pending', 'confirmed'].includes(order.status);
+    !['completed', 'cancelled', 'voided'].includes(order.status);
   const canCancel =
     ['pending', 'confirmed'].includes(order.status) && order.payment_status === 'unpaid';
 
@@ -171,18 +255,13 @@ export default function OrderDetail() {
 
         {order.notes && <p className="text-sm text-ink-soft">Your note: “{order.notes}”</p>}
 
-        {(canPay || canCancel) && (
+        {payByGcash && <GcashPayment order={order} onSubmitted={refresh} />}
+
+        {canCancel && (
           <div className="flex flex-wrap gap-3">
-            {canPay && (
-              <Button onClick={payWithGcash} loading={busy === 'pay'}>
-                Pay with GCash
-              </Button>
-            )}
-            {canCancel && (
-              <Button tone="danger" onClick={cancel} loading={busy === 'cancel'}>
-                Cancel order
-              </Button>
-            )}
+            <Button tone="danger" onClick={cancel} loading={busy === 'cancel'}>
+              Cancel order
+            </Button>
           </div>
         )}
       </Card>

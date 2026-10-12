@@ -40,10 +40,8 @@ file reads as a table of contents.
 ### The request pipeline (`app.js`)
 
 1. `helmet` (security headers), `cors` (only the configured origins), `compression`, request logging.
-2. **Webhooks mount here**, before the JSON parser and the rate limiter, because the signature is computed over the
-   exact raw bytes and PayMongo's retries must not be throttled.
-3. JSON and form parsers (1 MB limit). Image routes read their own raw body (5 MB).
-4. The global rate limiter (300 requests per 15 minutes per IP by default; kiosk payment polling is exempt).
+2. JSON and form parsers (1 MB limit). Image routes read their own raw body (5 MB).
+3. The global rate limiter (300 requests per 15 minutes per IP by default).
 5. The routes under `/api/v1`, then the not-found and error handlers.
 
 `TRUST_PROXY` tells Express how many proxies sit in front, so the rate limiter sees real client addresses.
@@ -61,7 +59,6 @@ file reads as a table of contents.
 | Rider | `/rider/*` | `rider`, and not deactivated, limited to their branch |
 | Admin | `/admin/*` | `admin` (their branches) or `super_admin` (all, plus branches, admins, site images, roles), active |
 | Menu writes | `/categories`, `/products` (writes) | `super_admin` |
-| Webhooks | `/webhooks/paymongo` | PayMongo, by signature |
 
 One shared `/orders` that behaves differently per caller was rejected on purpose: it makes each app's contract
 impossible to document and test. See [decisions.md](./decisions.md).
@@ -205,7 +202,8 @@ Checkout form ──▶ POST /orders { type, payment, phone, address(+pin), item
    validators (fields.js) ─▶ orders.controller ─▶ order.service.createOrder
       priceOrder: look up live prices ─▶ total in centavos
       insert order (+ trigger sets order_number) ─▶ insert items (roll back the order on failure)
-   ◀── 201 { order }   then, for GCash:  POST /orders/:id/payment ─▶ PayMongo ─▶ redirect URL
+   ◀── 201 { order }   then, for GCash: the order page shows our QR; the customer pays in their GCash app and
+                       POST /orders/:id/payment { reference_number | receipt_path } ─▶ awaiting verification
 Realtime: orders row inserted ─▶ cashier's feed fires ─▶ POS refetches /pos/orders
 ```
 
@@ -229,7 +227,7 @@ Other side refetches messages ─▶ service signs short-lived links ─▶ <img
   helper functions use `security invoker` and `set search_path = ''`, then `revoke all … from public, anon,
   authenticated` (revoking only the named roles does not remove the default public access; the second hardening
   migration exists because of that).
-- **Server-only tables** (no policies at all): `kiosk_devices`, `order_counters`, `webhook_events`,
+- **Server-only tables** (no policies at all): `kiosk_devices`, `order_counters`,
   `employee_credentials`, `chat_thread_secrets`.
 - **SQL functions:** `auth_role()` (role from the token, used by policies), `has_branch_access(branch)` (super admin,
   or the caller works at that branch; used by the staff policies), `handle_new_user()` (creates a profile at sign-up),

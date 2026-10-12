@@ -13,7 +13,6 @@ import Checkout from './pages/customer/Checkout.jsx';
 import Orders from './pages/customer/Orders.jsx';
 import Profile from './pages/customer/Profile.jsx';
 import OrderDetail from './pages/customer/OrderDetail.jsx';
-import PaymentResult from './pages/customer/PaymentResult.jsx';
 
 // Staff surfaces are code-split so customers never download the POS/admin bundle.
 const CashierApp = lazy(() => import('./pages/cashier/CashierApp.jsx'));
@@ -64,7 +63,6 @@ export default function App() {
             </RequireRole>
           }
         />
-        <Route path="/payment-result" element={<PaymentResult />} />
       </Route>
 
       {/* Employee-only surfaces. /cashier and /kiosk handle their own password gate. */}

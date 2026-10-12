@@ -47,11 +47,12 @@ export default function AdminOrders() {
     setFilters((f) => ({ ...f, [key]: e.target.value }));
   };
 
-  const retryRefund = async (order) => {
+  const markRefunded = async (order) => {
+    if (!window.confirm(`Mark ${order.order_number} refunded? Only do this once the money has been sent back.`)) return;
     setBusy(true);
     try {
-      await api.post(`/admin/orders/${order.id}/refund/retry`, undefined, { auth: true });
-      toast.success('Refund retry sent');
+      await api.post(`/admin/orders/${order.id}/refund`, undefined, { auth: true });
+      toast.success('Marked refunded');
       setOpen(null);
       refresh();
     } catch (err) {
@@ -173,10 +174,16 @@ export default function AdminOrders() {
               <span className="text-brand">{money(open.total_amount)}</span>
             </div>
             {open.void_reason && <p className="text-sm text-brand-dark">Voided: {open.void_reason}</p>}
-            {open.payment_status === 'refund_failed' && (
-              <Button loading={busy} onClick={() => retryRefund(open)}>
-                Retry refund
-              </Button>
+            {open.payment_status === 'refund_pending' && (
+              <div className="space-y-2 rounded-2xl bg-amber-100 p-3 text-sm text-amber-900">
+                <p>
+                  Send {money(open.total_amount)} back to the customer's GCash
+                  {open.customer_phone ? ` (${open.customer_phone})` : ''}, then mark it done.
+                </p>
+                <Button loading={busy} onClick={() => markRefunded(open)}>
+                  Mark refunded
+                </Button>
+              </div>
             )}
           </div>
         </Modal>

@@ -121,22 +121,25 @@ the browser, so it is a revocable identifier, not a true secret.
 ## Orders and money
 
 ### The server prices everything; money is whole centavos
-**Why.** A browser can never name its own price. Whole centavos avoid floating-point drift, and PayMongo bills in centavos anyway.
+**Why.** A browser can never name its own price. Whole centavos avoid floating-point drift.
 The price paid is saved on each line so menu changes never rewrite history.
 
 ### Payment status is separate from order status
 **Why.** Orders are often paid long before they finish (counter cash, kiosk GCash) or finished before they are paid (cash on
 delivery). One field could not express both.
 
-### Only PayMongo's signed notification marks an order paid
-**Why.** Returning to the site after GCash can be faked or never happen. Notifications are verified, recorded by id so repeats
-do nothing, and **retried by the provider if processing fails** (the record is removed on failure so the retry is not mistaken
-for a duplicate).
+### GCash is manual, and only staff mark it paid
+**Decision.** No payment provider. Customers pay the restaurant's own GCash account (QR, name and number from
+`backend/.env`) and send a reference number and/or receipt; staff approve or reject it against the GCash app. At the
+counter (walk-ins, and kiosk orders) the cashier checks the receipt and records the reference number.
+**Why.** A PayMongo account was not available (October 2026). A reference number typed by the customer proves nothing on
+its own, so it only ever puts the order *up for verification*.
 
 ### Never keep a customer's money without an answer
-**Decision.** Voiding a paid GCash order retries a failed refund and refuses to void while money is held; late payments on
-voided orders are refunded automatically; starting GCash again cancels the earlier attempt.
-**Why.** Each of these was a real way to lose or double-take a customer's money found in review.
+**Decision.** Voiding a paid GCash order moves it to **refund pending** until staff send the money back by hand and mark it
+**refunded**; an order whose GCash payment is still waiting to be verified cannot be voided until someone looks; paying in
+cash replaces a GCash submission still waiting.
+**Why.** Each of these was a real way to lose or double-take a customer's money.
 
 ### First rider to claim wins
 **Why.** Riders pull from a shared pool; a single guarded update means two riders cannot both get an order, and nobody has to
@@ -272,9 +275,9 @@ inherit it.
 **Why.** The database should always equal "every migration applied". Applied migrations are never edited; fixes are new
 migrations (the map-pin check was corrected this way).
 
-### Tests run against the real database, with a fake PayMongo
-**Why.** Row-level security, triggers and constraints are exactly what mocks hide. PayMongo cannot be called without live
-credentials, so a recording fake server stands in for it. The cost is slower runs (about 3 minutes) and the need to clean up.
+### Tests run against the real database
+**Why.** Row-level security, triggers and constraints are exactly what mocks hide. The cost is slower runs (about 8 minutes)
+and the need to clean up.
 
 ### Documentation changes in the same commit as the code
 See [README.md](./README.md#keeping-the-documentation-true).

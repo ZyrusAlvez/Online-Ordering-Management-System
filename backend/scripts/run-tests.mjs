@@ -20,9 +20,6 @@ const PORT = process.env.TEST_PORT ?? '4100';
 const BASE = process.env.TEST_BASE_URL ?? `http://localhost:${PORT}/api/v1`;
 const external = Boolean(process.env.TEST_BASE_URL);
 
-// Deterministic secret so webhook signatures can be produced by the tests.
-const WEBHOOK_SECRET = 'whsk_testsecret123';
-
 const waitForHealth = async (timeoutMs = 30_000) => {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -46,7 +43,6 @@ if (!external) {
       PORT,
       NODE_ENV: 'test',
       LOG_FORMAT: 'tiny',
-      PAYMONGO_WEBHOOK_SECRET: WEBHOOK_SECRET,
       // Keep the limiter out of the way: the suite makes many rapid calls.
       RATE_LIMIT_MAX: '100000',
     },
@@ -143,14 +139,7 @@ args.push(`${dir}/**/*.test.js`);
 
 const runner = spawn(process.execPath, args, {
   stdio: 'inherit',
-  env: {
-    ...process.env,
-    TEST_BASE_URL: BASE,
-    TEST_WEBHOOK_SECRET: WEBHOOK_SECRET,
-    // Unit tests import payment.service.js directly and verify signatures
-    // in-process, so the runner needs the same secret the server has.
-    PAYMONGO_WEBHOOK_SECRET: WEBHOOK_SECRET,
-  },
+  env: { ...process.env, TEST_BASE_URL: BASE },
 });
 
 const [code] = await once(runner, 'exit');

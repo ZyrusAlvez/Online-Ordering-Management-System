@@ -8,7 +8,6 @@ import { Logo } from '../../components/Logo.jsx';
 import { Button, Card, ErrorNote, Field, Input, Select } from '../../components/ui.jsx';
 import { Lock } from '../../components/icons.jsx';
 import KioskFlow from './KioskFlow.jsx';
-import KioskPaymentResult from './KioskPaymentResult.jsx';
 
 function KioskGate({ onUnlocked }) {
   const { branches } = useBranches();
@@ -97,7 +96,6 @@ export default function KioskApp() {
     // No persistence: a public terminal must start every customer with an empty cart.
     <CartProvider storageKey="3k.kioskCart" persist={false}>
       <Routes>
-        <Route path="payment-result" element={<KioskPaymentResult onLocked={lock} />} />
         <Route path="*" element={<KioskFlow onLock={lock} />} />
       </Routes>
     </CartProvider>

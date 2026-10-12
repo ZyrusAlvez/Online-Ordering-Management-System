@@ -7,7 +7,6 @@ import morgan from 'morgan';
 import { env } from './config/env.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import routes from './routes/index.js';
-import webhookRoutes from './routes/webhooks.routes.js';
 
 export const createApp = () => {
   const app = express();
@@ -20,16 +19,6 @@ export const createApp = () => {
   app.use(compression());
   app.use(morgan(env.LOG_FORMAT, { skip: () => env.NODE_ENV === 'test' }));
 
-  // Webhooks mount before the JSON parser and before the rate limiter:
-  //   - signature verification needs the exact raw bytes, which express.json()
-  //     would consume and re-serialise differently;
-  //   - PayMongo's delivery/retry rate is not something to throttle.
-  app.use(
-    `${env.API_PREFIX}/webhooks`,
-    express.raw({ type: 'application/json', limit: '1mb' }),
-    webhookRoutes,
-  );
-
   app.use(express.json({ limit: '1mb' }));
   app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
@@ -39,9 +28,6 @@ export const createApp = () => {
       max: env.RATE_LIMIT_MAX,
       standardHeaders: true,
       legacyHeaders: false,
-      // A kiosk polls its payment status every 2 seconds; a restaurant's whole
-      // LAN shares one IP, so that polling must not eat everyone's budget.
-      skip: (req) => req.method === 'GET' && /\/kiosk\/orders\//.test(req.originalUrl),
     }),
   );
 

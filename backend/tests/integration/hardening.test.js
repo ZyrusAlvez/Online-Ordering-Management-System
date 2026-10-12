@@ -113,7 +113,7 @@ describe('POST /orders/:id/cancel', () => {
     assert.equal((await orderRow(order.id, 'status')).status, 'pending');
   });
 
-  it('lets the customer cancel after a failed GCash attempt', async () => {
+  it('lets the customer cancel after a rejected GCash payment', async () => {
     const order = await placeOnlineOrder('customer');
     await setOrderState(order.id, { payment_status: 'failed', payment_method: 'gcash' });
 

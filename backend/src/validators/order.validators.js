@@ -7,7 +7,7 @@ import {
   REMOTE_FULFILLMENT,
 } from '../constants/orders.js';
 import { branchId, itemsSchema, paginationQuery } from './common.validators.js';
-import { latitude, longitude, optionalText, phone, requiredText } from './fields.js';
+import { latitude, longitude, optionalText, phone, referenceNumber, requiredText } from './fields.js';
 
 export const deliveryAddressSchema = z
   .object({
@@ -55,6 +55,23 @@ export const createOnlineOrderSchema = z
   });
 
 export const statusBody = z.object({ status: z.enum(ORDER_STATUSES) });
+
+/**
+ * "I've paid by GCash": a reference number, a receipt (the path returned by the
+ * receipt upload), or both.
+ */
+export const gcashProofSchema = z
+  .object({
+    reference_number: referenceNumber.optional(),
+    receipt_path: z
+      .string()
+      .regex(/^[0-9a-f-]{36}\/[0-9a-f-]{36}\.(jpg|png|webp)$/, 'Invalid receipt')
+      .optional(),
+  })
+  .refine((b) => b.reference_number || b.receipt_path, {
+    message: 'Enter the reference number or attach your receipt',
+    path: ['reference_number'],
+  });
 
 /** Filters shared by the POS queue and the admin order list. */
 export const orderFilterQuery = paginationQuery.extend({

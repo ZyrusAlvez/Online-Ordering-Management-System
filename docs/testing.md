@@ -1,15 +1,15 @@
 # Automated testing
 
-**525 tests** on Node's built-in runner (`node:test` + `node:assert`): no Jest, Mocha or Supertest. Node 20+ ships
+**495 tests** on Node's built-in runner (`node:test` + `node:assert`): no Jest, Mocha or Supertest. Node 20+ ships
 everything needed. For poking at the API by hand, see [testing-manual.md](./testing-manual.md); for logins to try the
 app yourself, [test-accounts.md](./test-accounts.md).
 
 ```bash
 cd backend
-npm test                  # everything                          (525 tests, about 8 minutes)
-npm run test:unit         # pure logic, no server needed        (125 tests, about 1 s)
-npm run test:integration  # one endpoint at a time              (354 tests, about 7 minutes)
-npm run test:e2e          # multi-step journeys                 (46 tests, about 40 s)
+npm test                  # everything                          (495 tests, about 8 minutes)
+npm run test:unit         # pure logic, no server needed        (113 tests, about 1 s)
+npm run test:integration  # one endpoint at a time              (342 tests, about 7 minutes)
+npm run test:e2e          # multi-step journeys                 (40 tests, about 40 s)
 npm run test:coverage     # everything, with coverage
 node --env-file=.env scripts/dev/check-rls.mjs   # what each role is allowed to see (see below)
 ```
@@ -52,8 +52,8 @@ Either the account does not exist yet, or the password in .env is stale.
 `scripts/run-tests.mjs` wraps it all:
 
 1. Loads `.env`; values already in your shell win, so CI can override.
-2. Starts an API on port **4100** (so it never collides with your dev server on 4000) with `NODE_ENV=test`, a known
-   webhook secret and the rate limiter effectively off.
+2. Starts an API on port **4100** (so it never collides with your dev server on 4000) with `NODE_ENV=test` and the
+   rate limiter effectively off.
 3. Waits for `/health` (up to 30 s; a cold Supabase project takes a while to wake).
 4. **Preflight:** every test account must sign in, or it stops with one clear message.
 5. Runs `node --test --test-concurrency=1`.
@@ -84,7 +84,7 @@ backend/tests/
   e2e/            multi-step journeys across several actors
 ```
 
-### Unit (125)
+### Unit (113)
 
 | File | Covers |
 | --- | --- |
@@ -96,11 +96,10 @@ backend/tests/
 | `money.test.js` | Centavo arithmetic, float-drift resistance |
 | `kioskKey.test.js` | Key entropy, hashing, non-reversibility |
 | `password.test.js` | Salted hashing and verification of the kiosk password |
-| `webhookSignature.test.js` | Signature check, replay window, tampering |
 | `branchScope.test.js` | Who may see which branch: super admin, one branch, none; which branch an action happens at |
 | `schedule.test.js` | Manila opening hours, ASAP only while open, 15-minute slots, 30-minute lead, two days ahead, next open slot (with a fixed clock) |
 
-### Integration (354)
+### Integration (342)
 
 | File | Covers |
 | --- | --- |
@@ -108,9 +107,9 @@ backend/tests/
 | `auth.test.js` | Login, refresh, bad credentials, role in the token, **a user-edited `user_metadata` never grants a role** |
 | `menu.test.js` | Nesting, sort order, availability filtering, paging |
 | `images.test.js` | Product photo upload/replace/remove, site images, byte checks, access |
-| `kiosk.test.js` | Device key auth, revocation, order creation, cross-device isolation |
-| `pos.test.js` | Queue search, edits, transitions, cash, voids |
-| `orders.test.js` | Customer orders, address rules, cancel rules, cross-customer isolation |
+| `kiosk.test.js` | Device key auth, revocation, order creation (cash and GCash), cross-device isolation |
+| `pos.test.js` | Queue search, edits, transitions, cash, GCash at the counter, approving/rejecting a customer's GCash proof, voids |
+| `orders.test.js` | Customer orders, address rules, cancel rules, sending GCash proof (reference number, private receipt upload), cross-customer isolation |
 | `rider.test.js` | Pool, claiming, cash on delivery, completion |
 | `admin.test.js` | Kiosk keys, rider accounts, order oversight, roles |
 | `employee.test.js` | Cashier and kiosk passwords, changing them, the gate rate limits |
@@ -119,23 +118,21 @@ backend/tests/
 | `chat-images.test.js` | Photos in all four conversations: privacy, size, fake files, the 30-photo cap, closed chats |
 | `sales.test.js` | The sales report with exact figures (see below) |
 | `hardening.test.js` | The bug sweep: no direct order writes, order numbers per day and per branch, search escaping, double cash payment, product/option edits after ordering, deactivated riders, phone and field rules, database limits |
-| `payments-fake.test.js` | GCash retries, refunds, voids and late payments against a **fake PayMongo server** (see below) |
-| `webhooks.test.js` | Signature enforcement, idempotency, paid/failed handling |
+| `gcash-account.test.js` | The public GCash account endpoint |
 | `branch-scope.test.js` | Branch isolation: the Imus admin, cashier and rider against GMA Terminal (orders, sales, riders, kiosks, refunds, walk-ins, the rider pool, chat inbox, row-level security); admin accounts; super-admin-only pages |
 | `branches.test.js` | Adding and editing branches, hours, deactivating, validation, super admin only |
 | `branch-availability.test.js` | Sold out at one branch: hidden from that branch's menu, refused in its orders, other branches unaffected, branch admins only |
 | `scheduling.test.js` | Scheduled online orders against two throwaway branches (always open, and one closed now): ASAP refused while closed, valid and invalid slots, online orders only |
 
-### End-to-end (46)
+### End-to-end (40)
 
 Whole journeys; each `it()` is one step, so a failure names the step that broke.
 
 | File | Journey |
 | --- | --- |
 | `kiosk-cash-dinein.test.js` | Kiosk order → POS queue → edit → confirm → cook → cash and change → completed → void refused |
-| `kiosk-gcash-webhook.test.js` | Kiosk GCash → processing → webhook confirms → auto-confirmed to the kitchen → completed |
 | `online-delivery-cod.test.js` | Customer order → confirm → ready → rider pool → claim → collect cash → completed, seen from all three sides |
-| `void-and-refund.test.js` | Voids: unpaid, cash-paid, and a GCash-paid order that must **not** be voided when the refund cannot be issued |
+| `void-and-refund.test.js` | Voids: unpaid, cash-paid, a GCash-paid order → refund pending → marked refunded, and no void while GCash proof waits |
 | `isolation-and-concurrency.test.js` | Who can see what, plus races: concurrent order numbers, contested claims, double payment |
 
 ### Row-level security check
@@ -155,11 +152,6 @@ live feed delivers exactly what a read would return, correct policies mean corre
 nothing else exists: orders are inserted in exactly the state under test (counter cash still pending, kiosk GCash confirmed,
 voided, refunded, cancelled, unpaid, and so on) and the report is asked for that one day. It checks what counts, what
 must not, the Manila midnight boundary (a second either side), zero-filled quiet days and access control.
-
-**A fake PayMongo.** PayMongo is not configured in the test environment, so `payments-fake.test.js` starts a small HTTP
-server that records every call it receives, points the payment service at it, then exercises retries, cancellations,
-refunds, failed refunds, late payments on voided orders and cash-versus-GCash races, asserting both the database and the
-exact calls made.
 
 **Direct database writes with the public key.** Tests sign in as a customer and try to insert or update orders and
 profiles through the database interface to prove those writes are refused.
@@ -181,10 +173,11 @@ scripts are not part of the repository.
 - **State machine:** skipping a stage, going backwards, double-confirming, editing a started order, voiding a completed one.
 - **Money:** underpayment, double payment, short cash on delivery, a client-supplied total being ignored.
 - **Concurrency:** two riders claiming one order, twelve orders created at once, simultaneous cash payments.
-- **Webhooks:** wrong secret, tampered body, stale timestamp, replayed event, a failure that must be retried.
+- **Manual GCash:** proof sent twice, proof for a cash order, a receipt path from another order, rejecting without a
+  reason, cash replacing waiting proof, voiding while proof waits.
 
 Tests that cannot run in the current environment **skip themselves** rather than failing misleadingly (for example the
-"GCash unavailable" tests skip if PayMongo *is* configured).
+GCash account test skips if no `GCASH_*` settings are present).
 
 ---
 
@@ -199,9 +192,10 @@ track(someOtherOrderId);                 // track anything you create yourself
 after(cleanup);                          // deletes them; items, payments and delivery chats cascade
 ```
 
-- Kiosk devices: `cleanupKiosks()`. Webhook events: removed by prefix (`evt_test_%`).
+- Kiosk devices: `cleanupKiosks()`.
 - **Files are not deleted by the database.** Any test that stores a chat photo removes the files itself in `after()`
-  (see `chat-images.test.js`); a leftover file in `chat-images` is a test leak.
+  (see `chat-images.test.js`, and the receipt test in `orders.test.js` for `payment-receipts`); a leftover file is a
+  test leak.
 - Tests that flip a product to unavailable restore it in a `finally`.
 - Sample users (`customer@3k.local`, `customer2@3k.local`, `rider1@3k.local`, and the Imus `admin.imus@`,
   `cashier.imus@` and `rider.imus@`) are **fixtures**: created once by the seed script, never deleted. A test that
@@ -266,8 +260,8 @@ It earns its keep. Three examples:
 
 1. **Unstable pagination.** `GET /products` ordered only by a per-category `sort_order`, so tied rows came back in any
    order and pages overlapped; some products appeared on no page. Fixed with `id` as a tiebreaker.
-2. **Orphaned orders when GCash failed to start.** The order was created before calling PayMongo, so a failure left an
-   unpayable pending order in the queue. Found by noticing the suite left rows behind. The order is now rolled back.
+2. **Orphaned orders when online payment failed to start** (in the PayMongo era). A failure after the order was created
+   left an unpayable pending order in the queue. Found by noticing the suite left rows behind.
 3. **A privilege escalation.** A regression test now asserts that editing your own `user_metadata` does not grant a role
    ([security.md](./security.md#issues-found-and-fixed)).
 
@@ -299,10 +293,8 @@ Use a **separate Supabase project** for CI (with all migrations applied and the 
 
 ## Known limits
 
-- **No mocking** (except the fake PayMongo). Tests hit real Supabase, so they are slower and need the network. The
+- **No mocking.** Tests hit real Supabase, so they are slower and need the network. The
   trade is that they exercise row-level security, triggers and constraints, the parts most likely to break.
-- **Real PayMongo is untested.** Everything from the notification inwards, and the outbound calls against the fake, are
-  covered; nothing has run against PayMongo's own servers.
 - **Frontend has no automated tests in the repository.** The backend is covered thoroughly; screens were checked by
   hand and with ad-hoc browser scripts. A saved browser suite (for example Playwright) is the natural next step.
 - **Cold starts.** The first run after a Supabase project has been idle can take 20 s to get healthy. A timeout usually

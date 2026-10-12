@@ -69,13 +69,12 @@ describe('kiosk device authentication', () => {
 
 describe('POST /kiosk/orders', () => {
   it('creates a pending, unpaid cash order', async () => {
-    const { order, payment } = await placeKioskOrder(kioskKey, { customer_name: 'Ana Reyes' });
+    const { order } = await placeKioskOrder(kioskKey, { customer_name: 'Ana Reyes' });
 
     assert.equal(order.status, 'pending');
     assert.equal(order.payment_status, 'unpaid');
     assert.equal(order.channel, 'kiosk');
     assert.equal(order.customer_name, 'Ana Reyes');
-    assert.equal(payment, null, 'cash needs no payment object');
   });
 
   it('assigns a K-prefixed order number', async () => {
@@ -217,49 +216,12 @@ describe('POST /kiosk/orders', () => {
     assert.match(res.body.error.message, /Price not yet set/);
   });
 
-  it('returns 503 for GCash while PayMongo is unconfigured', async (t) => {
-    const res = await post(
-      '/kiosk/orders',
-      {
-        fulfillment_type: 'dine_in',
-        customer_name: 'Gcash Unconfigured Probe',
-        payment_method: 'gcash',
-        items: [{ product_id: flat.id, quantity: 1 }],
-      },
-      { kioskKey },
-    );
+  it('takes a GCash order as pending and unpaid, for the cashier to settle', async () => {
+    const { order } = await placeKioskOrder(kioskKey, { payment_method: 'gcash' });
 
-    if (res.status === 201) return t.skip('PayMongo is configured in this environment');
-    assert.equal(res.status, 503);
-  });
-
-  it('leaves no orphaned order behind when starting the payment fails', async (t) => {
-    const marker = `Orphan Probe ${Date.now()}`;
-
-    const res = await post(
-      '/kiosk/orders',
-      {
-        fulfillment_type: 'dine_in',
-        customer_name: marker,
-        payment_method: 'gcash',
-        items: [{ product_id: flat.id, quantity: 1 }],
-      },
-      { kioskKey },
-    );
-
-    if (res.status === 201) {
-      track(res.body.data.order.id);
-      return t.skip('PayMongo is configured; the failure path was not exercised');
-    }
-
-    // The customer got an error and never learned an order id, so an order
-    // left in `pending` would sit in the cashier's queue forever, unpayable.
-    const { data: stranded } = await db
-      .from('orders')
-      .select('id')
-      .eq('customer_name', marker);
-
-    assert.deepEqual(stranded, [], 'the failed order must be rolled back');
+    assert.equal(order.status, 'pending');
+    assert.equal(order.payment_status, 'unpaid');
+    assert.equal(order.payment_method, 'gcash');
   });
 });
 

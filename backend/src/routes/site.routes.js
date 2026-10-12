@@ -6,5 +6,7 @@ const router = Router();
 
 // Public: the logo renders on pages that have no login.
 router.get('/images', asyncHandler(site.images));
+// Public: the kiosk shows the GCash QR without a user login.
+router.get('/gcash', site.gcash);
 
 export default router;
