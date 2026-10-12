@@ -11,7 +11,7 @@ const baseOptions = {
 
 /**
  * Secret-key client. Bypasses Row Level Security — use it only for trusted
- * server-side work (admin dashboards, background jobs, webhooks).
+ * server-side work (admin dashboards, background jobs).
  * (Replaces the legacy "service_role" client.)
  */
 export const supabaseAdmin = createClient(

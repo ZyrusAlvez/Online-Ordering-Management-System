@@ -25,9 +25,13 @@ Running the system day to day, keeping it healthy, and fixing it when something 
   branch's menu (website, kiosk, register) at once; **Back on** returns it. Other branches are unaffected. Only the super
   admin can switch a dish off everywhere.
 - Scheduled orders: start them around the time the banner says (30 minutes before). They sort by their time.
-- A customer wants to cancel a paid order: **Void** it in the cashier screen with a reason. GCash is refunded
-  automatically; hand cash back yourself.
-- A GCash order shows **refund failed**: **Void** again, or Admin → Orders → retry the refund.
+- An order shows **Awaiting verification**: the customer sent a GCash reference number or receipt. Open it, find the
+  payment in the restaurant's GCash app (amount and reference number), then **Approve**, or **Reject** with a reason
+  the customer will see.
+- A customer shows a GCash receipt at the counter (walk-in or kiosk order): **GCash**, check the receipt is to our
+  account for the right amount, type its reference number, **Mark paid**.
+- A customer wants to cancel a paid order: **Void** it in the cashier screen with a reason. Hand cash back yourself;
+  for GCash, send the money back from the restaurant's GCash, then Admin → Orders → **Mark refunded**.
 
 ### Closing
 1. Open Admin → **Sales** → **Today**, with your branch chosen. Compare **Cash** with the drawer: cash sales on the Sales page should match
@@ -90,8 +94,8 @@ then confirm with the advisors. After a schema change, update [data-dictionary.m
 ### Rotating keys
 - **Supabase keys:** create the new keys in the dashboard, update `backend/.env` (and the publishable key in
   `frontend/.env`, then rebuild), restart the API, then disable the old keys.
-- **PayMongo:** update `PAYMONGO_SECRET_KEY`; for the webhook secret, update it in PayMongo and `PAYMONGO_WEBHOOK_SECRET`
-  together, or notifications will be refused until they match.
+- **GCash account:** change `GCASH_NAME`, `GCASH_NUMBER` and `GCASH_QR_IMAGE` in `backend/.env` and restart the API.
+  Put a new QR image in `frontend/public/brand/` (then rebuild the frontend) or host it anywhere and use its URL.
 
 ### Dependencies
 `npm outdated` / `npm audit` in `backend/` and `frontend/` from time to time; update, run `npm test` and
@@ -110,7 +114,7 @@ Confirm they run; **practise a restore** into a scratch project, since an untest
 | --- | --- | --- |
 | API exits with "Invalid environment configuration" | A required variable in `backend/.env` is missing or malformed | Fix what it lists; see [deployment.md](./deployment.md#environment-variables) |
 | `EADDRINUSE … :4000` | Another API is already running (often a second `npm run dev`) | Stop the other one (`ss -ltnp \| grep :4000` shows which). The first one is fine to keep |
-| Vite says port 5173 is in use | Another frontend dev server is running. The port is fixed on purpose (CORS and GCash return addresses expect it) | Stop the other one |
+| Vite says port 5173 is in use | Another frontend dev server is running. The port is fixed on purpose (CORS expects it) | Stop the other one |
 | Page is blank in development and the console says "does not provide an export named 'default'" | Vite cached a file while it was half-saved | Save the file again, or restart `npm run dev` |
 | App shows "Cannot reach the server" | API not running, wrong `VITE_API_URL`, or `CORS_ORIGIN` does not include the website's address | Check `/health`, the `.env` values, and rebuild the frontend after changing `VITE_*` |
 | First request is very slow | The Supabase project was idle and is waking | Normal; later requests are fast |
@@ -136,11 +140,10 @@ Confirm they run; **practise a restore** into a scratch project, since an untest
 | A customer can't order "as soon as possible" ("closed now, schedule your order") | The branch is outside its opening hours | Expected: they schedule a time. Check the hours in Branches if they look wrong |
 | An order is missing from the cashier's queue | It was placed at another branch (the customer's chosen or nearest branch) | Find it in Admin → Orders with **All branches**; it can only be handled by its branch |
 | A dish shows "Sold out" at one branch only | That branch marked it sold out | Admin → Menu, that branch chosen → **Back on** |
-| GCash buttons say "not configured" (503) | No PayMongo keys | [deployment.md](./deployment.md#gcash-paymongo); cash still works |
-| Customer paid by GCash but the order is still unpaid | The notification did not arrive or was rejected | Check PayMongo's webhook log, the API log lines starting `[paymongo]`, and that the signing secret matches. A failed delivery is retried by PayMongo |
-| "GCash requires a minimum of PHP 20.00" | PayMongo's rule | Take cash for small orders |
-| "A GCash payment for this order is still going through" | The customer's payment is completing | Wait a moment and check the order again |
-| Void fails on a paid GCash order | The refund could not be issued; the order is deliberately **not** voided while money is held | Try again, or retry from Admin → Orders |
+| GCash is missing from checkout and the kiosk, or answers "not available" (503) | A `GCASH_*` setting is empty | Set all three in `backend/.env` and restart; cash still works |
+| The GCash QR image is broken | `GCASH_QR_IMAGE` points at a file that is not there | Check the file is in `frontend/public/` (path) or the URL opens |
+| Customer says they paid by GCash but the order is still unpaid | They have not sent the reference number/receipt yet, or it is **Awaiting verification** | Ask them to send it from their order page, or approve it in the cashier screen |
+| "Verify or reject the GCash payment before voiding" | The customer's proof is waiting; the money may already be in | Check the GCash app, approve or reject, then void |
 | "Order is no longer available to claim" | Another rider took it first | Normal |
 | Can't edit an order | It has started cooking, or a payment has started (the amount is fixed) | Void and re-enter it |
 | "Cannot be deleted" / "appears in past orders" (menu) | Ordered dishes and options are kept for history | Mark the dish **Sold out**, or clear the option's price |
@@ -175,9 +178,8 @@ Confirm they run; **practise a restore** into a scratch project, since an untest
 
 | What | Where |
 | --- | --- |
-| API log | The terminal or log of the process running `npm start`; request lines, `[paymongo]` payment events, `[chat]` and `[config]` warnings |
+| API log | The terminal or log of the process running `npm start`; request lines, `[chat]` and `[config]` warnings |
 | API health | `GET /api/v1/health`, `GET /api/v1/health/supabase` |
 | Database and auth logs, advisors | Supabase dashboard → Logs / Advisors |
-| Payment notifications | PayMongo dashboard → Webhooks; and the `webhook_events` table |
-| Who did what to an order | `orders` (`voided_by`, `void_reason`, `rider_id`, timestamps) and `payments` (`raw` holds who took cash, tendered, change) |
+| Who did what to an order | `orders` (`voided_by`, `void_reason`, `rider_id`, timestamps) and `payments` (`raw` holds who took cash, tendered, change; `verified_by` is who approved a GCash payment) |
 | Why a rule exists | [decisions.md](./decisions.md), [security.md](./security.md) |

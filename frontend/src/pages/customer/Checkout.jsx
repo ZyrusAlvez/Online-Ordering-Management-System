@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api.js';
 import { useFetch } from '../../lib/hooks.js';
+import { useGcashAccount } from '../../lib/gcash.js';
 import { useSelectedBranch } from '../../lib/branches.js';
 import OrderBranchPicker from '../../components/OrderBranchPicker.jsx';
 import ScheduleField from '../../components/ScheduleField.jsx';
@@ -18,6 +19,7 @@ export default function Checkout() {
   const toast = useToast();
   const navigate = useNavigate();
   const { branch } = useSelectedBranch();
+  const gcash = useGcashAccount();
 
   const [fulfillment, setFulfillment] = useState('pickup');
   const [payment, setPayment] = useState('cash');
@@ -39,19 +41,6 @@ export default function Checkout() {
     setPhone((p) => p || profile.phone || '');
     setAddress((a) => (a.line1 || a.city ? a : fromSaved(profile.default_address)));
   }, [profile]);
-
-  // Pressing Back from GCash can restore this page frozen mid-submit (spinner on,
-  // cart already emptied). Send them to the order they just placed instead.
-  const placedOrderId = useRef(null);
-  useEffect(() => {
-    const onShow = (e) => {
-      if (!e.persisted) return;
-      setBusy(false);
-      if (placedOrderId.current) navigate(`/orders/${placedOrderId.current}`, { replace: true });
-    };
-    window.addEventListener('pageshow', onShow);
-    return () => window.removeEventListener('pageshow', onShow);
-  }, [navigate]);
 
   if (cart.items.length === 0) {
     return (
@@ -88,7 +77,6 @@ export default function Checkout() {
       };
 
       const { data: order } = await api.post('/orders', body, { auth: true });
-      placedOrderId.current = order.id;
       cart.clear();
 
       // Best effort: the order is already placed, so a failure here must not block it.
@@ -102,20 +90,12 @@ export default function Checkout() {
           .catch(() => {});
       }
 
-      if (payment === 'gcash') {
-        try {
-          const { data } = await api.post(`/orders/${order.id}/payment`, undefined, { auth: true });
-          window.location.href = data.checkout_url;
-          return;
-        } catch (err) {
-          // The order exists; let them retry payment from its page.
-          toast.error(`Order placed, but GCash couldn't start: ${err.friendly}`);
-        }
-      } else {
-        toast.success(
-          `Order ${order.order_number} placed${scheduledFor ? ` for ${scheduleLabel(scheduledFor)}` : ''}!`,
-        );
-      }
+      toast.success(
+        payment === 'gcash'
+          ? `Order ${order.order_number} placed. Pay with GCash below.`
+          : `Order ${order.order_number} placed${scheduledFor ? ` for ${scheduleLabel(scheduledFor)}` : ''}!`,
+      );
+      // The order page shows the GCash QR and takes the reference number / receipt.
       navigate(`/orders/${order.id}`, { replace: true });
     } catch (err) {
       setError(err);
@@ -184,12 +164,14 @@ export default function Checkout() {
             onChange={setPayment}
             options={[
               { value: 'cash', label: delivery ? 'Cash on delivery' : 'Pay at pickup' },
-              { value: 'gcash', label: 'GCash' },
+              // Offered only while a GCash account is configured to pay into.
+              ...(gcash ? [{ value: 'gcash', label: 'GCash' }] : []),
             ]}
           />
           {payment === 'gcash' && (
             <p className="text-sm text-ink-soft">
-              You'll be sent to GCash to pay right after placing your order.
+              After you place your order we'll show our GCash QR and number. Send the total, then
+              give us the reference number or a screenshot of your receipt so we can confirm it.
             </p>
           )}
           <Field label="Notes for the kitchen">
@@ -253,7 +235,7 @@ export default function Checkout() {
           </p>
           <ErrorNote error={error} />
           <Button type="submit" size="lg" className="w-full" loading={busy}>
-            {payment === 'gcash' ? 'Place order & pay' : 'Place order'}
+            Place order
           </Button>
         </Card>
       </aside>

@@ -25,7 +25,7 @@ export const listQueue = async (req, res) => {
 
 // requireOrderInScope has already loaded the order and checked its branch.
 export const getOrder = async (req, res) => {
-  res.json({ data: req.order });
+  res.json({ data: await paymentService.withGcashPayment(req.order) });
 };
 
 /** A walk-in order rung up directly at the counter. */
@@ -58,48 +58,53 @@ export const advanceStatus = async (req, res) => {
 
 /** Settle in cash at the counter; `meta.change` is what the drawer owes back. */
 export const payCash = async (req, res) => {
-  // A customer who gave up on GCash at the kiosk can still pay at the counter,
-  // but the abandoned GCash attempt must not be able to charge them as well.
-  await paymentService.cancelPendingGcash(req.params.id);
-
   const { order, tendered, change } = await orderService.settleCash(req.params.id, {
     tenderedAmount: req.body.tendered_amount ?? null,
     collectedBy: req.user.id,
   });
+  // A GCash submission still waiting on staff must not be approved on top of this.
+  await paymentService.supersedePendingGcash(req.params.id, 'Replaced by a cash payment');
 
   res.json({ data: order, meta: { tendered, change } });
 };
 
+/** The customer showed their GCash receipt at the counter; record its reference number. */
 export const payGcash = async (req, res) => {
-  res.json({ data: await paymentService.startGcashPayment(req.params.id) });
+  const data = await paymentService.settleGcashAtCounter(req.params.id, {
+    referenceNumber: req.body.reference_number,
+    collectedBy: req.user.id,
+  });
+  res.json({ data });
+};
+
+/** Approve or reject an online customer's GCash reference number / receipt. */
+export const verifyGcash = async (req, res) => {
+  const data = await paymentService.verifyGcash(req.params.id, {
+    approve: req.body.approve,
+    reason: req.body.reason ?? null,
+    verifiedBy: req.user.id,
+  });
+  res.json({ data });
 };
 
 /**
  * Void an order. Unlike a customer cancel this works after the kitchen has
  * started, and it records who did it and why.
  *
- * A paid GCash order is refunded as part of the void. If PayMongo rejects the
- * refund the order is left in refund_failed for an admin to retry, rather than
- * being voided with the customer's money kept.
+ * A paid GCash order is moved to refund_pending as part of the void: staff send
+ * the money back from the GCash account by hand, then mark it refunded.
  */
 export const voidOrder = async (req, res) => {
   const { order } = req;
   orderService.assertVoidable(order);
 
-  // A GCash order whose payment is still open must not complete behind our back.
-  if (order.payment_status === 'processing') await paymentService.cancelPendingGcash(req.params.id);
-
-  // refund_failed means the money is still with us: voiding again must retry the
-  // refund, not skip it and keep the customer's payment.
-  const refund =
-    ['paid', 'refund_failed'].includes(order.payment_status) && order.payment_method === 'gcash'
-      ? await paymentService.refundOrder(req.params.id, 'others')
-      : null;
+  const refundPending = order.payment_status === 'paid' && order.payment_method === 'gcash';
+  if (refundPending) await paymentService.markRefundPending(order.id);
 
   const data = await orderService.voidOrder(req.params.id, {
     reason: req.body.reason,
     voidedBy: req.user.id,
   });
 
-  res.json({ data, meta: { refund_id: refund?.id ?? null } });
+  res.json({ data, meta: { refund_pending: refundPending } });
 };

@@ -1,9 +1,5 @@
-import { env } from '../config/env.js';
 import * as orderService from '../services/order.service.js';
-import * as paymentService from '../services/payment.service.js';
 import { ApiError } from '../utils/ApiError.js';
-
-const returnUrl = (orderId) => `${env.KIOSK_RETURN_URL}?order=${orderId}`;
 
 /** Scope lookups to the calling device so one kiosk cannot read another's orders. */
 const getDeviceOrder = async (orderId, kioskId) => {
@@ -15,9 +11,9 @@ const getDeviceOrder = async (orderId, kioskId) => {
 /**
  * Place an order from a kiosk terminal.
  *
- * Cash orders stay `pending` and are settled by the cashier at the counter.
- * GCash orders are paid here; the PayMongo webhook then confirms them and
- * sends them straight to the kitchen.
+ * Every order stays `pending` until the cashier settles it at the counter: cash
+ * is handed over there, and a GCash customer pays on their phone (the kiosk
+ * shows our QR) and shows the cashier the receipt.
  */
 export const createOrder = async (req, res) => {
   const body = req.body;
@@ -33,25 +29,7 @@ export const createOrder = async (req, res) => {
     notes: body.notes ?? null,
   });
 
-  // Cash is settled at the counter and needs no payment object.
-  let payment = null;
-
-  if (body.payment_method === 'gcash') {
-    try {
-      payment = await paymentService.startGcashPayment(order.id, {
-        returnUrl: returnUrl(order.id),
-      });
-    } catch (err) {
-      // The order is already committed at this point. Since the response is an
-      // error, the customer never learns its id — leaving it would put a
-      // pending order nobody can pay for into the cashier's queue forever. Roll
-      // it back so the customer can simply retry, or switch to cash.
-      await orderService.discardOrder(order.id);
-      throw err;
-    }
-  }
-
-  res.status(201).json({ data: { order, payment } });
+  res.status(201).json({ data: { order } });
 };
 
 /** Which device this is and the branch it orders for, for the attract screen. */
@@ -60,21 +38,7 @@ export const me = (req, res) => {
   res.json({ data: { id, name, branch } });
 };
 
-/**
- * Poll an order's state. A kiosk has no auth user, so it cannot use Supabase
- * Realtime (RLS would return it nothing) — it polls this while waiting for a
- * GCash payment to confirm.
- */
+/** An order this kiosk placed. */
 export const getOrder = async (req, res) => {
   res.json({ data: await getDeviceOrder(req.params.id, req.kiosk.id) });
-};
-
-/** Restart a GCash attempt the customer abandoned, or that failed. */
-export const retryPayment = async (req, res) => {
-  const order = await getDeviceOrder(req.params.id, req.kiosk.id);
-  const payment = await paymentService.startGcashPayment(order.id, {
-    returnUrl: returnUrl(order.id),
-  });
-
-  res.json({ data: payment });
 };

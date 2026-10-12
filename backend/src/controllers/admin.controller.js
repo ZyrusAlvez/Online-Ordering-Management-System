@@ -26,10 +26,9 @@ export const listOrders = async (req, res) => {
   res.json({ data, meta: buildMeta({ page, limit, total }) });
 };
 
-/** Retry a refund PayMongo rejected, which left the order in refund_failed. */
-export const retryRefund = async (req, res) => {
-  const refund = await paymentService.refundOrder(req.params.id, 'others');
-  res.json({ data: { refund_id: refund.id, status: refund.attributes?.status ?? 'pending' } });
+/** Staff sent a voided GCash order's money back by hand. */
+export const markRefunded = async (req, res) => {
+  res.json({ data: await paymentService.markRefunded(req.params.id, { refundedBy: req.user.id }) });
 };
 
 // --- Riders ----------------------------------------------------------------

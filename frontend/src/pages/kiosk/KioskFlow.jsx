@@ -2,14 +2,18 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import MenuBrowser from '../../components/MenuBrowser.jsx';
 import { Logo, RESTAURANT } from '../../components/Logo.jsx';
 import { Button, ErrorNote, Input } from '../../components/ui.jsx';
+import GcashAccount from '../../components/GcashAccount.jsx';
 import { Cart, Check, ChefHat, Minus, Plus, Store, Trash } from '../../components/icons.jsx';
 import { useCart } from '../../context/CartContext.jsx';
 import { useSiteImage } from '../../lib/siteImages.js';
+import { useGcashAccount } from '../../lib/gcash.js';
 import { kioskApi } from '../../lib/kiosk.js';
 import { FULFILLMENT, money } from '../../lib/format.js';
 
 const IDLE_MS = 3 * 60_000;
 const DONE_RESET_MS = 20_000;
+// Long enough to open GCash, scan the QR and send the money before the screen resets.
+const DONE_RESET_GCASH_MS = 90_000;
 
 /** Tapping the logo 5 times within 4s offers to lock the kiosk (staff only, undiscoverable by customers). */
 function useSecretLock(onLock) {
@@ -161,14 +165,7 @@ function Review({ type, onBack, onPlaced, onLocked }) {
   const [method, setMethod] = useState(null);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
-
-  // Back from the GCash page can restore this screen frozen mid-submit, with every
-  // button disabled until the idle timer resets the kiosk three minutes later.
-  useEffect(() => {
-    const onShow = (e) => e.persisted && setBusy(false);
-    window.addEventListener('pageshow', onShow);
-    return () => window.removeEventListener('pageshow', onShow);
-  }, []);
+  const gcash = useGcashAccount();
 
   const place = async () => {
     setBusy(true);
@@ -185,11 +182,6 @@ function Review({ type, onBack, onPlaced, onLocked }) {
         },
         onLocked,
       );
-      if (method === 'gcash') {
-        // The kiosk's return URL brings the customer back to /kiosk/payment-result.
-        window.location.href = data.payment.checkout_url;
-        return;
-      }
       cart.clear();
       onPlaced(data.order);
     } catch (err) {
@@ -253,7 +245,7 @@ function Review({ type, onBack, onPlaced, onLocked }) {
         <span className="mb-2 block text-xl font-bold">How will you pay?</span>
         <div className="flex flex-col gap-4 sm:flex-row">
           {choice('cash', 'Cash', 'Pay at the counter')}
-          {choice('gcash', 'GCash', 'Pay now with your phone')}
+          {gcash && choice('gcash', 'GCash', 'Scan our QR with your phone')}
         </div>
       </div>
 
@@ -270,7 +262,7 @@ function Review({ type, onBack, onPlaced, onLocked }) {
           loading={busy}
           onClick={place}
         >
-          {method === 'gcash' ? 'Place order & pay' : 'Place order'}
+          Place order
         </Button>
       </div>
     </div>
@@ -278,7 +270,8 @@ function Review({ type, onBack, onPlaced, onLocked }) {
 }
 
 function Done({ order, onNew }) {
-  const [left, setLeft] = useState(DONE_RESET_MS / 1000);
+  const gcash = order.payment_method === 'gcash';
+  const [left, setLeft] = useState((gcash ? DONE_RESET_GCASH_MS : DONE_RESET_MS) / 1000);
 
   useEffect(() => {
     const t = setInterval(() => setLeft((s) => s - 1), 1000);
@@ -287,6 +280,32 @@ function Done({ order, onNew }) {
   useEffect(() => {
     if (left <= 0) onNew();
   }, [left, onNew]);
+
+  if (gcash) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-5 bg-cream px-6 py-10 text-center">
+        <h1 className="font-display text-5xl">Thank you!</h1>
+        <p className="text-2xl text-ink-soft">
+          Your order number is{' '}
+          <strong className="rounded-xl bg-white px-4 py-1 text-4xl font-extrabold tracking-wider text-brand ring-1 ring-line">
+            {order.order_number}
+          </strong>
+        </p>
+        <div className="rounded-3xl bg-paper p-6 ring-1 ring-line">
+          <p className="mb-4 text-2xl font-bold">Scan with GCash to pay</p>
+          <GcashAccount amount={order.total_amount} large />
+        </div>
+        <p className="max-w-xl text-2xl">
+          Then <strong>show your GCash receipt to the cashier</strong> with your order number, and
+          we'll start on your food.
+        </p>
+        <Button size="xl" onClick={onNew}>
+          Done
+        </Button>
+        <p className="text-sm text-ink-soft">Returning to the start screen in {Math.max(left, 0)}s</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-cream px-6 text-center">

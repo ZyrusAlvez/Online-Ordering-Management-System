@@ -29,13 +29,16 @@ const schema = z.object({
   SUPABASE_JWKS_URL: z.string().url().optional(),
   DATABASE_URL: z.string().optional(),
 
-  // PayMongo is optional: the cash-only business runs fully without it, and
-  // the GCash routes return 503 rather than the server refusing to boot.
-  PAYMONGO_SECRET_KEY: z.string().optional(),
-  PAYMONGO_WEBHOOK_SECRET: z.string().optional(),
-  PAYMONGO_API_URL: z.string().url().default('https://api.paymongo.com/v1'),
-  PUBLIC_APP_URL: z.string().url().default('http://localhost:5173'),
-  KIOSK_RETURN_URL: z.string().url().default('http://localhost:5173/kiosk/payment-result'),
+  // The GCash account customers pay into by hand. Optional: with any of the
+  // three unset, GCash is simply not offered and the business runs on cash.
+  GCASH_NAME: z.string().trim().max(120).optional(),
+  GCASH_NUMBER: z.string().trim().max(40).optional(),
+  // A full URL, or a path served by the frontend (e.g. /brand/gcash-qr.svg).
+  GCASH_QR_IMAGE: z
+    .string()
+    .trim()
+    .refine((v) => v === '' || v.startsWith('/') || /^https?:\/\//.test(v), 'GCASH_QR_IMAGE must be a URL or a /path')
+    .optional(),
 
   // The shared cashier account that /employee/cashier/login signs in to.
   CASHIER_EMAIL: z.string().email().default('cashier@3k.local'),
@@ -58,6 +61,9 @@ export const env = {
   isProduction: raw.NODE_ENV === 'production',
   isDevelopment: raw.NODE_ENV === 'development',
   corsOrigins: raw.CORS_ORIGIN === '*' ? '*' : csv(raw.CORS_ORIGIN),
-  // GCash endpoints check this and fail loudly instead of half-working.
-  paymongoEnabled: Boolean(raw.PAYMONGO_SECRET_KEY),
+  // What the site shows customers to pay into, or null when GCash is off.
+  gcash:
+    raw.GCASH_NAME && raw.GCASH_NUMBER && raw.GCASH_QR_IMAGE
+      ? { name: raw.GCASH_NAME, number: raw.GCASH_NUMBER, qr_image: raw.GCASH_QR_IMAGE }
+      : null,
 };

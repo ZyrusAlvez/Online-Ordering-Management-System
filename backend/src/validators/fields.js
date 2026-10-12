@@ -36,6 +36,17 @@ export const money = z
   // Compare in centavos with a tolerance: 59.99 + 60 is 119.99000000000001 in floating point.
   .refine((n) => Math.abs(n * 100 - Math.round(n * 100)) < 1e-6, 'At most 2 decimal places');
 
+/**
+ * GCash reference number, as printed on the receipt (13 digits today, often
+ * shown in groups). Letters, digits and single spaces, 6 to 40 characters.
+ */
+export const REFERENCE_PATTERN = /^[A-Za-z0-9 ]{6,40}$/;
+export const referenceNumber = z
+  .string()
+  .trim()
+  .transform((v) => v.replace(/\s+/g, ' '))
+  .pipe(z.string().regex(REFERENCE_PATTERN, 'Enter the reference number from your GCash receipt'));
+
 /** Units of one product on one line. */
 export const quantity = z.number().int().min(1).max(99);
 

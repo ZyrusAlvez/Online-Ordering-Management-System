@@ -75,8 +75,10 @@ Pressing **Checkout** while logged out takes you to the login page, and brings y
 7. Choose payment: **Cash** (on delivery, or at pickup) or **GCash**.
 8. Add notes for the kitchen if you like, then **Place order**.
 
-With GCash you are sent to GCash to pay straight away, then returned to the app. GCash needs an order of at least
-₱20.00. If you leave GCash without paying, open the order and press **Pay with GCash** to try again.
+With GCash, your order page shows the restaurant's GCash **QR code, name and number** and the amount. Pay from your
+GCash app, then type the **reference number** from your GCash receipt, attach a **screenshot** of the receipt, or both,
+and press **I've paid**. The order shows **Awaiting verification** until the branch checks it, then **Paid**. If they
+can't find your payment they will say why, and you can send it again.
 
 ### Following your order
 
@@ -85,7 +87,8 @@ scheduled one ("For Tomorrow, 8:00 AM"); open one for a progress line:
 *Received → Confirmed → Preparing → Ready → On the way (delivery) → Done*. It updates by itself, with no refresh.
 
 - You can **Cancel order** while it is still *pending* or *confirmed* and **not paid**.
-- A paid order cannot be cancelled by you; ask the cashier, who can void it (and a GCash payment is refunded).
+- A paid order, or one whose GCash payment is being checked, cannot be cancelled by you; ask the branch, who can void
+  it and send a GCash payment back.
 - For a delivery, a **Chat with your rider** card appears once a rider picks it up. See [Chat and photos](#chat-and-photos).
 - If you pinned your location, the order shows **View pinned location**.
 
@@ -133,15 +136,17 @@ Buttons appear only when they make sense:
 | **Send to kitchen** | Order is pending | Accepts it and starts preparing in one step |
 | **Start preparing**, **Mark ready**, **Complete** | Following stages | Moves it along the line. Only valid moves are offered (for example you cannot jump from pending straight to ready). For a **delivery**, the cashier stops at **Mark ready**: a rider takes it from there and completes it on delivery |
 | **Take cash** | Unpaid orders that are not deliveries (counter, kiosk, and online pickup paid at the counter) | Opens the cash window: type what the customer handed over and it shows the **change** to give back. Paying less than the total is refused |
-| **GCash QR** | Same orders as **Take cash** | Shows a QR code for the customer to pay with GCash |
+| **GCash** | Same orders as **Take cash** | Shows the restaurant's GCash QR, name and number. The customer pays from their phone and shows the receipt; type its **reference number** and **Mark paid** |
+| **Approve** / **Reject** | An online GCash payment is **Awaiting verification** | Shows the reference number and receipt the customer sent. Approve once you see the money in the GCash app; reject with a reason otherwise |
 | **Edit items** | Pending or confirmed | Change quantities or items; the total is recalculated. Refused once a payment has started, since the amount is already fixed |
-| **Void** | Any order that is still open | Cancels it with a **reason**. A paid GCash order is refunded automatically; cash is returned by hand |
+| **Void** | Any order that is still open (not while a GCash payment waits to be verified) | Cancels it with a **reason**. Cash is returned from the drawer; for a paid GCash order, send the money back from the restaurant's GCash and ask an admin to mark it refunded |
 
 Delivery orders are paid differently: online GCash is paid by the customer in the app, and cash is collected by the
 rider on delivery, so the cashier has no payment buttons on them.
 
-If a GCash refund fails, the order shows **refund failed**; press **Void** again to retry, or ask an admin to retry
-it from the Orders page.
+**Awaiting verification** means an online customer sent a GCash reference number or receipt. Open the order: check
+the restaurant's GCash app for that amount and reference number, then **Approve**, or **Reject** with a short reason
+the customer will see (they can send it again).
 
 ### Walk-in orders
 
@@ -151,7 +156,8 @@ the menu, and create the order. It joins the queue like any other.
 ### Kiosk orders
 
 Customers type their name at the kiosk. Search for it (or the order number on their receipt screen) to find the order.
-If they chose cash, take the payment; if they paid by GCash it is already confirmed and in the kitchen.
+If they chose cash, take the payment. If they chose GCash, they paid by scanning the QR on the kiosk: press **GCash**,
+check their receipt (our account, the right amount), type its reference number and **Mark paid**.
 
 ### Messages
 
@@ -173,12 +179,12 @@ that branch. The start screen shows the branch name.
 2. Choose **Dine in** or **Take out**.
 3. Tap dishes to add them (sizes and choices work as on the website). **Review order**.
 4. Type your name ("so we can call your order") and choose how to pay: **Cash** (pay at the counter) or **GCash**
-   (pay now with your phone).
-5. **Place order**. The screen shows **Thank you!** and your **order number**. For GCash you are sent to pay first.
-   The screen then returns to the start by itself.
+   (scan our QR with your phone).
+5. **Place order**. The screen shows **Thank you!** and your **order number**. For GCash it also shows our **QR
+   code**: scan it with GCash, pay, then show your GCash receipt to the cashier. The screen then returns to the start
+   by itself.
 
 The kiosk starts over by itself after about 3 minutes of nobody touching it, and shortly after an order is shown.
-A failed or unfinished GCash payment also clears itself after a while.
 
 **For staff**
 
@@ -221,7 +227,7 @@ An **admin** runs one or more branches, chosen by the super admin, and sees noth
 | Page | What it is for |
 | --- | --- |
 | **Sales** | How much was sold at the chosen branch(es). Pick **Today**, **7 days**, **30 days**, **This month** or **Custom**. Cards show sales, orders, average order and items sold; below are sales per day, cash vs GCash, sales by channel, **by branch** (when looking at several) and the top 10 dishes. **View as table** shows the daily numbers as text. Only paid orders that were not voided or cancelled count, on the day they were placed; voided orders still waiting on a GCash refund are shown as a note. See [how-it-works.md](./how-it-works.md#sales-report) |
-| **Orders** | Every order of your branches, filterable by status, payment, channel and date, with a **Branch** column when looking at several. Scheduled orders show their time. Open one for details; retry a refund that PayMongo rejected |
+| **Orders** | Every order of your branches, filterable by status, payment, channel and date, with a **Branch** column when looking at several. Scheduled orders show their time. Open one for details. A voided GCash order shows **Refund pending**: send the money back from the restaurant's GCash, then press **Mark refunded** |
 | **Menu** | The shared menu. Choose a branch in the switcher and press **Mark sold out** on a dish to hide it **at that branch only** (it shows **Sold out at …**; **Back on** returns it). Adding and editing dishes and prices is the super admin's |
 | **Riders** | Create rider accounts for one of your branches (branch, name, email, temporary password, phone) and deactivate or reactivate them |
 | **Kiosks** | See and revoke your branches' kiosk devices, or issue a device key by hand for a branch |

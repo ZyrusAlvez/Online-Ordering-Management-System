@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { COUNTER_FULFILLMENT, PAYMENT_METHODS } from '../constants/orders.js';
 import { branchId, itemsSchema } from './common.validators.js';
-import { money, optionalText, personName, requiredText } from './fields.js';
+import { money, optionalText, personName, referenceNumber, requiredText } from './fields.js';
 import { orderFilterQuery } from './order.validators.js';
 
 export const posQueueQuery = orderFilterQuery.extend({
@@ -24,5 +24,19 @@ export const replaceItemsSchema = z.object({ items: itemsSchema });
 export const cashPaymentSchema = z.object({
   tendered_amount: money.optional(),
 });
+
+/** GCash shown at the counter: the cashier copies the reference number off the receipt. */
+export const counterGcashSchema = z.object({ reference_number: referenceNumber });
+
+/** Approve or reject a customer's GCash submission. A rejection tells them why. */
+export const verifyGcashSchema = z
+  .object({
+    approve: z.boolean(),
+    reason: optionalText(500).optional(),
+  })
+  .refine((b) => b.approve || b.reason, {
+    message: 'Tell the customer why the payment was rejected',
+    path: ['reason'],
+  });
 
 export const voidSchema = z.object({ reason: requiredText(500, 'A reason is required') });

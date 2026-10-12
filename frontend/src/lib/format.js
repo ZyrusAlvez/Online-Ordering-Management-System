@@ -31,12 +31,13 @@ export const STATUS = {
 
 export const PAYMENT = {
   unpaid: { label: 'Unpaid', tone: 'amber' },
-  processing: { label: 'Processing', tone: 'blue' },
+  // A GCash reference number / receipt waiting for staff to check it.
+  processing: { label: 'Awaiting verification', tone: 'blue' },
   paid: { label: 'Paid', tone: 'green' },
   refund_pending: { label: 'Refund pending', tone: 'amber' },
   refunded: { label: 'Refunded', tone: 'gray' },
-  refund_failed: { label: 'Refund failed', tone: 'red' },
-  failed: { label: 'Payment failed', tone: 'red' },
+  // Staff could not find the GCash payment; the customer can send it again.
+  failed: { label: 'Payment rejected', tone: 'red' },
 };
 
 export const FULFILLMENT = {

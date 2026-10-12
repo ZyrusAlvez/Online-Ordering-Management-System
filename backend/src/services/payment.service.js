@@ -1,409 +1,285 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
 import { env } from '../config/env.js';
 import { supabaseAdmin } from '../config/supabase.js';
 import { ApiError, fromPostgrestError } from '../utils/ApiError.js';
-import { fetchOrder, toCentavos } from './order.service.js';
+import { fetchOrder, getOrderOrFail, toCentavos } from './order.service.js';
+import { signedUrls, uploadPrivateImage } from './storage.service.js';
 
 /**
- * PayMongo GCash, via the Payment Intent flow:
+ * Manual GCash. There is no payment provider: the customer sends money to our
+ * GCash account from their own phone, and staff confirm it against the GCash app.
  *
- *   1. create a PaymentIntent for the order total
- *   2. create a `gcash` PaymentMethod
- *   3. attach the method to the intent -> PayMongo returns a redirect URL
- *   4. the customer authorises in GCash, PayMongo calls our webhook
+ *   online:  customer submits a reference number and/or receipt  -> processing
+ *            staff approve -> paid, or reject -> failed (customer may resubmit)
+ *   counter: the customer shows their receipt (POS walk-in, or a kiosk order)
+ *            and the cashier records the reference number         -> paid
+ *   void:    a paid GCash order goes to refund_pending; staff send the money
+ *            back by hand and mark it refunded                     -> refunded
  *
- * Nothing is ever marked paid from the redirect coming back — only from the
- * webhook. The redirect is a browser navigation the customer can forge or
- * simply never complete.
+ * One payments row per submission, so a rejected-then-resubmitted payment keeps
+ * its history. Every state change claims the order with a conditional update
+ * on its current payment_status, so a double-tap or two staff cannot both win.
  */
 
-const authHeader = () =>
-  `Basic ${Buffer.from(`${env.PAYMONGO_SECRET_KEY}:`).toString('base64')}`;
+// Receipt screenshots carry names and numbers, so they live in a private bucket
+// and are only ever shown through short-lived signed links.
+export const RECEIPT_BUCKET = 'payment-receipts';
+const RECEIPT_LINK_SECONDS = 3600;
+// Bounds what one order can store, since a customer could upload without submitting.
+const MAX_RECEIPTS_PER_ORDER = 10;
 
-const assertEnabled = () => {
-  if (!env.paymongoEnabled) {
-    throw new ApiError(503, 'GCash payments are not configured (PAYMONGO_SECRET_KEY is unset)');
-  }
+// Money has already changed hands (or is on its way back).
+const SETTLED = ['paid', 'refund_pending', 'refunded', 'refund_failed'];
+
+const now = () => new Date().toISOString();
+
+/** The account customers pay into, or null when GCash is switched off. */
+export const getGcashAccount = () => env.gcash;
+
+export const assertGcashEnabled = () => {
+  if (!env.gcash) throw new ApiError(503, 'GCash is not available right now; please pay in cash');
 };
 
-const paymongo = async (path, { method = 'POST', attributes } = {}) => {
-  assertEnabled();
-
-  // Named `response`, not `res`: this is a fetch Response, and a service must
-  // never be reading an Express res.
-  const response = await fetch(`${env.PAYMONGO_API_URL}${path}`, {
-    method,
-    headers: { Authorization: authHeader(), 'Content-Type': 'application/json' },
-    ...(attributes ? { body: JSON.stringify({ data: { attributes } }) } : {}),
-  });
-
-  const payload = await response.json().catch(() => null);
-
-  if (!response.ok) {
-    const detail = payload?.errors?.[0];
-    // A 401 means OUR credentials are wrong — that is a 500 on our side, not a
-    // bad gateway; anything else upstream is a 502.
-    throw new ApiError(
-      response.status === 401 ? 500 : 502,
-      `PayMongo: ${detail?.detail ?? detail?.code ?? `request failed (${response.status})`}`,
-      { provider_status: response.status, code: detail?.code },
-    );
+const assertPayable = (order) => {
+  if (SETTLED.includes(order.payment_status)) {
+    throw ApiError.conflict(`Order payment is already ${order.payment_status}`);
   }
-
-  return payload.data;
-};
-
-/**
- * Cancels any GCash attempt still open for an order, so a new attempt (or a
- * cash payment, or a void) cannot also be paid by the old one. If PayMongo says
- * the old attempt is actually going through, nothing is replaced: the caller
- * gets a 409 instead of a customer who has paid twice.
- */
-export const cancelPendingGcash = async (orderId) => {
-  const { data: pending, error } = await supabaseAdmin
-    .from('payments')
-    .select('id, intent_id')
-    .eq('order_id', orderId)
-    .eq('provider', 'paymongo')
-    .eq('status', 'processing');
-  if (error) throw fromPostgrestError(error);
-
-  for (const attempt of pending) {
-    if (attempt.intent_id) {
-      try {
-        await paymongo(`/payment_intents/${attempt.intent_id}/cancel`);
-      } catch {
-        // Could not cancel. Find out why before deciding it is safe to move on.
-        const intent = await paymongo(`/payment_intents/${attempt.intent_id}`, { method: 'GET' }).catch(
-          () => null,
-        );
-        const state = intent?.attributes?.status;
-        if (state === 'succeeded' || state === 'processing') {
-          throw ApiError.conflict(
-            'A GCash payment for this order is still going through. Wait a moment, then check the order again.',
-          );
-        }
-      }
-    }
-    await supabaseAdmin
-      .from('payments')
-      .update({
-        status: 'failed',
-        failure_reason: 'Replaced by a newer payment',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', attempt.id);
-  }
-};
-
-/**
- * Starts a GCash charge for an order and returns the URL the customer must be
- * sent to. Safe to call again for a retry: a fresh intent is created and
- * recorded as another attempt.
- */
-export const startGcashPayment = async (orderId, { returnUrl } = {}) => {
-  assertEnabled();
-
-  const order = await fetchOrder(orderId);
-  if (!order) throw ApiError.notFound('Order not found');
-  if (order.payment_status === 'paid') throw ApiError.conflict('Order is already paid');
   if (['voided', 'cancelled'].includes(order.status)) {
     throw ApiError.conflict(`Cannot take payment on a ${order.status} order`);
   }
-
-  // A retry replaces the earlier attempt rather than leaving two live charges.
-  if (order.payment_status === 'processing') await cancelPendingGcash(order.id);
-
-  const amountCentavos = toCentavos(order.total_amount);
-  // PayMongo rejects anything under PHP 20.00.
-  if (amountCentavos < 2000) {
-    throw ApiError.badRequest('GCash requires a minimum of PHP 20.00; please pay in cash');
-  }
-
-  const intent = await paymongo('/payment_intents', {
-    attributes: {
-      amount: amountCentavos,
-      currency: 'PHP',
-      payment_method_allowed: ['gcash'],
-      description: `Order ${order.order_number}`,
-      metadata: { order_id: order.id, order_number: order.order_number },
-    },
-  });
-
-  const method = await paymongo('/payment_methods', {
-    attributes: {
-      type: 'gcash',
-      billing: order.customer_name ? { name: order.customer_name } : undefined,
-    },
-  });
-
-  const attached = await paymongo(`/payment_intents/${intent.id}/attach`, {
-    attributes: {
-      payment_method: method.id,
-      return_url: returnUrl ?? `${env.PUBLIC_APP_URL}/payment-result?order=${order.id}`,
-    },
-  });
-
-  const checkoutUrl = attached.attributes?.next_action?.redirect?.url ?? null;
-  if (!checkoutUrl) {
-    throw new ApiError(502, 'PayMongo did not return a GCash redirect URL');
-  }
-
-  const { error } = await supabaseAdmin.from('payments').insert({
-    order_id: order.id,
-    provider: 'paymongo',
-    intent_id: intent.id,
-    amount_centavos: amountCentavos,
-    status: 'processing',
-    raw: { client_key: attached.attributes?.client_key },
-  });
-  if (error) throw fromPostgrestError(error);
-
-  const { error: orderError } = await supabaseAdmin
-    .from('orders')
-    .update({
-      payment_status: 'processing',
-      payment_method: 'gcash',
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', order.id);
-  if (orderError) throw fromPostgrestError(orderError);
-
-  return { intent_id: intent.id, checkout_url: checkoutUrl, amount: order.total_amount };
 };
 
-/**
- * Refunds a paid GCash order. PayMongo settles refunds asynchronously, so this
- * returns with the order in `refund_pending`; the refund.updated webhook moves
- * it to `refunded` or `refund_failed`.
- */
-export const refundOrder = async (orderId, reason = 'others') => {
-  assertEnabled();
+/** Moves an order from one payment_status to the next, or 409s if it moved first. */
+const claimOrder = async (orderId, fromStatus, changes) => {
+  const { data, error } = await supabaseAdmin
+    .from('orders')
+    .update({ ...changes, updated_at: now() })
+    .eq('id', orderId)
+    .eq('payment_status', fromStatus)
+    .select('id')
+    .maybeSingle();
 
-  const { data: payment, error } = await supabaseAdmin
+  if (error) throw fromPostgrestError(error);
+  if (!data) throw ApiError.conflict('This order was just paid or changed; check it and retry');
+};
+
+const restoreOrder = (orderId, paymentStatus) =>
+  supabaseAdmin.from('orders').update({ payment_status: paymentStatus, updated_at: now() }).eq('id', orderId);
+
+// ---------------------------------------------------------------------------
+// Reads
+// ---------------------------------------------------------------------------
+
+/** The latest GCash submission for an order, with a temporary link to its receipt. */
+export const latestGcashPayment = async (orderId) => {
+  const { data, error } = await supabaseAdmin
     .from('payments')
-    .select('*')
+    .select('id, status, reference_number, receipt_path, failure_reason, created_at, verified_at')
     .eq('order_id', orderId)
-    // A refund that failed leaves its payment in refund_failed; that is the one to retry.
-    .in('status', ['paid', 'refund_failed'])
-    .not('payment_id', 'is', null)
+    .eq('provider', 'gcash')
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
 
   if (error) throw fromPostgrestError(error);
-  if (!payment) throw ApiError.conflict('No settled PayMongo payment found for this order');
+  if (!data) return null;
 
-  await supabaseAdmin
-    .from('orders')
-    .update({ payment_status: 'refund_pending', updated_at: new Date().toISOString() })
-    .eq('id', orderId);
+  const { receipt_path: path, ...payment } = data;
+  const urls = await signedUrls(RECEIPT_BUCKET, [path], RECEIPT_LINK_SECONDS);
+  return { ...payment, receipt_url: path ? (urls.get(path) ?? null) : null };
+};
 
-  try {
-    const refund = await paymongo('/refunds', {
-      attributes: {
-        amount: payment.amount_centavos,
-        payment_id: payment.payment_id,
-        reason,
-      },
-    });
+/** Adds `gcash_payment` (the latest submission, or null) to an order. */
+export const withGcashPayment = async (order) => ({
+  ...order,
+  gcash_payment: order.payment_method === 'gcash' ? await latestGcashPayment(order.id) : null,
+});
 
-    await supabaseAdmin
-      .from('payments')
-      .update({
-        refund_id: refund.id,
-        status: 'refund_pending',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', payment.id);
+// ---------------------------------------------------------------------------
+// Online: the customer proves they paid
+// ---------------------------------------------------------------------------
 
-    return refund;
-  } catch (err) {
-    // Surface the failure rather than leaving the order stuck in
-    // refund_pending forever; an admin retries from /admin/orders/:id/refund.
-    await supabaseAdmin
-      .from('orders')
-      .update({ payment_status: 'refund_failed', updated_at: new Date().toISOString() })
-      .eq('id', orderId);
-    await supabaseAdmin
-      .from('payments')
-      .update({
-        status: 'refund_failed',
-        failure_reason: err.message,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', payment.id);
-
-    throw err;
+const assertAwaitingProof = (order) => {
+  if (order.payment_method !== 'gcash') throw ApiError.conflict('This order is not paid by GCash');
+  if (order.payment_status === 'processing') {
+    throw ApiError.conflict('Your payment is already waiting to be verified');
   }
+  assertPayable(order);
+};
+
+/** Stores a receipt screenshot for an order and returns its path, to send with the submission. */
+export const uploadGcashReceipt = async (orderId, body) => {
+  assertGcashEnabled();
+  assertAwaitingProof(await getOrderOrFail(orderId));
+
+  const { data: existing } = await supabaseAdmin.storage
+    .from(RECEIPT_BUCKET)
+    .list(orderId, { limit: MAX_RECEIPTS_PER_ORDER });
+  if ((existing?.length ?? 0) >= MAX_RECEIPTS_PER_ORDER) {
+    throw ApiError.conflict('Too many receipts uploaded for this order');
+  }
+
+  return uploadPrivateImage(RECEIPT_BUCKET, orderId, body);
+};
+
+/** Records a reference number and/or receipt and puts the order up for staff verification. */
+export const submitGcashProof = async (orderId, { referenceNumber = null, receiptPath = null }) => {
+  assertGcashEnabled();
+  const order = await getOrderOrFail(orderId);
+  assertAwaitingProof(order);
+
+  // The path came back from our own upload, but the client carried it: make sure
+  // it points at this order's receipts and not someone else's.
+  if (receiptPath && !receiptPath.startsWith(`${orderId}/`)) {
+    throw ApiError.badRequest('That receipt does not belong to this order');
+  }
+
+  await claimOrder(orderId, order.payment_status, { payment_status: 'processing' });
+
+  const { error } = await supabaseAdmin.from('payments').insert({
+    order_id: orderId,
+    provider: 'gcash',
+    amount_centavos: toCentavos(order.total_amount),
+    status: 'processing',
+    reference_number: referenceNumber,
+    receipt_path: receiptPath,
+  });
+  if (error) {
+    await restoreOrder(orderId, order.payment_status);
+    throw fromPostgrestError(error);
+  }
+
+  return withGcashPayment(await fetchOrder(orderId));
+};
+
+// ---------------------------------------------------------------------------
+// Staff
+// ---------------------------------------------------------------------------
+
+/** Approve (paid) or reject (failed, with a reason the customer sees) a submission. */
+export const verifyGcash = async (orderId, { approve, reason = null, verifiedBy }) => {
+  const order = await getOrderOrFail(orderId);
+  if (order.payment_status !== 'processing') {
+    throw ApiError.conflict('No GCash payment is waiting for verification on this order');
+  }
+
+  const next = approve ? 'paid' : 'failed';
+  await claimOrder(orderId, 'processing', { payment_status: next });
+
+  const { error } = await supabaseAdmin
+    .from('payments')
+    .update({
+      status: next,
+      failure_reason: approve ? null : reason,
+      verified_by: verifiedBy,
+      verified_at: now(),
+      updated_at: now(),
+    })
+    .eq('order_id', orderId)
+    .eq('provider', 'gcash')
+    .eq('status', 'processing');
+  if (error) {
+    await restoreOrder(orderId, 'processing');
+    throw fromPostgrestError(error);
+  }
+
+  return withGcashPayment(await fetchOrder(orderId));
 };
 
 /**
- * Verifies a PayMongo webhook signature.
- *
- * The header is `t=<unix ts>,te=<test sig>,li=<live sig>`; the signed payload
- * is `${t}.${rawBody}`, which is why the webhook route must receive the raw
- * bytes rather than a re-serialised JSON object.
+ * Marks any submission still waiting on staff as failed. Used when the order is
+ * settled another way (cash, or GCash shown at the counter), so the old
+ * submission cannot be approved on top of it.
  */
-export const verifyWebhookSignature = (rawBody, signatureHeader, { toleranceSeconds = 300 } = {}) => {
-  if (!env.PAYMONGO_WEBHOOK_SECRET) {
-    throw new ApiError(503, 'PAYMONGO_WEBHOOK_SECRET is not configured');
-  }
-  if (!signatureHeader) throw ApiError.unauthorized('Missing PayMongo signature');
-
-  const parts = Object.fromEntries(
-    signatureHeader.split(',').map((part) => part.split('=').map((s) => s.trim())),
-  );
-
-  const timestamp = parts.t;
-  const presented = parts.li || parts.te;
-  if (!timestamp || !presented) throw ApiError.unauthorized('Malformed PayMongo signature');
-
-  const age = Math.abs(Date.now() / 1000 - Number(timestamp));
-  if (!Number.isFinite(age) || age > toleranceSeconds) {
-    throw ApiError.unauthorized('PayMongo signature timestamp is outside the allowed window');
-  }
-
-  const expected = createHmac('sha256', env.PAYMONGO_WEBHOOK_SECRET)
-    .update(`${timestamp}.${rawBody}`, 'utf8')
-    .digest('hex');
-
-  const a = Buffer.from(expected, 'hex');
-  const b = Buffer.from(presented, 'hex');
-  if (a.length !== b.length || !timingSafeEqual(a, b)) {
-    throw ApiError.unauthorized('PayMongo signature does not match');
-  }
-
-  return true;
-};
-
-/** Locates the order a webhook resource belongs to. */
-const resolveOrderId = async (resource) => {
-  const intentId = resource?.attributes?.payment_intent_id;
-  const paymentId = resource?.id;
-  const metadataOrderId = resource?.attributes?.metadata?.order_id;
-
-  if (metadataOrderId) return metadataOrderId;
-
-  for (const [column, value] of [
-    ['intent_id', intentId],
-    ['payment_id', paymentId],
-    ['refund_id', paymentId],
-  ]) {
-    if (!value) continue;
-    const { data } = await supabaseAdmin
-      .from('payments')
-      .select('order_id')
-      .eq(column, value)
-      .maybeSingle();
-    if (data) return data.order_id;
-  }
-
-  return null;
+export const supersedePendingGcash = async (orderId, reason) => {
+  const { error } = await supabaseAdmin
+    .from('payments')
+    .update({ status: 'failed', failure_reason: reason, updated_at: now() })
+    .eq('order_id', orderId)
+    .eq('provider', 'gcash')
+    .eq('status', 'processing');
+  if (error) throw fromPostgrestError(error);
 };
 
 /**
- * Applies one webhook event. Returns a short description of what it did, for
- * the log. Unknown event types are ignored rather than treated as errors —
- * PayMongo may send types we have not opted into.
+ * The customer showed their GCash receipt at the counter (a walk-in, or a kiosk
+ * order paid on the customer's phone). The cashier is the verifier here.
  */
-export const applyWebhookEvent = async (eventType, resource) => {
-  const orderId = await resolveOrderId(resource);
-  if (!orderId) return `ignored (${eventType}: no matching order)`;
+export const settleGcashAtCounter = async (orderId, { referenceNumber, collectedBy }) => {
+  assertGcashEnabled();
+  const order = await getOrderOrFail(orderId);
+  assertPayable(order);
 
-  const now = new Date().toISOString();
+  await claimOrder(orderId, order.payment_status, { payment_status: 'paid', payment_method: 'gcash' });
+  await supersedePendingGcash(orderId, 'Replaced by a payment at the counter');
 
-  if (eventType === 'payment.paid') {
-    const intentId = resource.attributes?.payment_intent_id;
-
-    await supabaseAdmin
-      .from('payments')
-      .update({ payment_id: resource.id, status: 'paid', raw: resource, updated_at: now })
-      .eq('order_id', orderId)
-      .eq(intentId ? 'intent_id' : 'order_id', intentId ?? orderId);
-
-    const order = await fetchOrder(orderId);
-    // Money arrived for an order that was voided or cancelled while the customer
-    // was still in GCash: record it, then hand it straight back.
-    const dead = ['voided', 'cancelled'].includes(order?.status);
-
+  const { error } = await supabaseAdmin.from('payments').insert({
+    order_id: orderId,
+    provider: 'gcash',
+    amount_centavos: toCentavos(order.total_amount),
+    status: 'paid',
+    reference_number: referenceNumber,
+    verified_by: collectedBy,
+    verified_at: now(),
+    raw: { collected_by: collectedBy },
+  });
+  if (error) {
+    // Do not leave an order marked paid with no payment behind it.
     await supabaseAdmin
       .from('orders')
+      .update({ payment_status: order.payment_status, payment_method: order.payment_method, updated_at: now() })
+      .eq('id', orderId);
+    throw fromPostgrestError(error);
+  }
+
+  return withGcashPayment(await fetchOrder(orderId));
+};
+
+// ---------------------------------------------------------------------------
+// Refunds (sent by hand)
+// ---------------------------------------------------------------------------
+
+/** A paid GCash order is being voided: the customer is owed their money back. */
+export const markRefundPending = async (orderId) => {
+  await claimOrder(orderId, 'paid', { payment_status: 'refund_pending' });
+
+  const { error } = await supabaseAdmin
+    .from('payments')
+    .update({ status: 'refund_pending', updated_at: now() })
+    .eq('order_id', orderId)
+    .eq('provider', 'gcash')
+    .eq('status', 'paid');
+  if (error) {
+    await restoreOrder(orderId, 'paid');
+    throw fromPostgrestError(error);
+  }
+};
+
+/** Staff have sent the money back from the GCash account. */
+export const markRefunded = async (orderId, { refundedBy }) => {
+  const order = await getOrderOrFail(orderId);
+  if (order.payment_status !== 'refund_pending') {
+    throw ApiError.conflict('No refund is pending for this order');
+  }
+
+  await claimOrder(orderId, 'refund_pending', { payment_status: 'refunded' });
+
+  const { data: rows, error } = await supabaseAdmin
+    .from('payments')
+    .select('id, raw')
+    .eq('order_id', orderId)
+    .eq('status', 'refund_pending');
+  if (error) throw fromPostgrestError(error);
+
+  for (const row of rows) {
+    await supabaseAdmin
+      .from('payments')
       .update({
-        payment_status: 'paid',
-        payment_method: 'gcash',
-        // A kiosk order that has paid for itself needs no cashier: send it
-        // straight to the kitchen, which is the point of the kiosk.
-        ...(!dead && order?.channel === 'kiosk' && order?.status === 'pending'
-          ? { status: 'confirmed' }
-          : {}),
-        updated_at: now,
+        status: 'refunded',
+        raw: { ...(row.raw ?? {}), refunded_by: refundedBy, refunded_at: now() },
+        updated_at: now(),
       })
-      .eq('id', orderId);
-
-    if (dead) {
-      try {
-        await refundOrder(orderId, 'others');
-        return `order ${orderId} was ${order.status}; refund started for the late payment`;
-      } catch (err) {
-        await supabaseAdmin
-          .from('orders')
-          .update({ payment_status: 'refund_failed', updated_at: now })
-          .eq('id', orderId);
-        return `order ${orderId} was ${order.status}; automatic refund failed (${err.message}), needs an admin retry`;
-      }
-    }
-
-    const paidCentavos = resource.attributes?.amount;
-    if (order && paidCentavos != null && paidCentavos !== toCentavos(order.total_amount)) {
-      // The order was edited after the charge started. Keep the evidence visible.
-      console.warn(
-        `[paymongo] order ${orderId}: paid ${paidCentavos} centavos but the total is ${toCentavos(order.total_amount)}`,
-      );
-      return `order ${orderId} marked paid, AMOUNT MISMATCH (paid ${paidCentavos}, total ${toCentavos(order.total_amount)})`;
-    }
-
-    return `order ${orderId} marked paid`;
+      .eq('id', row.id);
   }
 
-  if (eventType === 'payment.failed') {
-    await supabaseAdmin
-      .from('payments')
-      .update({
-        status: 'failed',
-        failure_reason: resource.attributes?.last_payment_error ?? 'Payment failed',
-        raw: resource,
-        updated_at: now,
-      })
-      .eq('order_id', orderId)
-      .eq('status', 'processing');
-
-    await supabaseAdmin
-      .from('orders')
-      .update({ payment_status: 'failed', updated_at: now })
-      .eq('id', orderId);
-
-    return `order ${orderId} payment failed`;
-  }
-
-  if (eventType === 'refund.updated') {
-    const status = resource.attributes?.status;
-    const settled = status === 'succeeded' ? 'refunded' : status === 'failed' ? 'refund_failed' : null;
-    if (!settled) return `refund still pending for order ${orderId}`;
-
-    await supabaseAdmin
-      .from('payments')
-      .update({ status: settled, raw: resource, updated_at: now })
-      .eq('order_id', orderId)
-      .eq('refund_id', resource.id);
-
-    await supabaseAdmin
-      .from('orders')
-      .update({ payment_status: settled, updated_at: now })
-      .eq('id', orderId);
-
-    return `order ${orderId} ${settled}`;
-  }
-
-  return `ignored (${eventType})`;
+  return fetchOrder(orderId);
 };

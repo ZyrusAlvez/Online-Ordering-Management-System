@@ -38,9 +38,9 @@ How to use each is in [user-guide.md](./user-guide.md).
 
 | Channel | Who places it | Fulfilment | Payment |
 | --- | --- | --- | --- |
-| **Kiosk** (`kiosk`) | The customer, at a terminal in the restaurant | Dine in, take out | Cash at the counter, or GCash on the spot (then it goes straight to the kitchen) |
+| **Kiosk** (`kiosk`) | The customer, at a terminal in the restaurant | Dine in, take out | Cash at the counter, or GCash by scanning the QR on screen (then the receipt is shown to the cashier) |
 | **Counter** (`pos`) | The cashier, for a walk-in | Dine in, take out | Cash or GCash at the counter |
-| **Online** (`online`) | A logged-in customer on the website, from the branch they choose | Delivery or pickup, as soon as possible or scheduled | Cash on delivery / at pickup, or GCash before the kitchen starts |
+| **Online** (`online`) | A logged-in customer on the website, from the branch they choose | Delivery or pickup, as soon as possible or scheduled | Cash on delivery / at pickup, or GCash (reference number or receipt, verified by staff) |
 
 Every order belongs to one branch: the kiosk's, the cashier's, or the one the online customer picked.
 
@@ -58,12 +58,11 @@ Every order belongs to one branch: the kiosk's, the cashier's, or the one the on
    │  Express API      │────────▶│  Supabase                        │
    │  validation,      │ secret  │  Postgres (data, RLS, SQL fns)   │
    │  roles, pricing,  │  key    │  Auth (logins, Google)           │
-   │  payments, chat   │         │  Storage (menu + chat images)    │
-   └───┬───────────┬───┘         │  Realtime (postgres_changes,     │
-       │           │             │            broadcast)            │
-       ▼           ▼             └──────────────────────────────────┘
-   PayMongo    CARTO map tiles, OpenStreetMap address lookup (from the browser)
-   (GCash)
+   │  payments, chat   │         │  Storage (menu, chat, receipts)  │
+   └───────────────────┘         │  Realtime (postgres_changes,     │
+                                 │            broadcast)            │
+                                 └──────────────────────────────────┘
+   The browser also loads CARTO map tiles and OpenStreetMap address lookup directly.
 ```
 
 Two rules shape everything:
@@ -82,7 +81,7 @@ More in [architecture.md](./architecture.md) and [security.md](./security.md).
 | Frontend | React 18, Vite, Tailwind CSS v4, React Router, Leaflet (map), supabase-js (live updates and Google sign-in only) |
 | Backend | Node ≥ 20, Express 4 (ES modules), zod (validation), helmet, cors, express-rate-limit |
 | Database and platform | Supabase: Postgres, Row Level Security, Auth, Storage, Realtime |
-| Payments | PayMongo (GCash), via payment intents and signed webhooks |
+| Payments | Cash, and manual GCash into the restaurant's own account (staff verify the reference number / receipt) |
 | Maps | Leaflet with CARTO light tiles (OpenStreetMap data) and Nominatim address search (no API key) |
 | Tests | Node's built-in test runner against the real database |
 
@@ -114,11 +113,6 @@ cash and counter payments, the full order lifecycle, rider delivery with cash on
 photos, profiles, Google sign-in, per-product photos, delivery map pins, the sales dashboard, validation and
 security hardening, multiple branches with branch-scoped admins, the branch map, nearest-branch ordering, per-branch
 sold out and scheduled orders.
-
-**Built but not yet proven against the live service:**
-
-- **GCash.** The whole flow is implemented and tested against a fake PayMongo server, but no real PayMongo account
-  has been connected. See [deployment.md](./deployment.md#gcash-paymongo).
 
 **Known gaps** are listed in [data-dictionary.md](./data-dictionary.md#known-gaps) and
 [security.md](./security.md#known-gaps-and-accepted-risks).

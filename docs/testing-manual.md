@@ -338,39 +338,55 @@ curl -s -o /dev/null -w '%{http_code}\n' localhost:4000/api/v1/orders
 
 ---
 
-## 7. Test GCash without a PayMongo account
+## 7. Test manual GCash
 
-The webhook half is fully testable offline — start the server with a known
-signing secret and sign your own payloads:
-
-```bash
-PAYMONGO_WEBHOOK_SECRET=whsk_testsecret123 node --env-file=.env src/server.js
-```
-
-In another shell:
+GCash needs no outside account: the customer pays the restaurant's own GCash and
+staff verify it. Check the account the site shows:
 
 ```bash
-node --env-file=.env scripts/dev/check-webhook.mjs
+curl -s localhost:4000/api/v1/site/gcash
+# → { "data": { "name": "Ruchell Quesada", "number": "0907 131 2306", "qr_image": "/brand/gcash-qr.svg" } }
 ```
 
-It seeds a kiosk order in `processing`, then asserts that a wrong secret, a
-tampered body, a stale timestamp and a missing signature are each rejected;
-that a valid `payment.paid` marks the order paid **and auto-confirms a kiosk
-order to the kitchen**; that a repeat delivery of the same event is skipped;
-and that `payment.failed` does not confirm anything.
-
-The outbound half (creating payment intents) needs real credentials. Without
-`PAYMONGO_SECRET_KEY`, GCash endpoints return a clear `503`:
+Place an online order as in step 5, but with `"payment_method": "gcash"`, then
+send the proof as the customer (a receipt upload is optional):
 
 ```bash
-curl -s -X POST "localhost:4000/api/v1/pos/orders/$ORDER/payment/gcash" -H "Authorization: Bearer $CASHIER"
-# → 503 "GCash payments are not configured (PAYMONGO_SECRET_KEY is unset)"
+curl -s -X POST "localhost:4000/api/v1/orders/$ORDER/payment/receipt" \
+  -H "Authorization: Bearer $CUSTOMER" -H 'Content-Type: image/png' --data-binary @receipt.png
+# → { "data": { "receipt_path": "<order id>/<uuid>.png" } }
+
+curl -s -X POST "localhost:4000/api/v1/orders/$ORDER/payment" \
+  -H "Authorization: Bearer $CUSTOMER" -H 'Content-Type: application/json' \
+  -d '{"reference_number":"1012 345 678901"}'
+# → payment_status "processing" (awaiting verification), gcash_payment.status "processing"
 ```
 
-When you do have keys, register your webhook with PayMongo pointing at
-`POST https://<your-host>/api/v1/webhooks/paymongo` and subscribe to
-`payment.paid`, `payment.failed` and `refund.updated`. Locally, expose the port
-with a tunnel (ngrok or similar) — PayMongo cannot reach `localhost`.
+Then verify it as the cashier: approve, or reject with a reason the customer
+sees on their order (they can then send it again):
+
+```bash
+curl -s -X POST "localhost:4000/api/v1/pos/orders/$ORDER/payment/gcash/verify" \
+  -H "Authorization: Bearer $CASHIER" -H 'Content-Type: application/json' -d '{"approve":true}'
+# → payment_status "paid"
+```
+
+At the counter (a walk-in, or a kiosk GCash order), the cashier records the
+reference number off the customer's receipt:
+
+```bash
+curl -s -X POST "localhost:4000/api/v1/pos/orders/$ORDER/payment/gcash" \
+  -H "Authorization: Bearer $CASHIER" -H 'Content-Type: application/json' \
+  -d '{"reference_number":"1012345678901"}'
+```
+
+Voiding a paid GCash order leaves it `refund_pending`; once the money has been
+sent back, an admin closes it:
+
+```bash
+curl -s -X POST "localhost:4000/api/v1/admin/orders/$ORDER/refund" -H "Authorization: Bearer $ADMIN"
+# → payment_status "refunded"
+```
 
 ---
 
@@ -386,14 +402,11 @@ npm test
 See **[testing.md](./testing.md)** for the layout, what is
 covered, and how to add a test.
 
-Three standalone diagnostic scripts also remain, useful on their own:
+Two standalone diagnostic scripts also remain, useful on their own:
 
 ```bash
 # every role sees exactly its permitted slice (this also proves Realtime scoping)
 node --env-file=.env scripts/dev/check-rls.mjs
-
-# webhook signatures, replay rejection, idempotency (server needs the test secret)
-node --env-file=.env scripts/dev/check-webhook.mjs
 
 # both business flows end to end
 node scripts/dev/e2e.mjs                            # needs `npm run dev` running
@@ -413,7 +426,6 @@ Wipe transactional data but keep the menu and accounts:
 ```sql
 delete from public.orders;          -- order_items cascade
 delete from public.order_counters;  -- order numbers restart at 0001
-delete from public.webhook_events;
 ```
 
 Rebuild the menu from source:
@@ -437,5 +449,4 @@ then run `supabase/seed.sql`. It is idempotent, so re-running never duplicates.
 | `"Email address … is invalid"` | Supabase rejects reserved domains such as `example.com`. |
 | `403` with a valid token | Wrong role. Decode the JWT payload and check `app_metadata.role`. |
 | `409 Price not yet set` | The product or variant has a null price (e.g. Softdrinks). Set one. |
-| `401` on the webhook | Signing secret mismatch, or the body was re-serialised. The route must stay mounted **before** `express.json()`. |
 | Realtime delivers nothing | The client must carry the user's access token; row-level security returns nothing to an anonymous socket. |

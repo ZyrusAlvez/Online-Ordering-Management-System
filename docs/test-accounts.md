@@ -18,29 +18,46 @@ If a login stops working, re-seed (safe to repeat, it resets the passwords below
 cd backend
 SEED_ADMIN_PASSWORD=admin-3k-2026 SEED_CASHIER_PASSWORD=cashier123 SEED_KIOSK_PASSWORD=kiosk123 \
   node --env-file=.env scripts/seed-accounts.mjs          # super admin, GMA cashier, GMA kiosk
-node --env-file=.env scripts/dev/seed-test-users.mjs      # customers, riders, Imus admin and cashier
+node --env-file=.env scripts/dev/seed-test-users.mjs      # customers, riders, every branch's admin/cashier/kiosk, area admin
 ```
 
 ## Accounts
 
+### Branch staff (every branch)
+
+Cashier and kiosk are shared gate passwords **per branch**: open `/cashier` or `/kiosk`, pick the branch, type
+the password. Branch admins sign in at `/login` with their email and land on `/admin`, seeing their branch only.
+
+| Branch | Admin (`/login`, password `testpass12345`) | Cashier gate (`/cashier`) | Kiosk gate (`/kiosk`) |
+| --- | --- | --- | --- |
+| **GMA Terminal** | `admin.gma@3k.local` | `cashier123` | `kiosk123` |
+| **Dasma Bayan** | `admin.dasma@3k.local` | `cashier-dasma` | `kiosk-dasma` |
+| **Langkaan** | `admin.langkaan@3k.local` | `cashier-langkaan` | `kiosk-langkaan` |
+| **Gen-Tri** | `admin.gentri@3k.local` | `cashier-gentri` | `kiosk-gentri` |
+| **Trece** | `admin.trece@3k.local` | `cashier-trece` | `kiosk-trece` |
+| **Silang** | `admin.silang@3k.local` | `cashier-silang` | `kiosk-silang` |
+| **Imus** | `admin.imus@3k.local` | `testpass12345` | `kiosk-imus` |
+
+Behind each cashier gate is a shared account: `cashier@3k.local` for GMA Terminal and `cashier.<code>@3k.local`
+for the others (e.g. `cashier.dasma@3k.local`); the gate password is that account's password, so a cashier can also
+sign in at `/login` with it. The kiosk password only unlocks the browser once: each unlock creates a device under
+Admin → Kiosks, which an admin can revoke.
+
+### Everyone else
+
 | Role | Email | Password | Where to sign in | Access |
 | --- | --- | --- | --- | --- |
 | **Super admin** | `admin@3k.local` | `admin-3k-2026` | `/login` → lands on `/admin` (Sales) | Every branch: sales (with sales by branch), all orders and refunds, the shared menu and product photos, riders, kiosk devices, employee passwords of every branch, **Branches** (add/edit), **Admins** (create branch admins), site images (the logo). |
-| **Branch admin (Imus)** | `admin.imus@3k.local` | `testpass12345` | `/login` → `/admin` | Imus only: its sales, orders, riders, kiosks, employee passwords and sold-out dishes. Sees nothing of the other branches, and no Branches, Admins or Site images pages. |
-| **Cashier (GMA Terminal)** | *(none, password only)* | `cashier123` | `/cashier` → Branch **GMA Terminal** + password | Point of sale for GMA Terminal: order queue (scheduled orders highlighted), walk-in orders, confirm and advance orders, take cash or GCash, void (GCash orders are refunded), edit items, **Messages** inbox for GMA's website chats. Cannot open `/admin` or `/driver`. |
-| **Cashier (Imus)** | `cashier.imus@3k.local` | `testpass12345` | `/login`, or `/cashier` → Branch **Imus** + `testpass12345` | The same for Imus. Use it beside the GMA cashier to see that each register only shows its own branch. |
-| **Kiosk (GMA Terminal)** | *(none, password only)* | `kiosk123` | `/kiosk` → Branch **GMA Terminal** + password (once per browser) | Self-order terminal for GMA Terminal: place dine-in and take-out orders paying cash or GCash. Each unlock creates a device under Admin → Kiosks, which an admin can revoke. Other branches have no kiosk password until an admin sets one. |
+| **Area admin** (several branches) | `admin.area@3k.local` | `testpass12345` | `/login` → `/admin` | **Dasma Bayan, Langkaan and Gen-Tri**: the branch switcher offers those three (and all three together); sales by branch across them; their orders, riders, kiosks, employee passwords and sold-out dishes. Nothing of the other branches, and no Branches, Admins or Site images pages. |
+| **Branch admin** | `admin.<code>@3k.local` (table above) | `testpass12345` | `/login` → `/admin` | One branch only, otherwise the same as the area admin. Asking the API for another branch (`?branch_id=`) is a 403. |
+| **Cashier** | *(gate)* | table above | `/cashier` → branch + password | Point of sale for that branch: order queue (scheduled orders highlighted), walk-in orders, confirm and advance orders, take cash, take GCash (check the receipt, type its reference no.), approve or reject a customer's GCash payment, void, edit items, **Messages** inbox for the branch's website chats. Cannot open `/admin` or `/driver`. |
+| **Kiosk** | *(gate)* | table above | `/kiosk` → branch + password (once per browser) | Self-order terminal: dine-in and take-out orders, paying cash at the counter or GCash by scanning the QR and showing the receipt to the cashier. |
 | **Rider (GMA Terminal)** | `rider1@3k.local` | `testpass12345` | `/login` → lands on `/driver` | GMA Terminal's delivery pool, claim and release orders, mark delivered (with cash collected), chat with the customer on a claimed order. |
-| **Rider (Imus)** | `rider.imus@3k.local` | `testpass12345` | `/login` → `/driver` | Imus's delivery pool only. |
-| **Customer** | `customer@3k.local` | `testpass12345` | `/login` → lands on `/menu` | Order for pickup or delivery, pay cash or GCash, track and cancel own orders, profile, chat with the rider. |
+| **Rider (Imus)** | `rider.imus@3k.local` | `testpass12345` | `/login` → `/driver` | Imus's delivery pool only. Other branches have no rider yet: create one in Admin → Riders. |
+| **Customer** | `customer@3k.local` | `testpass12345` | `/login` → lands on `/menu` | Order for pickup or delivery, pay cash or GCash (send the reference no. or receipt), track and cancel own orders, profile, chat with the rider. |
 | **Customer 2** | `customer2@3k.local` | `testpass12345` | `/login` | Same as Customer. Use it to check that one customer can never see another's orders or chat. |
 | **Google customer** | your own Google account | *(none, Google sign-in)* | `/login` → *Continue with Google* | A customer, with no password to change. Needs the Google provider enabled in Supabase; while the Google app is in "Testing", only addresses listed as test users can sign in. |
 | **Visitor** | *(no account)* | *(none)* | `/` | Browse the menu, add to cart, chat with the cashier. Asked to log in at checkout. |
-
-Cashier and kiosk are shared gate passwords **per branch** rather than personal accounts, so the
-login screens ask for the branch and a single password. (Behind the scenes GMA Terminal's cashier
-password is the password of `cashier@3k.local`; another branch's register login is
-`cashier.<code>@3k.local`, created the first time an admin sets that branch's cashier password.)
 
 The seven branches (GMA Terminal, Dasma Bayan, Langkaan, Gen-Tri, Trece, Silang, Imus) come from the
 database migration, open 08:00–21:00 Manila time. Outside those hours online orders can only be
@@ -69,7 +86,10 @@ scheduled.
 4. **Profile** (avatar menu): edit name, phone, saved address, change password. The saved
    address and phone prefill the next checkout.
 5. Cancel a pending, unpaid order.
-6. While a rider holds a delivery order, a **Chat with your rider** card appears on the order page.
+6. Place a **GCash** order: the order page shows the QR, name and number. Type any reference number (e.g.
+   `1012 345 678901`) and/or attach a screenshot, press **I've paid**: it shows **Awaiting verification** until a
+   cashier approves it (then **Paid**) or rejects it (the reason shows and you can send it again).
+7. While a rider holds a delivery order, a **Chat with your rider** card appears on the order page.
 
 ### Cashier
 1. `/cashier`, Branch **GMA Terminal**, with the password. New online orders for GMA show up in the queue
@@ -78,8 +98,11 @@ scheduled.
    hour), sorts by its time, and the **Scheduled** counter filters to them. Opening it shows when to start
    preparing.
 3. Open an order → **Confirm** → **Start preparing** → **Mark ready** → **Complete**; try **Edit items** and **Void**.
-4. **Walk-in** creates a counter order; take **cash** (change is calculated) or **GCash** (QR).
-5. **Messages**: a visitor's chat to GMA appears with an unread badge; reply from the inbox.
+4. **Walk-in** creates a counter order; take **cash** (change is calculated) or **GCash** (shows the QR; type the
+   reference no. from the customer's receipt, **Mark paid**).
+5. An online GCash order **Awaiting verification**: open it, check the reference no. / receipt, **Approve** or
+   **Reject** with a reason. Voiding a paid GCash order leaves it **Refund pending** for an admin.
+6. **Messages**: a visitor's chat to GMA appears with an unread badge; reply from the inbox.
 
 ### Rider
 1. As Customer, place a **delivery** order at GMA Terminal. As Cashier, confirm it and take it to **ready**.
@@ -90,27 +113,30 @@ scheduled.
 ### Kiosk
 1. `/kiosk` → Branch **GMA Terminal** + password → the start screen shows the branch → **Touch to order** → Dine
    in or Take out → pick dishes → review.
-2. Pay cash (order number shown, pay at the counter) or GCash.
+2. Pay cash (order number shown, pay at the counter) or GCash (the QR is shown next to the order number; at the
+   cashier, settle it with **GCash** and the receipt's reference no.).
 3. Admin → Kiosks lists the device; **revoke** it and the kiosk locks again.
 
 ### Super admin and branch admin
 1. `/login` as the Super admin: you land on **Sales**, with **All branches** in the switcher at the top. Try *Today*, *7 days*, *30 days*, *This month* and *Custom*.
    Cards show sales, orders, average order and items sold; below are sales per day, cash vs GCash, sales by
    channel and best sellers (*View as table* gives the daily numbers as text). To see it fill up, take a few
-   orders through to paid (cash at the counter, or a GCash kiosk order) and press *Refresh*. Voided and
+   orders through to paid (cash or GCash at the counter) and press *Refresh*. Voided and
    cancelled orders never count; voided GCash orders awaiting a refund appear as a note. With several branches
    in view, **By branch** compares them; pick one branch in the switcher to see only it.
-2. **Orders**: filter by status, payment, channel, date; a **Branch** column when viewing all; retry a failed refund.
+2. **Orders**: filter by status, payment, channel, date; a **Branch** column when viewing all; on a voided GCash order, **Mark refunded** once the money is sent back.
 3. **Menu**: add or rename categories; add, edit, switch off everywhere or delete products; upload, replace or
    remove a product photo; edit size/price options. Pick a branch in the switcher to **Mark sold out** at it.
 4. **Branches**: edit a branch's address, pin, hours (try **Open 24 hours**); add a new branch: it appears on the
    landing map. Untick **Open for orders** to take it off the map.
-5. **Admins**: create an admin for two branches, log in as them, and check the switcher offers only those two.
+5. **Admins**: create an admin for two branches, log in as them, and check the switcher offers only those two. Or
+   log in as the **area admin**: Dasma Bayan, Langkaan and Gen-Tri only.
 6. **Riders**: create a rider for a branch, deactivate or reactivate one.
 7. **Kiosks**: issue and revoke devices. **Site images**: replace the logo.
 8. **Employee passwords**: choose a branch, change its cashier and kiosk passwords. Remember to change them
    back here (or re-run the seed command above) so this file stays accurate.
-9. Log in as the **Imus admin**: everything above shows Imus only; asking the API for GMA (`?branch_id=`) is a 403.
+9. Log in as a **branch admin** (e.g. `admin.imus@3k.local`): everything above shows that branch only; asking the
+   API for another branch (`?branch_id=`) is a 403.
 
 ## Test data to use
 
@@ -130,6 +156,8 @@ Use two different browsers, or one normal window plus one private window, so ses
 - **Isolation:** log in as Customer 2 and confirm Customer's orders and chats are not visible.
 - **Branch isolation:** window A on `/cashier` as GMA Terminal, window B on `/cashier` as Imus. Place an online order
   at Imus: only window B shows it.
+- **Area admin:** window A as `admin.area@3k.local`, window B on `/cashier` as Langkaan. An order at Langkaan shows up
+  for both; one at Silang for neither.
 
 ## Limits you may hit while testing
 
@@ -147,4 +175,4 @@ Use two different browsers, or one normal window plus one private window, so ses
 `cd backend && npm test` logs in with these same accounts (read from `backend/.env`:
 `TEST_ADMIN_PASSWORD`, `TEST_CASHIER_PASSWORD`, `TEST_KIOSK_PASSWORD`; the Imus accounts and riders use
 `testpass12345`). If you change a password here, update `.env` too, or run the seed commands so both stay
-in step. The branch tests set a test-only Imus kiosk password (`imus-kiosk-1`).
+in step. The branch tests set Imus's kiosk password to `kiosk-imus`, the same value as above.

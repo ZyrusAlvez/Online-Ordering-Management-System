@@ -8,6 +8,7 @@ import { imageBody } from '../middleware/upload.js';
 import { messageBody } from '../validators/chat.validators.js';
 import {
   createOnlineOrderSchema,
+  gcashProofSchema,
   myOrdersQuery,
 } from '../validators/order.validators.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
@@ -22,7 +23,20 @@ router.get('/', validate({ query: myOrdersQuery }), asyncHandler(orders.listMine
 router.get('/:id', validate({ params: idParam }), asyncHandler(orders.getMine));
 
 router.post('/', validate({ body: createOnlineOrderSchema }), asyncHandler(orders.create));
-router.post('/:id/payment', validate({ params: idParam }), asyncHandler(orders.startPayment));
+
+// Manual GCash: upload a receipt (optional), then submit the proof for staff to verify.
+router.post(
+  '/:id/payment/receipt',
+  validate({ params: idParam }),
+  imageBody,
+  asyncHandler(orders.uploadReceipt),
+);
+router.post(
+  '/:id/payment',
+  validate({ params: idParam, body: gcashProofSchema }),
+  asyncHandler(orders.submitPayment),
+);
+
 router.post('/:id/cancel', validate({ params: idParam }), asyncHandler(orders.cancel));
 
 // Chat with the rider who has the order (open only while it is out for delivery).

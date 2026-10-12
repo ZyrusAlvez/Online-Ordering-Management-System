@@ -4,7 +4,7 @@ Every setting, how the pieces are hosted, how to connect the third-party service
 Local setup is in [getting-started.md](./getting-started.md); the security reasoning is in [security.md](./security.md).
 
 **Contents:** [Shape of a deployment](#shape-of-a-deployment) · [Environment variables](#environment-variables) ·
-[Supabase](#supabase) · [Google sign-in](#google-sign-in) · [GCash (PayMongo)](#gcash-paymongo) ·
+[Supabase](#supabase) · [Google sign-in](#google-sign-in) · [GCash](#gcash) ·
 [Building and hosting](#building-and-hosting) · [Go-live checklist](#go-live-checklist) ·
 [Updating a live system](#updating-a-live-system)
 
@@ -43,11 +43,9 @@ The server validates these at start-up and refuses to run with a clear message i
 | `SUPABASE_SECRET_KEY` | **yes** | | Secret key (`sb_secret_…`). Server only |
 | `SUPABASE_JWKS_URL` | no | | Reserved; currently unused |
 | `DATABASE_URL` | no | | Reserved for direct SQL tooling; currently unused |
-| `PAYMONGO_SECRET_KEY` | for GCash | | `sk_test_…` while testing, `sk_live_…` live |
-| `PAYMONGO_WEBHOOK_SECRET` | for GCash | | Signing secret (`whsk_…`) of the webhook you register |
-| `PAYMONGO_API_URL` | no | `https://api.paymongo.com/v1` | Leave as is |
-| `PUBLIC_APP_URL` | no | `http://localhost:5173` | Your website's address. GCash sends online customers back to `PUBLIC_APP_URL/payment-result` |
-| `KIOSK_RETURN_URL` | no | `http://localhost:5173/kiosk/payment-result` | Where GCash sends kiosk customers back |
+| `GCASH_NAME` | for GCash | | Name on the restaurant's GCash account, shown to customers |
+| `GCASH_NUMBER` | for GCash | | GCash mobile number, shown to customers (e.g. `0907 131 2306`) |
+| `GCASH_QR_IMAGE` | for GCash | | The account's QR: a full URL, or a path on the frontend site such as `/brand/gcash-qr.svg`. With any of the three empty, GCash is hidden |
 | `CASHIER_EMAIL` | no | `cashier@3k.local` | The shared cashier account the cashier password signs in to |
 | `TEST_ADMIN_PASSWORD`, `TEST_CASHIER_PASSWORD`, `TEST_KIOSK_PASSWORD` | tests only | | Written by `seed-accounts`; used by `npm test`. Not needed in production |
 
@@ -92,23 +90,17 @@ Steps are in [getting-started.md](./getting-started.md#optional-google-sign-in).
 `/auth/callback` to Supabase's redirect URLs, add your production domain's Supabase callback to the Google client's
 redirect URIs if it differs, and **publish** the Google app (it starts in *Testing*, limited to listed test users).
 
-## GCash (PayMongo)
+## GCash
 
-Without this, cash works fully and GCash answers "not configured". To enable it:
+GCash is manual: customers pay the restaurant's own GCash account and staff verify each payment, so there is no
+provider account, key or webhook to set up. To enable it:
 
-1. Create a PayMongo account and use **test mode** first (`sk_test_…`).
-2. Put the secret key in `PAYMONGO_SECRET_KEY`.
-3. In PayMongo → Developers → **Webhooks**, register `https://<your-api>/api/v1/webhooks/paymongo` for the events
-   **`payment.paid`**, **`payment.failed`** and **`refund.updated`**. Copy the signing secret into
-   `PAYMONGO_WEBHOOK_SECRET`.
-4. Set `PUBLIC_APP_URL` and `KIOSK_RETURN_URL` to your real addresses.
-5. **Test the whole loop in test mode:** a kiosk GCash order, an online GCash order, a payment that fails, a refund by
-   voiding a paid order, and an abandoned payment retried. The code is tested against a fake PayMongo but has **never been
-   run against the real service**, so this step is not optional.
-6. Only then switch to `sk_live_…` and the live webhook secret.
+1. In the GCash app, open the account's **QR** (Receive → QR) and save the image.
+2. Put it in `frontend/public/brand/` (it ships with the site) or host it anywhere over HTTPS.
+3. Set `GCASH_NAME`, `GCASH_NUMBER` and `GCASH_QR_IMAGE` in `backend/.env` and restart the API.
+4. Scan the QR from the order page with a phone to check it opens **your** account before customers use it.
 
-The webhook endpoint must be reachable from the internet over HTTPS; locally, use a tunnelling tool. GCash needs an
-order of at least ₱20.00 (a PayMongo rule).
+The bundled `/brand/gcash-qr.svg` is a **placeholder** that does not pay anyone; replace it before going live.
 
 ---
 
@@ -156,12 +148,12 @@ origin. Serving both from one domain (the proxy sending `/api` to Node) avoids C
 **Accounts and secrets**
 - [ ] All development passwords changed: admin, cashier, kiosk, sample riders. The `@3k.local` sample customers deleted.
 - [ ] [test-accounts.md](./test-accounts.md) removed or kept out of public view; the GitHub repository is **private**.
-- [ ] `SUPABASE_SECRET_KEY` and the PayMongo keys exist only on the server.
+- [ ] `SUPABASE_SECRET_KEY` exists only on the server.
 - [ ] Real riders created from Admin → Riders with strong temporary passwords.
 
 **Configuration**
 - [ ] `NODE_ENV=production`; `CORS_ORIGIN` is your site; `TRUST_PROXY` matches your hosting.
-- [ ] `PUBLIC_APP_URL` and `KIOSK_RETURN_URL` are your real addresses; `VITE_*` values rebuilt for production.
+- [ ] `VITE_*` values rebuilt for production.
 - [ ] HTTPS everywhere; the static host falls back to `index.html`; security headers and a CSP are set.
 
 **Supabase**
@@ -170,7 +162,8 @@ origin. Serving both from one domain (the proxy sending `/api` to Node) avoids C
 - [ ] Backups on and a restore tried.
 
 **Payments** (if using GCash)
-- [ ] Full test-mode run succeeded (kiosk, online, failure, refund, retry); webhook delivering; then live keys.
+- [ ] The real GCash QR replaces the placeholder, and scanning it opens the restaurant's account.
+- [ ] A test online GCash order was sent, approved and (after a void) marked refunded by staff.
 
 **Content**
 - [ ] Menu prices checked (a dish with no price cannot be ordered); real photos uploaded or placeholders accepted

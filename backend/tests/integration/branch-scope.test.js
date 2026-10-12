@@ -85,9 +85,9 @@ describe('a branch admin sees only their branches', () => {
     }
   });
 
-  it("404s retrying a refund on another branch's order", async () => {
+  it("404s marking a refund on another branch's order", async () => {
     const atGma = await placeWalkInOrder();
-    const res = await post(`/admin/orders/${atGma.id}/refund/retry`, undefined, { token: imusAdmin });
+    const res = await post(`/admin/orders/${atGma.id}/refund`, undefined, { token: imusAdmin });
     assert.equal(res.status, 404);
   });
 
@@ -332,8 +332,8 @@ describe('support chat per branch', () => {
 
 describe('employee gates per branch', () => {
   it('lets a branch admin set their own branch passwords', async () => {
-    // Creates Imus's kiosk gate password if it is not set yet; the value is test-only.
-    const res = await put('/admin/employee-passwords/kiosk', { branch_id: imus, password: 'imus-kiosk-1' }, { token: imusAdmin });
+    // Sets Imus's kiosk gate password to the value in docs/test-accounts.md.
+    const res = await put('/admin/employee-passwords/kiosk', { branch_id: imus, password: 'kiosk-imus' }, { token: imusAdmin });
     assert.equal(res.status, 204);
   });
 });
