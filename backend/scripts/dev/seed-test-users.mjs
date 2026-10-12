@@ -1,6 +1,11 @@
-// Dev-only fixtures used by the test suite: two customers, a rider at GMA
-// Terminal, and an Imus admin, cashier and rider, so row level security and
-// branch isolation can be tested with more than one principal per role.
+// Dev-only fixtures: two customers, riders at GMA Terminal and Imus, and for
+// EVERY branch an admin, a cashier login and a kiosk password, plus one area
+// admin over several branches. The test suite relies on the customers, riders
+// and the Imus accounts; the rest are for trying the app by hand. The full list
+// is in docs/test-accounts.md.
+//
+// GMA Terminal's cashier and kiosk passwords are not set here: they belong to
+// scripts/seed-accounts.mjs, which also writes them to .env for `npm test`.
 //
 //   node --env-file=.env scripts/dev/seed-test-users.mjs
 //
@@ -8,6 +13,7 @@
 // values below, so a re-seed is always a reliable fix for a failing login.
 import { supabaseAdmin } from '../../src/config/supabase.js';
 import { setStaffBranches } from '../../src/services/branch.service.js';
+import { setCashierPassword, setKioskPassword } from '../../src/services/employee.service.js';
 import { createStaffUser, setUserRole } from '../../src/services/profile.service.js';
 
 export const TEST_USER_PASSWORD = 'testpass12345';
@@ -44,16 +50,48 @@ const branchId = async (code) => {
   return data.id;
 };
 
-const ensureStaff = async ({ email, role, fullName, phone, branch }) => {
+const ensureStaff = async ({ email, role, fullName, phone, branch, branches = [branch] }) => {
   const profile = await createStaffUser({ email, password: TEST_USER_PASSWORD, role, fullName, phone });
   await supabaseAdmin.auth.admin.updateUserById(profile.id, { password: TEST_USER_PASSWORD });
-  await setStaffBranches(profile.id, [await branchId(branch)]);
-  console.log(`✓ ${role.padEnd(8)} ${email.padEnd(22)} branch=${branch}`);
+  await setStaffBranches(profile.id, await Promise.all(branches.map(branchId)));
+  console.log(`✓ ${role.padEnd(8)} ${email.padEnd(26)} branch=${branches.join(',')}`);
 };
 
 await ensureStaff({ email: 'rider1@3k.local', role: 'rider', fullName: 'Pedro Rider', phone: '09181234567', branch: 'gma' });
 await ensureStaff({ email: 'rider.imus@3k.local', role: 'rider', fullName: 'Imus Rider', phone: '09181234568', branch: 'imus' });
-await ensureStaff({ email: 'admin.imus@3k.local', role: 'admin', fullName: 'Imus Admin', branch: 'imus' });
 await ensureStaff({ email: 'cashier.imus@3k.local', role: 'cashier', fullName: 'Imus Cashier', branch: 'imus' });
 
-console.log(`\nAll test users use the password: ${TEST_USER_PASSWORD}`);
+// Every branch: its own admin, cashier gate and kiosk gate.
+const BRANCHES = [
+  { code: 'gma', name: 'GMA Terminal' },
+  { code: 'dasma', name: 'Dasma Bayan' },
+  { code: 'langkaan', name: 'Langkaan' },
+  { code: 'gentri', name: 'Gen-Tri' },
+  { code: 'trece', name: 'Trece' },
+  { code: 'silang', name: 'Silang' },
+  { code: 'imus', name: 'Imus' },
+];
+
+for (const { code, name } of BRANCHES) {
+  await ensureStaff({ email: `admin.${code}@3k.local`, role: 'admin', fullName: `${name} Admin`, branch: code });
+
+  // GMA's gates are seed-accounts.mjs's; Imus's cashier is the account above.
+  if (code === 'gma') continue;
+  const id = await branchId(code);
+  if (code !== 'imus') {
+    await setCashierPassword(id, `cashier-${code}`);
+    console.log(`✓ cashier  ${`cashier.${code}@3k.local`.padEnd(26)} gate password cashier-${code}`);
+  }
+  await setKioskPassword(id, `kiosk-${code}`);
+  console.log(`✓ kiosk    ${name.padEnd(26)} gate password kiosk-${code}`);
+}
+
+// An admin over several branches: the branch switcher offers exactly these three.
+await ensureStaff({
+  email: 'admin.area@3k.local',
+  role: 'admin',
+  fullName: 'Dasma Area Admin',
+  branches: ['dasma', 'langkaan', 'gentri'],
+});
+
+console.log(`\nAll test user accounts use the password: ${TEST_USER_PASSWORD}`);
