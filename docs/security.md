@@ -136,8 +136,8 @@ trace.
   showed.
 - Fonts are self-hosted (`next/font`), so visitors' browsers make no requests to Google.
 - The Privacy Policy (`/privacy`) and Terms of Service (`/terms`) describe this. **Their text is a placeholder**: the
-  contact addresses (`.example`), retention periods and refund times are made up and must be reviewed before going
-  live.
+  retention periods and refund times are made up and must be reviewed before going live. They list no email address;
+  requests go through the branch chat or the counter.
 
 ## Rate limits
 

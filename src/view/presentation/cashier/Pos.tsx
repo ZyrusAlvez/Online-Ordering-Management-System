@@ -713,7 +713,7 @@ function Register() {
               {ACTIVE.map((s) => (
                 <span key={s} className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 font-semibold text-ink-soft">
                   {STATUS[s].label}{' '}
-                  {(loading && !data) || branchLoading ? <Skeleton className="h-3 w-3" /> : (counts[s] ?? 0)}
+                  {(loading && !data) || branchLoading ? <Skeleton as="span" className="inline-block h-3 w-3" /> : (counts[s] ?? 0)}
                 </span>
               ))}
               {scheduledCount > 0 && (

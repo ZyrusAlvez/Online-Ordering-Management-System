@@ -160,7 +160,7 @@ function LandingPage() {
             <Store size={14} />{' '}
             {branchesLoading ? (
               <>
-                <Skeleton className="h-3 w-3 rounded-sm" /> branches across {REGION}
+                <Skeleton as="span" className="inline-block h-3 w-3 rounded-sm" /> branches across {REGION}
               </>
             ) : count > 1 ? (
               `${count} branches across ${REGION}`

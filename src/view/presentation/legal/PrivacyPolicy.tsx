@@ -1,6 +1,6 @@
 'use client';
 
-import LegalPage, { CONTACT_EMAIL, type Section } from '@/view/presentation/legal/LegalPage';
+import LegalPage, { type Section } from '@/view/presentation/legal/LegalPage';
 
 const sections: Section[] = [
   {
@@ -11,9 +11,6 @@ const sections: Section[] = [
           3K Kitchen runs home-style Filipino restaurants across Cavite and this ordering website, kiosk and counter
           system. We decide how the personal data described here is used, so we are its controller under the Data
           Privacy Act of 2012 (Republic Act No. 10173).
-        </p>
-        <p>
-          Our Data Protection Officer can be reached at <a href={`mailto:${CONTACT_EMAIL}`} className="font-semibold text-brand">{CONTACT_EMAIL}</a>.
         </p>
       </>
     ),
@@ -115,7 +112,8 @@ const sections: Section[] = [
           <li>file a complaint with the National Privacy Commission.</li>
         </ul>
         <p>
-          To use any of these, email <a href={`mailto:${CONTACT_EMAIL}`} className="font-semibold text-brand">{CONTACT_EMAIL}</a>. We answer within 15 working days.
+          To use any of these, message your branch through the chat on our website or visit the counter. We answer
+          within 15 working days.
         </p>
       </>
     ),

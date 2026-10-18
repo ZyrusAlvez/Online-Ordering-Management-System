@@ -4,12 +4,10 @@ import { Link } from '@/utils/navigation';
 import { Logo } from '@/view/components/Logo';
 
 // SAMPLE TEXT. The Privacy Policy and Terms are placeholders written for the demo: the company
-// details, contact addresses (.example domains), retention periods and refund times are made up.
-// Have them reviewed (and the real details filled in) before real customers use the site.
+// details, retention periods and refund times are made up. Have them reviewed before real customers
+// use the site.
 
 export const UPDATED = 'October 18, 2026';
-export const CONTACT_EMAIL = 'privacy@3kkitchen.example';
-export const SUPPORT_EMAIL = 'support@3kkitchen.example';
 
 export type Section = { title: string; body: React.ReactNode };
 

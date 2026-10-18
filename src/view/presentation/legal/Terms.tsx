@@ -1,7 +1,7 @@
 'use client';
 
 import { Link } from '@/utils/navigation';
-import LegalPage, { SUPPORT_EMAIL, type Section } from '@/view/presentation/legal/LegalPage';
+import LegalPage, { type Section } from '@/view/presentation/legal/LegalPage';
 
 const sections: Section[] = [
   {
@@ -110,8 +110,8 @@ const sections: Section[] = [
     body: (
       <p>
         We may update these terms; the date at the top shows the latest version, and orders follow the terms in force
-        when they were placed. These terms are governed by the laws of the Philippines. Questions? Email{' '}
-        <a href={`mailto:${SUPPORT_EMAIL}`} className="font-semibold text-brand">{SUPPORT_EMAIL}</a> or chat with your branch.
+        when they were placed. These terms are governed by the laws of the Philippines. Questions? Chat with your
+        branch on our website or ask at the counter.
       </p>
     ),
   },

@@ -118,11 +118,14 @@ export function Spinner({ size = 24, className = '' }: any) {
   );
 }
 
-/** A grey block that pulses in place of content that is still loading. */
-export function Skeleton({ className = '', style }: any) {
+/**
+ * A grey block that pulses in place of content that is still loading.
+ * Inside text (a <p>, a heading) pass `as="span"` with `inline-block`: a <div> there is invalid HTML.
+ */
+export function Skeleton({ className = '', style, as: Tag = 'div' }: any) {
   // Default corners only when the caller asks for none: two rounded-* classes would fight.
   const corners = /(^|\s)rounded(-|\s|$)/.test(className) ? '' : 'rounded-lg';
-  return <div aria-hidden="true" style={style} className={cx('animate-pulse bg-cream-deep', corners, className)} />;
+  return <Tag aria-hidden="true" style={style} className={cx('animate-pulse bg-cream-deep', corners, className)} />;
 }
 
 /** Wraps a set of skeleton blocks so screen readers hear "Loading" once, not every block. */
