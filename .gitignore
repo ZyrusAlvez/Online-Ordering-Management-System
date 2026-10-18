@@ -23,3 +23,7 @@ Thumbs.db
 .next/
 next-env.d.ts
 *.tsbuildinfo
+
+# Written by `next dev` when it detects an AI coding agent; not wanted in this repo.
+AGENTS.md
+CLAUDE.md

@@ -1,214 +1,40 @@
 # Changelog
 
-What has been built, grouped by feature, with the database migration that goes with each. Newest first. Migration
-numbers are the dates in the file names under `supabase/migrations/`. Security-relevant changes are also
-listed in [security.md](./security.md#issues-found-and-fixed).
+Newest first. Migration numbers are the dates in `supabase/migrations/`.
 
-## Rate limits back; ordering rules in the database
-*Migration `20261018000400_rate_limits_and_order_rules.sql`*
-- **Rate limits** with the numbers the Express API had: 10 wrong cashier or kiosk passwords per 15 minutes per IP
-  (correct ones do not count), 10 password-change attempts per 15 minutes per account, 30 kiosk orders a minute per
-  device, and for guests 5 new chats an hour, 20 messages a minute and 10 photos per 10 minutes per IP. Counted in the
-  database so they hold on serverless hosting.
-- **The database checks online orders**: the branch must be taking orders and open (for ASAP), a scheduled time must be
-  a 15-minute mark at least 30 minutes away and at most 2 days ahead inside the branch's hours, and a delivery needs an
-  address and a mobile number. These were checked only by the app, which a direct API call could skip.
+## 2026-10-18: Next.js + Supabase, hardening and speed
 
-## Lighter menu photos and phone fixes
-- **Menu photos are resized to the size they are shown at** (Next.js image optimizer, WebP): scrolling the whole menu on
-  a phone went from **11.5 MB to 2.8 MB** of photos (about 28 KB per photo on ordinary screens). The admin menu's 48 px
-  thumbnails no longer load full photos. Only this project's menu-photo folder can be resized, so the optimizer cannot
-  be used for other sites' images.
-- **Even menu cards:** a photo could shrink inside its card, so cards in one row had different photo heights.
-- **Staff headers fit on a phone:** the cashier's "Walk-in" no longer wraps and the sign-out button is no longer cut off;
-  the buttons move to a second row instead of squeezing the title. The admin header no longer stacks the title.
-- **Page titles:** each page has its own ("Menu · 3K Kitchen", "Cashier · 3K Kitchen"), replacing the old
-  single-branch "GMA Terminal Branch" title.
-- **Error page:** an unexpected crash shows "Something went wrong" with *Try again* and a link home, instead of a blank
-  screen.
+- **One Next.js app** (MVC like Pasuyo) replaces the Vite frontend and the Express API; the browser talks to Supabase
+  directly and server actions use the secret key. Same screens and flows. *(migrations 23–25)*
+- **The database guards the money and the rules:** per-role write policies; triggers for prices, totals, payment status,
+  status moves, chat thread fields, adding items after ordering, and online ordering rules (branch open and active, valid
+  slot, delivery details). *(23–27)*
+- **Rate limits restored**, counted in the database: gates, password change, kiosk orders, guest chat. *(27)*
+- **Faster:** menu photos resized to their drawn size (11.5 MB → 2.8 MB for the whole menu on a phone); self-hosted
+  fonts; stale-while-revalidate caching for public data only; fewer requests on the cashier screen; skeleton loading.
+- **Polish:** per-page titles, an error page with *Try again*, staff headers that fit on phones, even menu cards, no
+  invalid HTML nesting.
+- **Privacy Policy and Terms** pages (sample text, no email contacts; requests go through the branch chat or counter).
+- **Fixed:** a rider's claim reset the order total to 0.
+- **Removed:** the Express test suite (replaced by `check:flows`), CARTO maps, seed scripts and their passwords.
 
-## Tighter rules for chat threads and order items
-*Migration `20261018000300_lock_chat_threads_and_items.sql`*
-- A delivery chat's customer or rider can only update its last-message preview; its order, branch, kind and guest are
-  fixed, and only the branch's staff can mark a thread read.
-- A customer's order lines can only be added in the request that places the order; adding to an order that already has
-  items is refused. Each line's time is stamped by the database. Staff still edit items before payment.
+## 2026-10-12: Manual GCash replaces PayMongo *(21–22)*
 
-## Faster pages, caching, privacy and terms pages
-- **Caching that stays up to date, with a privacy rule:** public data (menu, sold-out flags, branches, logo) shows at
-  once from a saved copy on the device and is refreshed in the background on every visit (stale-while-revalidate), so a
-  change made elsewhere appears a fraction of a second after the page opens (measured: saved copy at 160 ms, sold-out
-  shown at 297 ms). An earlier version trusted the copy for minutes, which could show an out-of-date menu; replaced.
-  Private results are never saved and only shared for a few seconds; orders, payments and chats are never cached.
-- **Fewer requests:** the cashier screen went from 18-20 database requests to 8 (one query for the whole queue instead
-  of one per status, and the caller's branches looked up once per screen load instead of on every call).
-- **Self-hosted fonts:** no more 5-8 requests to Google Fonts on every page, no render-blocking font CSS, and visitors'
-  browsers no longer contact Google.
-- **Headers:** `Referrer-Policy`, `Permissions-Policy` and `nosniff` for every page; a day's cache for the bundled logo
-  and QR. Menu photos are uploaded with a one-year cache lifetime (each upload has a new name).
-- **Skeleton loading** on every data screen instead of full-page spinners.
-- **Privacy Policy** (`/privacy`) and **Terms of Service** (`/terms`), linked from the landing footer, the sign-up form
-  and every customer page. Their text is a sample: review it before going live.
+Customers pay the restaurant's own GCash and send a reference number or receipt (private bucket); staff approve or
+reject it. Kiosk shows the QR; the counter records the receipt's reference. Voided GCash orders are refunded by hand
+(**Refund pending → Refunded**).
 
-## Next.js and Supabase only (no Express)
-*Migrations `20261018000000_nextjs_client_writes.sql`, `20261018000100_order_total_definer.sql`, `20261018000200_tighten_function_grants.sql`*
-- **One Next.js app** (App Router, TypeScript) replaces the Vite frontend and the Express API, laid out MVC like the
-  Pasuyo project: `src/app` (routes), `controllers`, `models`, `view/components`, `view/presentation/<feature>`. Every
-  screen, route and flow is the same.
-- **The browser talks to Supabase directly.** The Express services' rules (pricing, branch hours and scheduling,
-  status moves, payment states, race guards, void and refund, chat) live in the controllers.
-- **The database guards the money:** new write policies per role and branch, and triggers that take prices from the
-  menu, keep totals equal to the items, start orders pending and unpaid, and allow customers and riders only their own
-  moves. Storage policies for receipts, chat photos and menu images. Users can edit only their own name, phone and
-  address.
-- **Server actions** (the only users of the secret key): cashier gate, kiosk unlock and orders, guest chat, riders,
-  admins, kiosk devices, employee passwords, sales report, password change.
-- Google sign-in exchanges its code on `/auth/callback`; the old separate OAuth client and its workaround are gone.
-- **Fixed during the move:** a rider's claim reset the order total to 0 (the guard summed items the rider could not yet
-  see), letting cash on delivery accept too little.
-- **Removed:** the 525-test Express suite and `check-rls.mjs` (replaced by `npm run check:flows`, 61 end-to-end checks),
-  the curl testing guide, and the API's in-memory rate limits (a known gap, see security).
-- Settings are now `NEXT_PUBLIC_*` plus `SUPABASE_SECRET_KEY` in one `.env.local`; `backend/supabase` is now `supabase/`.
-- `.env.local` holds only the Supabase URL and keys and the GCash account. Removed: the CARTO map option (maps keep the
-  greyed OpenStreetMap look), `CASHIER_EMAIL` (branch register logins are always `cashier.<code>@3k.local`), the map's
-  default position (a constant in the map component), and `seed:accounts` with its `TEST_*`/`SEED_*` passwords (the
-  demo accounts already exist; a new project creates its first super admin by hand, see getting-started). The other
-  seed scripts (`seed:test-users`, `seed:product-images`, `seed:brand`) are removed too: the demo data exists, and photos
-  and the logo are uploaded from the admin area.
+## 2026-10-10/11: Branches *(14–20)*
 
-## Manual GCash replaces PayMongo
-*Migrations `20261012000000_manual_gcash.sql`, `20261012000100_drop_paymongo.sql`*
-- **No payment provider.** PayMongo (payment intents, the GCash redirect, signed webhooks, automatic refunds) is removed,
-  with its settings, the `/webhooks/paymongo` route, the kiosk "try GCash again" route, both payment-result pages, the
-  `webhook_events` table and the PayMongo columns on `payments`.
-- **The restaurant's own GCash account** (`GCASH_NAME`, `GCASH_NUMBER`, `GCASH_QR_IMAGE` in `backend/.env`, served by
-  `GET /site/gcash`) is shown on the order page, the kiosk and the cashier screen. The bundled QR is a placeholder.
-- **Online:** the customer pays, then sends a reference number and/or a receipt screenshot (private `payment-receipts`
-  bucket). The order is **Awaiting verification** until a cashier or admin approves it, or rejects it with a reason the
-  customer sees and can answer by sending again.
-- **Kiosk:** shows the QR with the order number and asks the customer to show the receipt to the cashier.
-  **Counter:** the cashier checks the receipt and records its reference number.
-- **Refunds by hand:** voiding a paid GCash order leaves it **Refund pending**; an admin marks it **Refunded** once the
-  money is sent back. An order cannot be voided while its GCash proof is waiting. `refund_failed` is retired.
+Seven branches; every order, kiosk, chat, number and password belongs to one. `admin` scoped to assigned branches,
+`super_admin` for everything; Branches and Admins pages. Landing page built around a branch map (nearest branch, open
+now, directions); sold out per branch; scheduled online orders with highlighted queue; sales by branch; logo-only site
+images; sonner toasts.
 
-## Landing page built around the branches; no promo photo; CARTO light maps
-*Migration `20261011000000_remove_promo_image.sql`*
-- The **promo photo is gone**: from the landing page, Admin → Site images (now the logo only), the API (`promo` is an
-  unknown key, `400`), the database (row removed, key check narrowed) and the bundled defaults. The stored file was
-  deleted through the API first.
-- **Landing page revamp:** the hero is the branch map, beside a "Your branch" card (nearest to you, open now, hours,
-  distance, *Order from …*) and quick facts; then every branch as a card (*Find us in Cavite*), a four-step *How it
-  works* that starts with picking a branch, the menu, and a footer listing all branches with their hours.
-- **Landing page polish:** sticky header with section links, the map right after the headline on phones, a clearer
-  branch card (hours and distance with icons, **Directions**), branch cards with a distance pill and an even footer,
-  compact *How it works* on phones, smooth in-page scrolling; every clickable element shows a pointer cursor.
-- **Minimal maps:** the branch map is near-white with each branch shown as a red pin holding the 3K Kitchen logo
-  (your branch larger and labelled); pale tiles, quiet controls and credits, the app's font in popups on every map.
-- **Toasts** now come from the `sonner` library with rich colours (green success, red errors), still at the top.
-- Every map uses **CARTO's light tiles** (OpenStreetMap data) when `VITE_CARTO_BASEMAPS_KEY` (a free CARTO key) is set,
-  and standard OpenStreetMap tiles otherwise; chosen once in `frontend/src/components/mapPins.js`.
+## 2026-09: Foundation *(1–13)*
 
-## Multiple branches, branch admins, branch map and scheduled orders
-*Migrations `20261010000000_super_admin_role.sql`, `20261010010000_branches.sql`,
-`20261010010100_has_branch_access_anon.sql`, `20261010010200_has_branch_access_invoker.sql`,
-`20261010020000_branch_availability.sql`, `20261010030000_scheduled_orders.sql`*
-- **Seven branches** (GMA Terminal, Dasma Bayan, Langkaan, Gen-Tri, Trece, Silang, Imus). Every order, kiosk, website chat,
-  order number and kiosk password belongs to a branch; existing data moved to GMA Terminal. See
-  [how-it-works.md](./how-it-works.md#branches).
-- **Roles revised:** `admin` now runs only the branches assigned to them (one or several) and cannot see any other;
-  the new **`super_admin`** sees every branch and manages branches, admin accounts, the shared menu and prices, site images
-  and roles. Existing admins became super admins. Enforced in the API and by row-level security, so live feeds are scoped
-  too ([security.md](./security.md#branch-isolation)).
-- **Super admin can add and edit branches** (Admin → Branches): name, code, address, phone, map pin, opening hours or
-  24 hours, open for orders. Branches are deactivated, never deleted. **Admins** page to create branch admins and set
-  their branches.
-- **Branch map on the landing page:** all branches on OpenStreetMap, framed on the middle of them, with hours, open/closed
-  now, distance and **Order here**; a list beside it, nearest first when location is allowed.
-- **Preferred branch when ordering:** defaults to the nearest branch (location asked once), otherwise the first; the
-  customer's own pick is remembered and wins. Pickers on the menu page and at checkout.
-- **Sold out per branch:** the menu stays shared; a branch admin marks a dish sold out at their branch only.
-- **Scheduled online orders:** as soon as possible (only while the branch is open) or a 15-minute slot up to two days
-  ahead inside the branch's hours. The cashier's queue sorts by when orders are due and highlights scheduled ones
-  (amber, orange with a countdown in the last hour) with a "start preparing" banner.
-- Per-branch cashier logins and kiosk passwords (gates ask for the branch); riders see only their branch's pool; the
-  admin screens and the register get a branch switcher; the sales report adds sales **by branch**.
-- Fix: the address map's search box was a form nested inside the checkout form (invalid HTML; Enter could submit the order).
-- 525 tests (50 new), including branch isolation, sold out, branches and scheduling; `check-rls.mjs` checks branch scoping.
-
-## Photos in chat
-*Migration `20260927000000_chat_images.sql`*
-- Guests, cashiers, customers and riders can send photos in chat: a picture button beside the message box.
-- Private storage bucket, links that expire after an hour, 5 MB, JPEG/PNG/WebP, the file's real bytes checked, 30 per
-  conversation, 10 per 10 minutes for guests; guests can attach after their first message.
-- Photos are shrunk in the browser first; links stay stable so pictures do not flicker on refresh.
-
-## Admin sales dashboard
-*Migration `20260926000000_sales_report.sql`*
-- New **Sales** page (admin's home): Today / 7 days / 30 days / This month / Custom (Manila days); cards for sales, orders,
-  average order and items sold; sales per day, cash vs GCash, by channel, top 10 dishes; refunds-pending note; a table view.
-- A sale = paid and not voided or cancelled, counted when paid ([how-it-works.md](./how-it-works.md#sales-report)).
-- Computed by a database function; `GET /admin/sales`. Tested with exact figures on a backdated day.
-- Cash payments now record who took the money, the amount handed over and the change.
-
-## Validation, map pins, data dictionary and a bug sweep
-*Migrations `20260925000000_validation_and_hardening.sql`, `20260925010000_fix_pin_constraints.sql`*
-- **Phone numbers** must be 11 digits starting `09` (form, API and database); a numeric `PhoneInput`.
-- Shared field rules (trimmed text, money with two decimals and a ceiling, quantity 1 to 99, image links, etc.), mirrored in
-  the forms and enforced by database constraints.
-- **Delivery map:** pin your address on an OpenStreetMap map (tap, drag, use your location, or search); street, barangay and
-  city fill in; saved with the order and the profile; riders, cashiers, admins and customers get an **Open in Maps** link.
-- **[data-dictionary.md](./data-dictionary.md)** written from the live schema.
-- **Fixes:** customers could write orders directly (free orders); order numbers collided on the second day; voiding after a
-  failed refund kept money; refund retry never worked; payment notification failures were swallowed; double payments;
-  editing or deleting ordered products; deactivated riders kept working; shared sign-in client leaked sessions; order search
-  broke on punctuation; logout ended every device's session; cashier and kiosk rate limits no longer count successful logins;
-  the Google sign-in revoked its own session (users bounced to login at checkout); sessions refresh before expiring and are
-  shared between tabs; sign-out clears the cart; live subscriptions no longer rebuild on every keystroke; the cashier's
-  Cancelled/Active tabs no longer miss old orders; payment result pages stop polling when left; failed kiosk payments reset;
-  Back from GCash no longer freezes checkout; dialogs trap keyboard focus; buttons that were links inside buttons fixed.
-- Toasts moved to the top and a bottom dock keeps the cart bar and chat button apart.
-
-## Guest numbers in chat
-*Migration `20260924000000_chat_guest_number.sql`*
-- Anonymous visitors appear to the cashier as `Guest-1023` (or `Maria (Guest-1023)`), so several guests can be told apart.
-
-## Profile page, redesign and the test-accounts guide
-*Migration `20260923000000_profile_address.sql`*
-- **Profile** (`/profile`): name, mobile number, default delivery address and password change (not for Google accounts);
-  checkout prefills from it. Header account menu with avatar.
-- **Redesign:** modern and minimal while keeping the brand: new tokens, flatter surfaces, hairline borders, script font only
-  for the wordmark and hero; applied to every screen including cashier, driver, admin and kiosk.
-- [test-accounts.md](./test-accounts.md): every role's login (cashier and kiosk are password-only) and walkthroughs.
-- **Security:** users could edit their own role and active status in the profiles table; that policy was removed.
-
-## Google sign-in
-- "Continue with Google" on login and sign-up; checkout returns you to your cart. Google users are ordinary customers.
-- **Security:** a role could be self-assigned by editing `user_metadata`; roles are now read only from `app_metadata`.
-
-## Chat
-*Migration `20260922000000_chat.sql`*
-- **Landing page chat:** anyone, no account, can message the cashier; the cashier has a **Messages** inbox with unread badge.
-- **Delivery chat:** a customer and the rider holding their order, only while it is out for delivery.
-- The full **menu on the landing page**; login is asked for only at checkout, and the cart survives it.
-- Live updates for logged-in users; a content-free broadcast ping plus a secret token for guests.
-
-## Photos for dishes, logo and promo
-*Migration `20260921000000_menu_images_storage.sql`*
-- Per-product photos uploaded from Admin → Menu; logo and home-page photo editable from **Site images**.
-- Stored in the public `menu-images` bucket, byte-checked, old files removed when replaced.
-- Placeholder photos for the whole menu from openly licensed sources (credits in `product-images.json`).
-
-## Employee passwords
-*Migration `20260920000000_employee_credentials.sql`*
-- `/cashier` and `/kiosk` ask only for a shared **password** (no email). Admins change both from Admin → Employee passwords.
-- A correct kiosk password registers that browser as a kiosk device (revocable); wrong-guess rate limits.
-
-## Foundation
-*Migrations `20260903000000_init_schema.sql`, `20260912000000_multichannel_orders.sql`,
-`20260912010000_harden_functions.sql`, `20260912020000_revoke_function_execute_from_public.sql`*
-- The menu (categories, products, size options) and its seed.
-- Three ordering channels (kiosk, counter, online), order numbers, the full order lifecycle, cash and GCash payments,
-  voids and refunds, the rider pool and cash on delivery, the kiosk with device keys, admin management of riders,
-  kiosks and roles.
-- Row-level security scoping what each role sees (and therefore what its live feed carries).
-- The automated test suite (unit, integration, end-to-end) against the real database.
+Menu, three channels (kiosk, counter, online), order numbers, lifecycle, cash and GCash, voids, rider pool and cash on
+delivery, kiosk device keys, RLS. Employee passwords for cashier and kiosk; menu photos and logo; guest and delivery chat
+(with photos and guest numbers); Google sign-in; profile with saved address; delivery map pins; 11-digit phone rule and
+shared field limits; sales dashboard; redesign. Security fixes: self-assigned admin, free/self-paid orders, editable
+roles, double payments, colliding order numbers.

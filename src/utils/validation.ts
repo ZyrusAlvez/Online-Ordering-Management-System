@@ -1,7 +1,7 @@
 /**
  * Field rules for the forms. These mirror backend/src/validators/fields.js, which
  * is the authority (and the database enforces the same limits): when a rule
- * changes, change it there, here, and in docs/data-dictionary.md together.
+ * changes, change it there, here, and in docs/database.md together.
  *
  * Browsers enforce most of these through attributes (maxLength, pattern...), so
  * the constants below are what the forms spread onto their inputs.

@@ -1,6 +1,6 @@
 // @ts-nocheck -- a test script: it pokes at failure results without narrowing them first.
 // End-to-end check of the order, payment, rider, chat and profile flows, run through the app's own
-// controllers as the @3k.local test accounts (docs/test-accounts.md).
+// controllers as the @3k.local test accounts (docs/credentials.md).
 //
 // It WRITES to the Supabase project in .env.local: a few test orders at GMA Terminal (left voided,
 // refunded, cancelled or completed), chat messages, and for check-server a kiosk device it then revokes.
