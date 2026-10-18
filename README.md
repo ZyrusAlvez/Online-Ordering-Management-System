@@ -18,7 +18,6 @@ between guests and a branch's cashier and between customers and riders, and a sa
 # 2. The app
 npm install
 cp .env.example .env.local        # Supabase URL, publishable key, secret key, GCash account
-npm run seed:test-users           # optional, new projects only: the sample logins in docs/test-accounts.md
 npm run dev                       # http://localhost:5173
 ```
 
@@ -51,7 +50,7 @@ Everything is in **[`docs/`](docs/README.md)**:
 ```
 src/         the Next.js app: app/ (routes), controllers/, models/, view/, context/, hooks/, utils/
 supabase/    database migrations, seed SQL and seed data
-scripts/     seed scripts and the end-to-end flow checks
+scripts/     the end-to-end flow checks (npm run check:flows)
 public/      static files (logo, GCash QR)
 docs/        documentation
 .mcp.json    Supabase MCP server address (no credentials)

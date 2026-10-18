@@ -26,7 +26,9 @@ listed in [security.md](./security.md#issues-found-and-fixed).
 - `.env.local` holds only the Supabase URL and keys and the GCash account. Removed: the CARTO map option (maps keep the
   greyed OpenStreetMap look), `CASHIER_EMAIL` (branch register logins are always `cashier.<code>@3k.local`), the map's
   default position (a constant in the map component), and `seed:accounts` with its `TEST_*`/`SEED_*` passwords (the
-  demo accounts already exist; a new project creates its first super admin by hand, see getting-started).
+  demo accounts already exist; a new project creates its first super admin by hand, see getting-started). The other
+  seed scripts (`seed:test-users`, `seed:product-images`, `seed:brand`) are removed too: the demo data exists, and photos
+  and the logo are uploaded from the admin area.
 
 ## Manual GCash replaces PayMongo
 *Migrations `20261012000000_manual_gcash.sql`, `20261012000100_drop_paymongo.sql`*

@@ -92,22 +92,10 @@ For a **new** Supabase project, create the first super admin once, by hand:
    `cashier.<branch code>@3k.local`), **Riders** and **Admins** create those accounts, and **Branches** holds each
    branch's address, phone and hours.
 
-For development you can also create the sample customers, riders and every branch's admin, cashier and kiosk:
+Photos are added from the admin area too: **Menu** → a dish → its photo, and **Site images** for the logo. Until a
+logo is uploaded the site uses the bundled `public/brand/logo.jpg`.
 
-```bash
-npm run seed:test-users
-```
-
-## 5. Optional: photos
-
-```bash
-npm run seed:brand            # uploads the bundled logo to Storage
-npm run seed:product-images   # placeholder dish photos (openly licensed, see seed-data/product-images.json)
-```
-
-Both only fill in what is still empty; pass `-- --force` to replace.
-
-## 6. Run it
+## 5. Run it
 
 ```bash
 npm run dev                   # http://localhost:5173
@@ -115,7 +103,7 @@ npm run dev                   # http://localhost:5173
 
 Each screen's address is in [overview.md](./overview.md#the-people-and-the-screens).
 
-## 7. Check everything works
+## 6. Check everything works
 
 ```bash
 npm run typecheck && npm run build
@@ -165,8 +153,6 @@ everywhere (cash only). See [how-it-works.md](./how-it-works.md#gcash-manual).
 | `npm run build` / `npm start` | Production build, then serve it |
 | `npm run typecheck` | TypeScript over `src/` and `scripts/` |
 | `npm run check:flows` | End-to-end checks of every flow (writes test orders) |
-| `npm run seed:test-users` | Every test login in [test-accounts.md](./test-accounts.md) |
 | `npm run seed:menu` | Regenerate `supabase/seed.sql` from `menu.json` |
-| `npm run seed:brand` / `seed:product-images` | Logo and placeholder dish photos |
 
 Something not working? See [operations.md](./operations.md#troubleshooting).

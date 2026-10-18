@@ -103,7 +103,7 @@ More in [architecture.md](./architecture.md) and [security.md](./security.md).
 │   ├── migrations/           the database schema, applied in filename order
 │   ├── seed-data/            menu.json and product-images.json
 │   └── seed.sql              the menu, generated from menu.json
-├── scripts/                  seeding and the end-to-end flow checks
+├── scripts/                  the end-to-end flow checks (npm run check:flows)
 ├── public/brand/             the logo bundled as the default, the GCash QR
 ├── docs/                     this documentation
 └── .mcp.json                 Supabase MCP server address (no credentials)

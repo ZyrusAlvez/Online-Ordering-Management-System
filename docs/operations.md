@@ -167,8 +167,8 @@ Confirm they run; **practise a restore** into a scratch project, since an untest
 
 | Symptom | Fix |
 | --- | --- |
-| "Cannot run the test suite: accounts could not sign in" | Re-run both seed scripts ([testing.md](./testing.md#prerequisites)) |
-| A run was interrupted and left rows behind | Delete leftover `Sales Test`, `Fake Pay` orders etc. by hand, or just run the suite again |
+| `npm run check:flows` fails with "sign in …" | A demo account's password was changed; set it back to the one in [test-accounts.md](./test-accounts.md) |
+| Test orders ("Flow Test", "Flow Test Kiosk") and "Flow Tester" chats appear at GMA Terminal | Left by `npm run check:flows`, which writes real rows; expected on a test project (see [testing.md](./testing.md)) |
 | Files left in `chat-images` after tests | A test leaked; see [Chat photos left behind](#chat-photos-left-behind) |
 
 ---

@@ -11,10 +11,9 @@
 npm run dev                     # app on http://localhost:5173
 ```
 
-All of these accounts already exist in the demo Supabase project. If one of the sample logins (customers,
-riders, branch admins, the other branches' gates) stops working, reset them with `npm run seed:test-users`. The super
-admin and GMA Terminal's cashier and kiosk passwords are not touched by it: change those from Admin → Employee
-passwords or the Supabase dashboard.
+All of these accounts already exist in the demo Supabase project. If a password stops working, set it again: the
+cashier and kiosk passwords from Admin → **Employee passwords**, riders from Admin → **Riders**, and any account from
+the Supabase dashboard (Authentication → Users).
 
 ## Accounts
 
@@ -160,7 +159,7 @@ Use two different browsers, or one normal window plus one private window, so ses
 | --- | --- |
 | Ordering as soon as possible | Only while the branch is open (08:00–21:00 for the seeded branches); otherwise schedule |
 | Photos in one chat | 30 per conversation |
-| New sign-ups | Supabase rate-limits sign-ups per IP; create extra users with `npm run seed:test-users` or Admin → Riders instead |
+| New sign-ups | Supabase rate-limits sign-ups per IP; create riders and admins from the admin area instead |
 
 ## Automated checks
 
