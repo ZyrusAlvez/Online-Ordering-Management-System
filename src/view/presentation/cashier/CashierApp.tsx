@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { ADMIN_ROLES, useAuth } from '@/context/AuthContext';
 import { useBranches } from '@/hooks/useBranches';
 import { Logo } from '@/view/components/Logo';
-import { Button, Card, ErrorNote, Field, Input, Select } from '@/view/components/ui';
+import { Button, Card, ErrorNote, Field, PasswordInput, Select } from '@/view/components/ui';
 import { Lock } from '@/view/components/icons';
 import Pos from '@/view/presentation/cashier/Pos';
 
@@ -71,8 +71,7 @@ function CashierGate() {
             </Select>
           </Field>
           <Field label="Employee password">
-            <Input
-              type="password"
+            <PasswordInput
               autoFocus
               required
               autoComplete="off"

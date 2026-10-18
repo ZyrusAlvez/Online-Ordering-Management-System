@@ -5,7 +5,7 @@ import { call } from '@/utils/apiError';
 import { setEmployeePassword } from '@/controllers/server/staffActions';
 import { accessToken } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
-import { Button, Card, ErrorNote, Field, Input } from '@/view/components/ui';
+import { Button, Card, ErrorNote, Field, PasswordInput } from '@/view/components/ui';
 import { Lock } from '@/view/components/icons';
 import { BranchSelect, useStaffBranch } from '@/view/components/StaffBranch';
 
@@ -45,10 +45,10 @@ function PasswordCard({ role, title, description, branch }: any) {
           </div>
         </div>
         <Field label="New password" hint="At least 6 characters">
-          <Input type="password" required minLength={6} maxLength={200} autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <PasswordInput required minLength={6} maxLength={200} autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
         </Field>
         <Field label="Confirm password" error={mismatch ? 'Passwords do not match' : undefined}>
-          <Input type="password" required maxLength={200} autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+          <PasswordInput required maxLength={200} autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
         </Field>
         <ErrorNote error={error} />
         <Button type="submit" loading={busy} disabled={!password || password !== confirm}>

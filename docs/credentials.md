@@ -29,18 +29,17 @@ Sign in at `/login`, land on `/admin`. See only their own branches.
 
 ## Cashiers
 
-Open `/cashier`, pick the branch, type the password (no email). Behind each gate is the branch's register account,
-which can also sign in at `/login` with the same password.
+Open `/cashier`, pick the branch, type the password. No email needed.
 
-| Branch | Password | Register account |
-| --- | --- | --- |
-| GMA Terminal | `cashier-gma` | `cashier.gma@3k.local` |
-| Dasma Bayan | `cashier-dasma` | `cashier.dasma@3k.local` |
-| Langkaan | `cashier-langkaan` | `cashier.langkaan@3k.local` |
-| Gen-Tri | `cashier-gentri` | `cashier.gentri@3k.local` |
-| Trece | `cashier-trece` | `cashier.trece@3k.local` |
-| Silang | `cashier-silang` | `cashier.silang@3k.local` |
-| Imus | `cashier-imus` | `cashier.imus@3k.local` |
+| Branch | Password |
+| --- | --- |
+| GMA Terminal | `cashier-gma` |
+| Dasma Bayan | `cashier-dasma` |
+| Langkaan | `cashier-langkaan` |
+| Gen-Tri | `cashier-gentri` |
+| Trece | `cashier-trece` |
+| Silang | `cashier-silang` |
+| Imus | `cashier-imus` |
 
 ## Kiosks
 

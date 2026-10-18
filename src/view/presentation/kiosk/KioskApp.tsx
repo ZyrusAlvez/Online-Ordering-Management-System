@@ -7,7 +7,7 @@ import { unlockKiosk } from '@/controllers/server/employeeActions';
 import { useBranches } from '@/hooks/useBranches';
 import { clearKioskKey, getKioskKey, setKioskKey } from '@/utils/kioskKey';
 import { Logo } from '@/view/components/Logo';
-import { Button, Card, ErrorNote, Field, Input, Select } from '@/view/components/ui';
+import { Button, Card, ErrorNote, Field, PasswordInput, Select } from '@/view/components/ui';
 import { Lock } from '@/view/components/icons';
 import KioskFlow from '@/view/presentation/kiosk/KioskFlow';
 
@@ -66,8 +66,7 @@ function KioskGate({ onUnlocked }: any) {
             </Select>
           </Field>
           <Field label="Employee password">
-            <Input
-              type="password"
+            <PasswordInput
               autoFocus
               required
               autoComplete="off"

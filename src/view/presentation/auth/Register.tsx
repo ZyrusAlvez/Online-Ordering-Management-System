@@ -5,7 +5,7 @@ import { Link, Navigate, useNavigate } from '@/utils/navigation';
 import { HOME_FOR_ROLE, useAuth } from '@/context/AuthContext';
 import GoogleButton, { OrDivider } from '@/view/components/GoogleButton';
 import { Logo } from '@/view/components/Logo';
-import { Button, Card, ErrorNote, Field, Input } from '@/view/components/ui';
+import { Button, Card, ErrorNote, Field, Input, PasswordInput } from '@/view/components/ui';
 
 export default function Register() {
   const { isAuthed, role, register } = useAuth();
@@ -67,8 +67,7 @@ export default function Register() {
                 <Input type="email" required maxLength={254} value={form.email} onChange={set('email')} autoComplete="email" />
               </Field>
               <Field label="Password" hint="At least 8 characters">
-                <Input
-                  type="password"
+                <PasswordInput
                   required
                   minLength={8}
                   maxLength={72}

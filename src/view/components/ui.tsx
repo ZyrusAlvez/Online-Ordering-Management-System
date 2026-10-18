@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Link } from '@/utils/navigation';
-import { X } from '@/view/components/icons';
+import { Eye, EyeOff, X } from '@/view/components/icons';
 
 const cx = (...parts) => parts.filter(Boolean).join(' ');
 
@@ -189,6 +189,25 @@ export const inputClass =
 
 export function Input(props) {
   return <input {...props} className={cx(inputClass, props.className)} />;
+}
+
+/** A password input with an eye button that shows or hides what was typed. */
+export function PasswordInput({ className = '', ...props }: any) {
+  const [shown, setShown] = useState(false);
+  return (
+    <div className="relative">
+      <input {...props} type={shown ? 'text' : 'password'} className={cx(inputClass, 'pr-12', className)} />
+      <button
+        type="button"
+        onClick={() => setShown((s) => !s)}
+        aria-label={shown ? 'Hide password' : 'Show password'}
+        aria-pressed={shown}
+        className="absolute inset-y-0 right-0 flex w-12 items-center justify-center rounded-r-xl text-ink-soft transition hover:text-ink"
+      >
+        {shown ? <EyeOff size={18} /> : <Eye size={18} />}
+      </button>
+    </div>
+  );
 }
 
 export function Select({ children, ...props }: any) {

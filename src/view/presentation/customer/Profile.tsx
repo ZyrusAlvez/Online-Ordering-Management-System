@@ -10,7 +10,7 @@ import { useToast } from '@/context/ToastContext';
 import PhoneInput from '@/view/components/PhoneInput';
 import AddressFields, { blankAddress, cleanAddress, fromSaved } from '@/view/components/AddressFields';
 import Avatar from '@/view/components/Avatar';
-import { Button, Card, ErrorNote, Field, Input } from '@/view/components/ui';
+import { Button, Card, ErrorNote, Field, Input, PasswordInput } from '@/view/components/ui';
 import { ProfileSkeleton } from '@/view/presentation/customer/SkeletonLoading';
 
 function Section({ title, hint, children }: any) {
@@ -125,14 +125,14 @@ function PasswordForm() {
     <form onSubmit={submit}>
       <Section title="Password">
         <Field label="Current password">
-          <Input type="password" required autoComplete="current-password" value={form.current} onChange={set('current')} />
+          <PasswordInput required autoComplete="current-password" value={form.current} onChange={set('current')} />
         </Field>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="New password" hint="At least 8 characters">
-            <Input type="password" required minLength={8} autoComplete="new-password" value={form.next} onChange={set('next')} />
+            <PasswordInput required minLength={8} autoComplete="new-password" value={form.next} onChange={set('next')} />
           </Field>
           <Field label="Confirm new password" error={mismatch ? 'Passwords do not match' : undefined}>
-            <Input type="password" required autoComplete="new-password" value={form.confirm} onChange={set('confirm')} />
+            <PasswordInput required autoComplete="new-password" value={form.confirm} onChange={set('confirm')} />
           </Field>
         </div>
         <ErrorNote error={error} />

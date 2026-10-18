@@ -6,7 +6,7 @@ import { HOME_FOR_ROLE, useAuth } from '@/context/AuthContext';
 import { roleOf } from '@/controllers/authController';
 import GoogleButton, { OrDivider } from '@/view/components/GoogleButton';
 import { Logo } from '@/view/components/Logo';
-import { Button, Card, ErrorNote, Field, Input } from '@/view/components/ui';
+import { Button, Card, ErrorNote, Field, Input, PasswordInput } from '@/view/components/ui';
 
 export default function Login() {
   const { isAuthed, role, login } = useAuth();
@@ -71,8 +71,7 @@ export default function Login() {
             />
           </Field>
           <Field label="Password">
-            <Input
-              type="password"
+            <PasswordInput
               autoComplete="current-password"
               required
               maxLength={72}
