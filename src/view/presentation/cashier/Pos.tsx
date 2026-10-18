@@ -35,17 +35,18 @@ import {
   addressLine,
 } from '@/view/components/OrderParts';
 import {
+  Skeleton,
   Button,
   Empty,
   ErrorNote,
   Field,
   Input,
   Modal,
-  PageLoader,
   Segmented,
   Select,
   Textarea,
 } from '@/view/components/ui';
+import { OrderPanelSkeleton, QueueSkeleton } from '@/view/presentation/cashier/SkeletonLoading';
 import { Chat, Plus, Search } from '@/view/components/icons';
 
 const ACTIVE = ['pending', 'confirmed', 'preparing', 'ready', 'out_for_delivery'];
@@ -390,7 +391,7 @@ function OrderPanel({ orderId, onChanged, onClose }: any) {
     }
   };
 
-  if (loading) return <PageLoader />;
+  if (loading) return <OrderPanelSkeleton />;
   if (error) return <ErrorNote error={error} onRetry={reload} />;
 
   const open = ACTIVE.includes(order.status);
@@ -601,7 +602,7 @@ export default function Pos() {
 
 function Register() {
   const { logout } = useAuth();
-  const { branch, branchId } = useStaffBranch();
+  const { branch, branchId, loading: branchLoading } = useStaffBranch();
   const wide = useMedia('(min-width: 1024px)');
   const [tab, setTab] = useState('active');
   const [channel, setChannel] = useState('');
@@ -705,8 +706,9 @@ function Register() {
           {tab === 'active' && (
             <div className="flex flex-wrap gap-1.5 text-xs">
               {ACTIVE.map((s) => (
-                <span key={s} className="rounded-full bg-white px-2.5 py-1 font-semibold text-ink-soft">
-                  {STATUS[s].label} {counts[s] ?? 0}
+                <span key={s} className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 font-semibold text-ink-soft">
+                  {STATUS[s].label}{' '}
+                  {(loading && !data) || branchLoading ? <Skeleton className="h-3 w-3" /> : (counts[s] ?? 0)}
                 </span>
               ))}
               {scheduledCount > 0 && (
@@ -725,8 +727,8 @@ function Register() {
           )}
 
           <ErrorNote error={error} onRetry={reload} />
-          {loading && !data && <PageLoader />}
-          {!loading && !error && orders.length === 0 && (
+          {((loading && !data) || branchLoading) && <QueueSkeleton />}
+          {!loading && !branchLoading && !error && orders.length === 0 && (
             <Empty title="Nothing here" hint="New orders appear instantly." />
           )}
           <div className="space-y-2">

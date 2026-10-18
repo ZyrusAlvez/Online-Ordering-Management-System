@@ -2,7 +2,7 @@
 
 import { Navigate, useLocation } from '@/utils/navigation';
 import { HOME_FOR_ROLE, useAuth } from '@/context/AuthContext';
-import { Button, Card, PageLoader } from '@/view/components/ui';
+import { Button, Card } from '@/view/components/ui';
 
 /**
  * Client-side routing guard. It only chooses what to render: Supabase RLS and the
@@ -12,8 +12,8 @@ export function RequireRole({ roles, children }: any) {
   const { isAuthed, role, logout, ready } = useAuth();
   const location = useLocation();
 
-  // The stored session is read asynchronously; do not bounce a signed-in user meanwhile.
-  if (!ready) return <PageLoader />;
+  // The stored session is read asynchronously (a moment); render nothing rather than bounce a signed-in user.
+  if (!ready) return null;
 
   if (!isAuthed) return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />;
 

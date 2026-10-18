@@ -5,8 +5,9 @@ import { call, respond } from '@/utils/apiError';
 import { getOrderChat, postOrderImage, postOrderMessage } from '@/controllers/chatController';
 import { useLive } from '@/hooks/useChat';
 import { subscribeToChat } from '@/hooks/realtime';
-import { ErrorNote, Spinner } from '@/view/components/ui';
+import { ErrorNote } from '@/view/components/ui';
 import ChatWindow from '@/view/components/chat/ChatWindow';
+import { ChatSkeleton } from '@/view/components/Skeletons';
 
 /**
  * Chat between an online customer and the rider holding their delivery order.
@@ -52,13 +53,7 @@ export default function DeliveryChat({ orderId, as, orderKey, className = '' }: 
     }
   };
 
-  if (chat.loading && !info) {
-    return (
-      <div className="flex justify-center py-10 text-brand">
-        <Spinner />
-      </div>
-    );
-  }
+  if (chat.loading && !info) return <ChatSkeleton />;
   if (chat.error && !info) return <ErrorNote error={chat.error} onRetry={chat.reload} />;
 
   const other = info.with.name || (as === 'customer' ? 'your rider' : 'the customer');

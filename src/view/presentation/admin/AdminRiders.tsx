@@ -8,7 +8,8 @@ import { accessToken } from '@/context/AuthContext';
 import { useFetch } from '@/hooks/hooks';
 import { dateTime } from '@/utils/format';
 import { useToast } from '@/context/ToastContext';
-import { Badge, Button, Empty, ErrorNote, Field, Input, Modal, PageLoader, Pagination } from '@/view/components/ui';
+import { Badge, Button, Empty, ErrorNote, Field, Input, Modal, Pagination } from '@/view/components/ui';
+import { RowsSkeleton } from '@/view/components/Skeletons';
 import { Plus } from '@/view/components/icons';
 import { BranchSelect, useStaffBranch } from '@/view/components/StaffBranch';
 
@@ -96,7 +97,7 @@ export default function AdminRiders() {
         <Button onClick={() => setCreating(true)}><Plus size={16} /> New rider</Button>
       </div>
       <ErrorNote error={error} onRetry={reload} />
-      {loading && !data && <PageLoader />}
+      {loading && !data && <RowsSkeleton label="Loading riders…" />}
       {!loading && !error && riders.length === 0 && (
         <Empty title="No riders yet" hint="Create an account for each delivery rider." />
       )}

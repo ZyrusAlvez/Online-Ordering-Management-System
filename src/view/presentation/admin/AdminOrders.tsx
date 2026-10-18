@@ -8,7 +8,8 @@ import { useFetch } from '@/hooks/hooks';
 import { CHANNEL, FULFILLMENT, PAYMENT, STATUS, dateTime, money } from '@/utils/format';
 import { useToast } from '@/context/ToastContext';
 import { MapLink, MethodLabel, OrderLines, PaymentBadge, ScheduledBadge, StatusBadge, addressLine } from '@/view/components/OrderParts';
-import { Button, Empty, ErrorNote, Input, Modal, PageLoader, Pagination, Select } from '@/view/components/ui';
+import { Button, Empty, ErrorNote, Input, Modal, Pagination, Select } from '@/view/components/ui';
+import { OrdersTableSkeleton } from '@/view/presentation/admin/SkeletonLoading';
 import { useStaffBranch } from '@/view/components/StaffBranch';
 
 const toIso = (date, end) => (date ? new Date(`${date}T${end ? '23:59:59.999' : '00:00:00'}`).toISOString() : undefined);
@@ -100,7 +101,7 @@ export default function AdminOrders() {
       </div>
 
       <ErrorNote error={error} onRetry={reload} />
-      {loading && !data && <PageLoader />}
+      {loading && !data && <OrdersTableSkeleton columns={branchId ? 7 : 8} />}
       {!loading && !error && orders.length === 0 && <Empty title="No orders match" />}
 
       {orders.length > 0 && (

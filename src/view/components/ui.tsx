@@ -118,6 +118,22 @@ export function Spinner({ size = 24, className = '' }: any) {
   );
 }
 
+/** A grey block that pulses in place of content that is still loading. */
+export function Skeleton({ className = '', style }: any) {
+  // Default corners only when the caller asks for none: two rounded-* classes would fight.
+  const corners = /(^|\s)rounded(-|\s|$)/.test(className) ? '' : 'rounded-lg';
+  return <div aria-hidden="true" style={style} className={cx('animate-pulse bg-cream-deep', corners, className)} />;
+}
+
+/** Wraps a set of skeleton blocks so screen readers hear "Loading" once, not every block. */
+export function SkeletonGroup({ label = 'Loading…', className = '', children }: any) {
+  return (
+    <div role="status" aria-busy="true" aria-label={label} className={className}>
+      {children}
+    </div>
+  );
+}
+
 export function PageLoader({ label = 'Loading…' }: any) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-24 text-ink-soft">

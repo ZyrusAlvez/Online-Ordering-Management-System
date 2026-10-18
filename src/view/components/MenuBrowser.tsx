@@ -5,7 +5,8 @@ import { respond } from '@/utils/apiError';
 import { getMenu } from '@/controllers/menuController';
 import { useFetch } from '@/hooks/hooks';
 import { money } from '@/utils/format';
-import { Button, ErrorNote, Modal, PageLoader } from '@/view/components/ui';
+import { Button, ErrorNote, Modal } from '@/view/components/ui';
+import { MenuSkeleton } from '@/view/components/Skeletons';
 import { ChefHat, Minus, Plus, Search } from '@/view/components/icons';
 
 /** Variants a customer can actually order (priced). */
@@ -189,7 +190,7 @@ export default function MenuBrowser({ onAdd, branchId = null, size = 'normal', s
       .filter((c) => c.products.length > 0);
   }, [categories, active, search]);
 
-  if (loading) return <PageLoader label="Loading the menu…" />;
+  if (loading) return <MenuSkeleton big={big} />;
   if (error) return <ErrorNote error={error} onRetry={reload} />;
 
   const choose = (product) => {

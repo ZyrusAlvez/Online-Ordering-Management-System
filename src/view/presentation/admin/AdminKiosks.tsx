@@ -7,7 +7,8 @@ import { accessToken } from '@/context/AuthContext';
 import { useFetch } from '@/hooks/hooks';
 import { dateTime, timeAgo } from '@/utils/format';
 import { useToast } from '@/context/ToastContext';
-import { Badge, Button, Empty, ErrorNote, Field, Input, Modal, PageLoader } from '@/view/components/ui';
+import { Badge, Button, Empty, ErrorNote, Field, Input, Modal } from '@/view/components/ui';
+import { RowsSkeleton } from '@/view/components/Skeletons';
 import { Plus } from '@/view/components/icons';
 import { BranchSelect, useStaffBranch } from '@/view/components/StaffBranch';
 
@@ -100,7 +101,7 @@ export default function AdminKiosks() {
         <Button onClick={() => setIssuing(true)}><Plus size={16} /> Issue key</Button>
       </div>
       <ErrorNote error={error} onRetry={reload} />
-      {loading && !data && <PageLoader />}
+      {loading && !data && <RowsSkeleton label="Loading kiosks…" />}
       {!loading && !error && devices.length === 0 && (
         <Empty title="No kiosk devices" hint="A kiosk registers here the first time it is unlocked with its branch's employee password." />
       )}

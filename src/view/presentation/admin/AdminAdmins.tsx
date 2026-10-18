@@ -9,7 +9,8 @@ import { dateTime } from '@/utils/format';
 import { useToast } from '@/context/ToastContext';
 import PhoneInput from '@/view/components/PhoneInput';
 import { useStaffBranch } from '@/view/components/StaffBranch';
-import { Badge, Button, Empty, ErrorNote, Field, Input, Modal, PageLoader, Pagination } from '@/view/components/ui';
+import { Badge, Button, Empty, ErrorNote, Field, Input, Modal, Pagination } from '@/view/components/ui';
+import { RowsSkeleton } from '@/view/components/Skeletons';
 import { Plus } from '@/view/components/icons';
 
 /** Tick-boxes for the branches an admin manages. At least one is required. */
@@ -138,7 +139,7 @@ export default function AdminAdmins() {
         <Button onClick={() => setEditing('new')}><Plus size={16} /> New admin</Button>
       </div>
       <ErrorNote error={error} onRetry={reload} />
-      {loading && !data && <PageLoader />}
+      {loading && !data && <RowsSkeleton label="Loading admins…" />}
       {!loading && !error && admins.length === 0 && <Empty title="No admins yet" />}
       <div className="space-y-2">
         {admins.map((a) => {

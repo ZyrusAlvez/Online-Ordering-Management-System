@@ -1,11 +1,15 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import { MapSkeleton } from '@/view/components/Skeletons';
 import { Suspense, useRef } from 'react';
-import { Field, Input, Spinner } from '@/view/components/ui';
+import { Field, Input } from '@/view/components/ui';
 
 // Leaflet is a sizeable library and only delivery orders use it, so it loads on demand.
-const AddressMap = dynamic(() => import('@/view/components/AddressMap'), { ssr: false });
+const AddressMap = dynamic(() => import('@/view/components/AddressMap'), {
+  ssr: false,
+  loading: () => <MapSkeleton className="h-64 rounded-xl" />,
+});
 
 export const blankAddress = {
   line1: '',
@@ -73,11 +77,7 @@ export default function AddressFields({ value, onChange, required = false, map =
         <div className="sm:col-span-2">
           <span className="mb-1 block text-sm font-medium text-ink">Pin your location</span>
           <Suspense
-            fallback={
-              <div className="flex h-64 items-center justify-center rounded-xl border border-line text-brand">
-                <Spinner />
-              </div>
-            }
+            fallback={<MapSkeleton className="h-64 rounded-xl" />}
           >
             <AddressMap
               value={pin}

@@ -10,7 +10,8 @@ import { useToast } from '@/context/ToastContext';
 import PhoneInput from '@/view/components/PhoneInput';
 import AddressFields, { blankAddress, cleanAddress, fromSaved } from '@/view/components/AddressFields';
 import Avatar from '@/view/components/Avatar';
-import { Button, Card, ErrorNote, Field, Input, PageLoader } from '@/view/components/ui';
+import { Button, Card, ErrorNote, Field, Input } from '@/view/components/ui';
+import { ProfileSkeleton } from '@/view/presentation/customer/SkeletonLoading';
 
 function Section({ title, hint, children }: any) {
   return (
@@ -151,7 +152,7 @@ export default function Profile() {
     if (data?.data) setProfile(data.data);
   }, [data]);
 
-  if (loading && !profile) return <PageLoader />;
+  if (loading && !profile) return <ProfileSkeleton />;
   if (error && !profile) {
     return (
       <div className="mx-auto mt-6 max-w-xl">

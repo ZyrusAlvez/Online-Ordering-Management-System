@@ -1,6 +1,8 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import { MapSkeleton } from '@/view/components/Skeletons';
+import { BranchCardSkeleton, BranchGridSkeleton } from '@/view/presentation/landing/SkeletonLoading';
 import { Suspense } from 'react';
 import { useAuth, HOME_FOR_ROLE } from '@/context/AuthContext';
 import { Logo, REGION, RESTAURANT } from '@/view/components/Logo';
@@ -8,7 +10,7 @@ import { useSelectedBranch } from '@/hooks/useBranches';
 import { byDistance, directionsUrl, formatKm, haversineKm, hoursLabel, isOpenNow } from '@/utils/geo';
 import { useUserPosition } from '@/hooks/usePosition';
 import BranchList from '@/view/components/BranchList';
-import { Badge, Button, Card, Spinner } from '@/view/components/ui';
+import { Badge, Button, Card, Skeleton } from '@/view/components/ui';
 import { BottomDock, CartBar } from '@/view/components/BottomDock';
 import MenuBrowser from '@/view/components/MenuBrowser';
 import VisitorChat from '@/view/components/chat/VisitorChat';
@@ -17,7 +19,10 @@ import { useToast } from '@/context/ToastContext';
 import { Bike, ChefHat, Clock, Navigate, Pin, Store } from '@/view/components/icons';
 
 // Leaflet only loads with the map, not with the rest of the app.
-const BranchMap = dynamic(() => import('@/view/components/BranchMap'), { ssr: false });
+const BranchMap = dynamic(() => import('@/view/components/BranchMap'), {
+  ssr: false,
+  loading: () => <MapSkeleton className="h-72 sm:h-96 md:h-full md:min-h-[520px]" />,
+});
 
 const STEPS = [
   { icon: Store, title: 'Pick your branch', body: 'The one nearest you is chosen for you, or pick any of them on the map.' },
@@ -30,13 +35,7 @@ const scrollTo = (id) => document.getElementById(id)?.scrollIntoView({ behavior:
 
 /** The customer's branch (nearest unless they picked one), up front in the hero. */
 function YourBranchCard({ branch, explicit, isNearest, position, status, onOrder }: any) {
-  if (!branch) {
-    return (
-      <Card className="flex items-center gap-3 text-ink-soft">
-        <Spinner /> Loading branches…
-      </Card>
-    );
-  }
+  if (!branch) return <BranchCardSkeleton />;
 
   const open = isOpenNow(branch);
   const label = explicit ? 'Your branch' : isNearest ? 'Nearest to you' : 'Suggested branch';
@@ -106,7 +105,7 @@ function LandingPage() {
   const { isAuthed, role } = useAuth();
   const cart = useCart();
   const toast = useToast();
-  const { branch, branches, explicit, isNearest, select } = useSelectedBranch({ locate: true });
+  const { branch, branches, explicit, isNearest, select, loading: branchesLoading } = useSelectedBranch({ locate: true });
   const { position, status } = useUserPosition();
   const home = HOME_FOR_ROLE[role] ?? '/menu';
   const count = branches.length;
@@ -157,7 +156,16 @@ function LandingPage() {
       <section className="mx-auto grid max-w-6xl gap-x-10 gap-y-6 px-4 pb-16 pt-8 md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] md:pt-12">
         <div className="md:self-end">
           <p className="inline-flex items-center gap-2 rounded-full bg-paper px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-sun-dark ring-1 ring-line">
-            <Store size={14} /> {count > 1 ? `${count} branches across ${REGION}` : REGION}
+            <Store size={14} />{' '}
+            {branchesLoading ? (
+              <>
+                <Skeleton className="h-3 w-3 rounded-sm" /> branches across {REGION}
+              </>
+            ) : count > 1 ? (
+              `${count} branches across ${REGION}`
+            ) : (
+              REGION
+            )}
           </p>
           <h1 className="mt-5 text-balance font-script text-[2.75rem] leading-[1.08] text-ink sm:text-6xl">
             Home-style favorites, <span className="whitespace-nowrap text-brand">near you</span>.
@@ -169,21 +177,19 @@ function LandingPage() {
         </div>
 
         <div className="relative md:col-start-2 md:row-span-2 md:row-start-1">
-          <Suspense
-            fallback={
-              <div className="flex h-72 items-center justify-center rounded-3xl border border-line bg-paper text-brand sm:h-96 md:h-full md:min-h-[520px]">
-                <Spinner />
-              </div>
-            }
-          >
-            <BranchMap
-              className="h-72 rounded-3xl sm:h-96 md:h-full md:min-h-[520px]"
-              branches={branches}
-              selectedId={branch?.id}
-              userPos={position}
-              onSelect={choose}
-            />
-          </Suspense>
+          {branchesLoading ? (
+            <MapSkeleton className="h-72 sm:h-96 md:h-full md:min-h-[520px]" />
+          ) : (
+            <Suspense fallback={<MapSkeleton className="h-72 sm:h-96 md:h-full md:min-h-[520px]" />}>
+              <BranchMap
+                className="h-72 rounded-3xl sm:h-96 md:h-full md:min-h-[520px]"
+                branches={branches}
+                selectedId={branch?.id}
+                userPos={position}
+                onSelect={choose}
+              />
+            </Suspense>
+          )}
         </div>
 
         <div className="md:self-start">
@@ -198,13 +204,15 @@ function LandingPage() {
             />
           </div>
           <ul className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-sm font-medium text-ink-soft">
-            {[count > 1 ? `${count} branches` : 'Branches near you', 'Pickup & delivery', 'Order ahead'].map(
-              (fact) => (
-                <li key={fact} className="flex items-center gap-2">
-                  <span className="h-1.5 w-1.5 rounded-full bg-brand" aria-hidden="true" /> {fact}
-                </li>
-              ),
-            )}
+            {[
+              branchesLoading ? <Skeleton key="count" className="h-4 w-20" /> : count > 1 ? `${count} branches` : 'Branches near you',
+              'Pickup & delivery',
+              'Order ahead',
+            ].map((fact, i) => (
+              <li key={i} className="flex items-center gap-2">
+                <span className="h-1.5 w-1.5 rounded-full bg-brand" aria-hidden="true" /> {fact}
+              </li>
+            ))}
           </ul>
         </div>
       </section>
@@ -217,7 +225,11 @@ function LandingPage() {
               ? 'Sorted by distance from you. Every branch serves the same menu at the same prices.'
               : 'Every branch serves the same menu at the same prices. Pick the one to order from.'}
           </p>
-          <BranchList layout="grid" branches={nearestFirst} selectedId={branch?.id} onSelect={choose} className="mt-8" />
+          {branchesLoading ? (
+            <BranchGridSkeleton className="mt-8" />
+          ) : (
+            <BranchList layout="grid" branches={nearestFirst} selectedId={branch?.id} onSelect={choose} className="mt-8" />
+          )}
         </div>
       </section>
 

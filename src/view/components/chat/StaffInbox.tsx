@@ -8,11 +8,12 @@ import { subscribeToInbox } from '@/hooks/realtime';
 import { timeAgo } from '@/utils/format';
 import { Empty, ErrorNote, Modal } from '@/view/components/ui';
 import ChatWindow from '@/view/components/chat/ChatWindow';
+import { ChatSkeleton, RowsSkeleton } from '@/view/components/Skeletons';
 
 function Conversation({ thread, onChanged }: any) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState(null);
-  const { data, refresh } = useLive(
+  const { data, loading, refresh } = useLive(
     () => respond(getSupportMessages(thread.id)),
     subscribeToInbox,
     [thread.id],
@@ -49,6 +50,8 @@ function Conversation({ thread, onChanged }: any) {
     return true;
   };
 
+  if (loading && !data) return <ChatSkeleton />;
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <ErrorNote error={error} />
@@ -72,7 +75,9 @@ export default function StaffInbox({ inbox, onClose }: any) {
 
   return (
     <Modal open onClose={onClose} title="Messages" wide>
-      {inbox.threads.length === 0 ? (
+      {inbox.loading && inbox.threads.length === 0 ? (
+        <RowsSkeleton count={3} label="Loading messages…" />
+      ) : inbox.threads.length === 0 ? (
         <Empty title="No messages yet" hint="When someone chats from the website, it shows up here." />
       ) : (
         <div className="grid h-[60vh] gap-3 sm:grid-cols-[14rem_1fr]">

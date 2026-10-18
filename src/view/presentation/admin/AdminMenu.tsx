@@ -26,10 +26,10 @@ import {
   Field,
   Input,
   Modal,
-  PageLoader,
   Select,
   Textarea,
 } from '@/view/components/ui';
+import { MenuSectionsSkeleton } from '@/view/presentation/admin/SkeletonLoading';
 import { ChefHat, Plus, Trash } from '@/view/components/icons';
 import ImageField from '@/view/components/ImageField';
 
@@ -278,7 +278,7 @@ export default function AdminMenu() {
       </p>
 
       <ErrorNote error={error} onRetry={reload} />
-      {loading && !data && <PageLoader />}
+      {loading && !data && <MenuSectionsSkeleton />}
       {!loading && !error && categories.length === 0 && <Empty title="No categories yet" hint="Create a category, then add products to it." />}
 
       {categories.map((c) => (

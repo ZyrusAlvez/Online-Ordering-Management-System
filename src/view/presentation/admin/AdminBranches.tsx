@@ -1,6 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import { MapSkeleton } from '@/view/components/Skeletons';
 import { Suspense, useState } from 'react';
 import { call, respond } from '@/utils/apiError';
 import { createBranch, getAllBranches, updateBranch } from '@/controllers/branchController';
@@ -10,11 +11,15 @@ import { useToast } from '@/context/ToastContext';
 import PhoneInput from '@/view/components/PhoneInput';
 import { useStaffBranch } from '@/view/components/StaffBranch';
 import { hoursLabel } from '@/utils/geo';
-import { Badge, Button, Empty, ErrorNote, Field, Input, Modal, PageLoader, Spinner } from '@/view/components/ui';
+import { Badge, Button, Empty, ErrorNote, Field, Input, Modal } from '@/view/components/ui';
+import { BranchCardsSkeleton } from '@/view/presentation/admin/SkeletonLoading';
 import { Pin, Plus } from '@/view/components/icons';
 
 // The same pin-drop map the checkout uses, loaded only when the form opens.
-const AddressMap = dynamic(() => import('@/view/components/AddressMap'), { ssr: false });
+const AddressMap = dynamic(() => import('@/view/components/AddressMap'), {
+  ssr: false,
+  loading: () => <MapSkeleton className="h-64 rounded-xl" />,
+});
 
 const blank = {
   name: '',
@@ -125,11 +130,7 @@ function BranchForm({ branch, onClose, onSaved }: any) {
         <div>
           <span className="mb-1 block text-sm font-medium text-ink">Location on the map</span>
           <Suspense
-            fallback={
-              <div className="flex h-64 items-center justify-center rounded-xl border border-line text-brand">
-                <Spinner />
-              </div>
-            }
+            fallback={<MapSkeleton className="h-64 rounded-xl" />}
           >
             <AddressMap
               value={pinned ? { latitude: form.latitude, longitude: form.longitude } : null}
@@ -213,7 +214,7 @@ export default function AdminBranches() {
         <Button onClick={() => setEditing('new')}><Plus size={16} /> New branch</Button>
       </div>
       <ErrorNote error={error} onRetry={reload} />
-      {loading && !data && <PageLoader />}
+      {loading && !data && <BranchCardsSkeleton count={7} />}
       {!loading && !error && branches.length === 0 && <Empty title="No branches yet" />}
       <div className="grid gap-3 md:grid-cols-2">
         {branches.map((b) => (

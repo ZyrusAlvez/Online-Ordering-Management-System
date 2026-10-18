@@ -58,6 +58,12 @@ branch, the kiosk key), which the server cannot see, so `src/app/providers.tsx` 
 started in the browser; otherwise the server's HTML would differ from the first browser render (React error #418).
 This matches the single-page app the screens came from.
 
+**Loading shows skeletons, not spinners.** Each screen renders its frame (header, tabs, filters, forms) at once and
+shows grey placeholder shapes only where data is still coming: `Skeleton` and `SkeletonGroup` in
+`view/components/ui.tsx`, shared shapes in `view/components/Skeletons.tsx` (menu, chat, rows, maps), and each feature's
+own in `view/presentation/<feature>/SkeletonLoading.tsx`. A new screen that loads data should do the same. The only
+full-page loader left is "Signing you in…" on the Google callback, which is an action, not data.
+
 | Piece | Job |
 | --- | --- |
 | `utils/result.ts` | `Result<T>`: `{ success: true, data }` or `{ success: false, error, status }`. Every controller returns one. `status` keeps the HTTP-style codes (404, 409, …) screens use to tell a conflict from a failure |

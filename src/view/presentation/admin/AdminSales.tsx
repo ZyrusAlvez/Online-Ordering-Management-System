@@ -6,7 +6,8 @@ import { getSalesReport } from '@/controllers/server/staffActions';
 import { accessToken } from '@/context/AuthContext';
 import { useFetch } from '@/hooks/hooks';
 import { CHANNEL, addDays, manilaToday, money, shortDay, startOfMonth } from '@/utils/format';
-import { Button, Card, Empty, ErrorNote, Input, PageLoader, Segmented } from '@/view/components/ui';
+import { Button, Card, Empty, ErrorNote, Input, Segmented } from '@/view/components/ui';
+import { SalesSkeleton } from '@/view/presentation/admin/SkeletonLoading';
 import { useStaffBranch } from '@/view/components/StaffBranch';
 
 const PRESETS = [
@@ -260,7 +261,7 @@ export default function AdminSales() {
 
       {rangeError && <ErrorNote error={new Error(rangeError)} />}
       <ErrorNote error={error} onRetry={reload} />
-      {loading && !report && !rangeError && <PageLoader />}
+      {loading && !report && !rangeError && <SalesSkeleton />}
 
       {report && !rangeError && (
         <div className={`space-y-4 transition-opacity ${loading ? 'opacity-60' : ''}`}>

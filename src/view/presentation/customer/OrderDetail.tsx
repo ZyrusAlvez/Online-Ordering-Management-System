@@ -10,7 +10,8 @@ import { subscribeToOrders } from '@/hooks/realtime';
 import { dateTime, money, scheduleLabel } from '@/utils/format';
 import { prepareImage } from '@/utils/image';
 import { useToast } from '@/context/ToastContext';
-import { Button, Card, ErrorNote, Field, Input, PageLoader } from '@/view/components/ui';
+import { Button, Card, ErrorNote, Field, Input } from '@/view/components/ui';
+import { OrderDetailSkeleton } from '@/view/presentation/customer/SkeletonLoading';
 import GcashAccount from '@/view/components/GcashAccount';
 import {
   MethodLabel,
@@ -186,7 +187,7 @@ export default function OrderDetail() {
     }
   };
 
-  if (loading) return <PageLoader />;
+  if (loading) return <OrderDetailSkeleton />;
   if (error) {
     return (
       <div className="mx-auto mt-6 max-w-xl space-y-3">

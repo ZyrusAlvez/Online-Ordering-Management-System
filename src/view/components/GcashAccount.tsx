@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useGcashAccount } from '@/hooks/useGcash';
 import { money } from '@/utils/format';
-import { Spinner } from '@/view/components/ui';
 
 /**
  * Our GCash QR, account name and number, and what to send. Shown wherever a
@@ -15,13 +14,6 @@ export default function GcashAccount({ amount, large = false }: any) {
   const account = useGcashAccount();
   const [copied, setCopied] = useState(false);
 
-  if (account === undefined) {
-    return (
-      <div className="flex justify-center py-6">
-        <Spinner />
-      </div>
-    );
-  }
   if (account === null) {
     return <p className="text-center text-ink-soft">GCash isn't available right now. Please pay in cash.</p>;
   }

@@ -20,9 +20,9 @@ import {
   Field,
   Input,
   Modal,
-  PageLoader,
   Segmented,
 } from '@/view/components/ui';
+import { DeliveriesSkeleton } from '@/view/presentation/driver/SkeletonLoading';
 import { Chat, Phone, Pin } from '@/view/components/icons';
 
 function DeliveryCard({ order, children }: any) {
@@ -202,7 +202,7 @@ export default function Driver() {
         />
 
         <ErrorNote error={current.error} onRetry={current.reload} />
-        {current.loading && !current.data && <PageLoader />}
+        {current.loading && !current.data && <DeliveriesSkeleton />}
 
         {tab === 'pool' && !pool.loading && poolOrders.length === 0 && !pool.error && (
           <Empty title="No orders waiting" hint="Ready delivery orders show up here the moment the kitchen finishes them." />

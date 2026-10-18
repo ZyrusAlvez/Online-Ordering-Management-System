@@ -7,7 +7,8 @@ import { listMyOrders } from '@/controllers/orderController';
 import { useFetch } from '@/hooks/hooks';
 import { subscribeToOrders } from '@/hooks/realtime';
 import { dateTime, money, scheduleLabel } from '@/utils/format';
-import { Button, Card, Empty, ErrorNote, PageLoader, Pagination } from '@/view/components/ui';
+import { Button, Card, Empty, ErrorNote, Pagination } from '@/view/components/ui';
+import { OrdersSkeleton } from '@/view/presentation/customer/SkeletonLoading';
 import { MethodLabel, PaymentBadge, StatusBadge } from '@/view/components/OrderParts';
 
 export default function Orders() {
@@ -30,7 +31,7 @@ export default function Orders() {
         My orders
       </h1>
       <ErrorNote error={error} onRetry={reload} />
-      {loading && !data && <PageLoader />}
+      {loading && !data && <OrdersSkeleton />}
       {!loading && !error && orders.length === 0 && (
         <Empty
           title="No orders yet"
