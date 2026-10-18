@@ -1,7 +1,7 @@
 # Data dictionary
 
 What every piece of stored data means, what values it may hold, and where each rule is enforced.
-Built from the live database; the SQL that creates it is in `backend/supabase/migrations/`.
+Built from the live database; the SQL that creates it is in `supabase/migrations/`.
 
 **Contents:** [Conventions](#conventions) · [Input rules](#input-rules-the-same-everywhere) · [Enumerated values](#enumerated-values) · [Tables](#tables) · [JSON shapes](#json-shapes) · [Storage](#file-storage) · [Login accounts](#login-accounts-supabase-auth) · [Who can read and write what](#who-can-read-and-write-what) · [Known gaps](#known-gaps)
 
@@ -17,11 +17,11 @@ Built from the live database; the SQL that creates it is in `backend/supabase/mi
 | Money | Prices and totals are `numeric(10,2)` in **pesos**, never more than **999,999.99**. Payment amounts are `integer` **centavos** (`payments.amount_centavos`). |
 | Text | Names and notes are trimmed; a field of only spaces counts as empty. |
 | Deleting | Orders are never deleted in normal use: a mistake is `cancelled` (customer) or `voided` (staff, with a reason). A product that has been ordered cannot be deleted; mark it sold out instead. |
-| Writing | Browsers never write to the database. Every change goes through the API using the server's secret key, which checks who is allowed. The database has only `SELECT` policies (see [access](#who-can-read-and-write-what)). |
+| Writing | Browsers write to Supabase directly, as the signed-in user. Each write must pass a policy for that role and branch, and triggers own prices, totals and payment status. A few things run on the server with the secret key (see [access](#who-can-read-and-write-what)). |
 
 ## Input rules (the same everywhere)
 
-The same limits are enforced in three places. The **API** (`backend/src/validators/fields.js`) is the authority, the **forms** mirror it (`frontend/src/lib/validation.js`, `PhoneInput`, and each input's `maxLength`), and the **database** backs it with `CHECK` constraints so a script cannot sneak bad data in either. Change a rule in all three together.
+The same limits are enforced in three places. The **controllers** validate with the zod schemas (`src/utils/validators/fields.ts`), the **forms** mirror them (`src/utils/validation.ts`, `PhoneInput`, and each input's `maxLength`), and the **database** backs them with `CHECK` constraints so a script cannot sneak bad data in either. Change a rule in all three together. (The *API* column below means the controller.)
 
 | Field | Rule | Example | Form | API | DB |
 | --- | --- | --- | :-: | :-: | :-: |
@@ -69,7 +69,7 @@ The admin **Sales** page and `GET /admin/sales` use one definition everywhere:
 | Refunds? | A refunded order is `voided`, so it drops out. A voided order still waiting on a GCash refund (`refund_pending`) is shown as a separate note, not as revenue. A voided paid **cash** order also drops out (the cash goes back by hand). |
 | Which day? | The Manila day the order was **placed** (`orders.created_at`, Asia/Manila), the same day its order number belongs to. A delivery paid in cash after midnight counts on the day it was ordered. |
 | Which amount? | `orders.total_amount`, which the server always computes from live prices. The cash/GCash split uses `orders.payment_method`. Best sellers use `order_items.quantity` and the price **at the time of ordering** (`unit_price`). |
-| Where is it computed? | The SQL function `public.sales_report(from, to, branch_ids)`, run by the API with the secret key only (browsers cannot call it). `branch_ids` null means every branch; an admin's request always passes their own branches. Aggregating in the database avoids PostgREST's 1,000-row response limit. Indexes: `orders_created_at_idx`, `orders_branch_created_idx`. |
+| Where is it computed? | The SQL function `public.sales_report(from, to, branch_ids)`, run by the sales-report server action with the secret key only (browsers cannot call it). `branch_ids` null means every branch; an admin's request always passes their own branches. Aggregating in the database avoids PostgREST's 1,000-row response limit. Indexes: `orders_created_at_idx`, `orders_branch_created_idx`. |
 
 ## Enumerated values
 
@@ -107,7 +107,7 @@ Key: **PK** primary key · **FK** foreign key · **NN** not null · **UQ** uniqu
 Seeded with GMA Terminal, Dasma Bayan, Langkaan, Gen-Tri, Trece, Silang and Imus (08:00–21:00, no address yet).
 
 ### `branch_staff`: which branches a staff account works at
-`profile_id` (FK → `profiles`, cascade) + `branch_id` (FK → `branches`, cascade), together the PK · `created_at`. An admin has one or more rows; a cashier login and a rider exactly one (the API keeps it so). A super admin needs none. Read on every staff request (and by `has_branch_access()` in row-level security), so a change applies at once.
+`profile_id` (FK → `profiles`, cascade) + `branch_id` (FK → `branches`, cascade), together the PK · `created_at`. An admin has one or more rows; a cashier login and a rider exactly one (the staff server actions keep it so). A super admin needs none. Read by every staff check (and by `has_branch_access()` in row-level security), so a change applies at once.
 
 ### `branch_unavailable_products`: sold out at one branch
 `branch_id` (FK → `branches`, cascade) + `product_id` (FK → `products`, cascade), together the PK · `created_at`. A row hides that dish at that branch only (its menu, and orders for it are refused there). `products.is_available` still switches a dish off everywhere. Readable by everyone, like the menu.
@@ -164,7 +164,7 @@ Seeded with GMA Terminal, Dasma Bayan, Langkaan, Gen-Tri, Trece, Silang and Imus
 | `kiosk_device_id` | uuid | FK → `kiosk_devices` (set null) | Which terminal took a kiosk order. |
 | `rider_id` | uuid | FK → `profiles` (set null) | The rider holding a delivery. Cleared if released. |
 | `claimed_at`, `delivered_at` | timestamptz | | |
-| `scheduled_for` | timestamptz | Online orders only | When the customer wants it; null = as soon as possible. The API allows 15-minute slots within the branch's hours, up to the day after tomorrow. The cashier's queue sorts and highlights by it. |
+| `scheduled_for` | timestamptz | Online orders only | When the customer wants it; null = as soon as possible. The app allows 15-minute slots within the branch's hours, up to the day after tomorrow. The cashier's queue sorts and highlights by it. |
 | `voided_at`, `voided_by`, `void_reason` | timestamptz, uuid → `profiles`, text ≤ 500 | | Audit trail for a voided order. |
 | `created_at`, `updated_at` | timestamptz | NN | |
 
@@ -179,7 +179,7 @@ Indexes: customer, `(status, channel)`, `(branch_id, status)`, `(branch_id, crea
 | `variant_id` | uuid | FK → `product_variants` (**restrict**) | The size chosen, if any. |
 | `quantity` | integer | NN, 1 to 99 | |
 | `unit_price` | numeric(10,2) | NN, ≥ 0 | Price **at the time of ordering**, so later menu changes don't rewrite history. |
-| `notes` | text | ≤ 500 at the API | e.g. "Fried · no onions" |
+| `notes` | text | ≤ 500 (validated in the app) | e.g. "Fried · no onions" |
 | `created_at` | timestamptz | NN | |
 
 ### `payments`: money movements (cash and GCash)
@@ -300,9 +300,9 @@ Cash: `{ "collected_by": "<user id>", "tendered": 500, "change": 20 }`. GCash at
 
 ## Who can read and write what
 
-Every table has Row Level Security on. There are **no write policies**: all inserts, updates and deletes come from the API's secret key after it has checked the caller's role.
+Every table has Row Level Security on. Writes are allowed per role by the policies in `supabase/migrations/20261018000000_nextjs_client_writes.sql`; the triggers listed after the table keep the money honest.
 
-| Table | Who can read directly (live updates) |
+| Table | Who can read (also scopes live updates) |
 | --- | --- |
 | `categories`, `products`, `product_variants`, `site_images`, `branch_unavailable_products` | Everyone |
 | `branches` | Everyone (active branches) |
@@ -313,12 +313,30 @@ Every table has Row Level Security on. There are **no write policies**: all inse
 | `branch_staff` | Your own rows (used by `has_branch_access()`) |
 | `kiosk_devices`, `order_counters`, `employee_credentials`, `chat_thread_secrets` | Nobody (server only) |
 
-**Branch checks.** `public.has_branch_access(branch_id)` is true for a super admin, or when the caller has that
-branch in `branch_staff`. The staff policies above use it, which is what keeps a cashier's or branch admin's **live
-feed** to their own branches. The API applies the same rule itself (it uses the secret key, which bypasses these
-policies).
+| Table | Who can write |
+| --- | --- |
+| `orders` | A customer inserts their own `online` order and may then only cancel it (pending/confirmed, unpaid) or move it to GCash `processing`. Cashiers and admins of the branch: walk-in (`pos`) orders and any change to their branch's orders. A rider: claim a ready delivery at their branch, return it, deliver it, record cash on delivery. Who and where an order belongs to never changes |
+| `order_items` | The customer, for their own new order; cashiers and admins of the branch, before payment starts |
+| `payments` | The customer: a GCash `processing` row for their own GCash order. Cashiers and admins of the branch: any. A rider: a cash `paid` row for an order they hold, and marking a waiting GCash row failed |
+| `categories`, `products`, `product_variants`, `site_images`, `branches` | Super admins |
+| `branch_unavailable_products` | Admins of that branch, super admins |
+| `profiles` | Your own row, only `full_name`, `phone`, `default_address` (a column grant) |
+| `chat_threads` | The customer or rider of a delivery order may open its thread; participants and branch staff update the preview and read marker |
+| `chat_messages` | Branch staff on support threads (as `cashier`); the order's customer and the rider holding it on a delivery thread, while it is out for delivery. `sender_id` must be the caller |
+| `kiosk_devices`, `order_counters`, `employee_credentials`, `chat_thread_secrets` | Server only (secret key) |
 
-Guests chatting from the website have no login, so they never read the database: they use their secret chat token against the API, and are told "something new" through a message-free signal.
+**Triggers.** `price_order_item` sets every line's price from the menu (refusing unavailable, sold-out or unpriced
+items); `recompute_order_total` and `guard_order` keep `orders.total_amount` equal to the sum of the items;
+`guard_order` also forces a new order to pending and unpaid and refuses any change a customer or rider may not make;
+`guard_payment` sets a payment's amount from the order. They only act on browser requests; the server's secret key
+(kiosk orders, staff accounts) skips them.
+
+**Branch checks.** `public.has_branch_access(branch_id)` is true for a super admin, or when the caller has that branch in
+`branch_staff`. `is_counter_staff(branch)` and `is_branch_admin(branch)` add the role and `is_active_user()`, so a
+deactivated account loses write access immediately.
+
+Guests chatting from the website have no login, so they never touch these tables: the visitor-chat server actions
+check their secret chat token, and they are told "something new" through a message-free signal.
 
 ---
 
@@ -330,4 +348,5 @@ Found during review and deliberately left for later:
 - **Duplicate orders on a dropped connection.** Placing an order has no idempotency key; if the reply is lost and the customer taps again, a second order is created.
 - **Looser status moves.** `ready → completed` lets a cashier finish a delivery without a rider, and nothing requires payment before `completed` (may be intended for pay-at-counter).
 - **Supabase dashboard setting:** *Authentication → Passwords → "Prevent use of leaked passwords"* is off.
+- **No rate limits on the password gates and guest chat** since the move from Express (see [security.md](./security.md#rate-limits)).
 - **Database tuning hints from Supabase's advisor:** policies could use `(select auth.uid())` so it is evaluated once per query; a few foreign keys have no covering index (`order_items.product_id`, `order_items.variant_id`, `orders.kiosk_device_id`, `orders.voided_by`, `chat_messages.sender_id`, `employee_credentials.updated_by`). Harmless at this size.

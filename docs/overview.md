@@ -47,30 +47,33 @@ Every order belongs to one branch: the kiosk's, the cashier's, or the one the on
 ## How the pieces fit
 
 ```
-   Browser (one React app, many screens)
+   Next.js app (one app, many screens)
    ┌───────────────────────────────────────────────────────────────┐
    │ Landing · Menu · Checkout · Orders · Profile   (customers)    │
    │ /cashier (POS)   /kiosk   /driver   /admin                    │
+   │ screens ─▶ controllers ─▶ models  (in the browser)            │
+   │ server actions: gates, kiosk, guest chat, staff, sales        │
    └───────┬──────────────────────────────┬────────────────────────┘
-           │ REST (all writes, all pricing)│ Realtime (live updates only)
+           │ reads and writes as the user  │ secret key (server actions only)
            ▼                               ▼
-   ┌───────────────────┐         ┌──────────────────────────────────┐
-   │  Express API      │────────▶│  Supabase                        │
-   │  validation,      │ secret  │  Postgres (data, RLS, SQL fns)   │
-   │  roles, pricing,  │  key    │  Auth (logins, Google)           │
-   │  payments, chat   │         │  Storage (menu, chat, receipts)  │
-   └───────────────────┘         │  Realtime (postgres_changes,     │
-                                 │            broadcast)            │
-                                 └──────────────────────────────────┘
+   ┌──────────────────────────────────────────────────────────────┐
+   │  Supabase                                                    │
+   │  Postgres: data, row-level security per role and branch,     │
+   │            triggers that own prices, totals, payment status  │
+   │  Auth (logins, Google) · Storage (menu, chat, receipts)      │
+   │  Realtime (postgres_changes, broadcast)                      │
+   └──────────────────────────────────────────────────────────────┘
    The browser also loads CARTO map tiles and OpenStreetMap address lookup directly.
 ```
 
 Two rules shape everything:
 
-1. **Browsers never write to the database.** Every change goes through the API, which checks who is asking and
-   recalculates prices itself. The database only lets people *read* what they are entitled to, which is also what
-   scopes the live updates they receive.
-2. **The server is the authority.** A price, a total, a role or a payment state sent by a browser is ignored.
+1. **The database is the authority.** There is no API server: browsers read and write Supabase directly, and every
+   write must pass a policy for that role and branch. A price, a total, a role or a payment state sent by a browser is
+   ignored; triggers take them from the menu and the items. The same policies scope the live updates each person
+   receives.
+2. **The secret key never reaches a browser.** The few things that need it run as server actions inside the Next.js
+   app.
 
 More in [architecture.md](./architecture.md) and [security.md](./security.md).
 
@@ -78,37 +81,37 @@ More in [architecture.md](./architecture.md) and [security.md](./security.md).
 
 | Layer | Choice |
 | --- | --- |
-| Frontend | React 18, Vite, Tailwind CSS v4, React Router, Leaflet (map), supabase-js (live updates and Google sign-in only) |
-| Backend | Node ≥ 20, Express 4 (ES modules), zod (validation), helmet, cors, express-rate-limit |
+| App | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS v4, Leaflet (map), supabase-js, zod (validation), sonner (toasts) |
+| Server code | Next.js server actions (the only place the secret key is used) |
 | Database and platform | Supabase: Postgres, Row Level Security, Auth, Storage, Realtime |
 | Payments | Cash, and manual GCash into the restaurant's own account (staff verify the reference number / receipt) |
 | Maps | Leaflet with CARTO light tiles (OpenStreetMap data) and Nominatim address search (no API key) |
-| Tests | Node's built-in test runner against the real database |
+| Checks | `npm run check:flows`: the app's controllers and server actions run end to end against the database |
 
 ## Repository layout
 
 ```
 .
-├── backend/                  Express API
-│   ├── src/                  routes → controllers → services (see architecture.md)
-│   ├── supabase/
-│   │   ├── migrations/       the database schema, applied in filename order
-│   │   ├── seed-data/        menu.json and product-images.json
-│   │   └── seed.sql          the menu, generated from menu.json
-│   ├── scripts/              seeding, test runner, verification scripts
-│   └── tests/                unit, integration, end-to-end
-├── frontend/                 React app
-│   ├── src/pages/            one folder per audience (customer, cashier, kiosk, driver, admin)
-│   ├── src/components/       shared pieces (chat, map, dialogs, buttons…)
-│   ├── src/lib/              API client, session, live updates, validation, formatting
-│   └── public/brand/         the logo bundled as the default
+├── src/                      the Next.js app (see architecture.md)
+│   ├── app/                  routes, one folder per URL
+│   ├── controllers/          business rules; server/ holds the server actions
+│   ├── models/               Supabase queries; server/ uses the secret key
+│   ├── view/                 components/ (shared UI) and presentation/<feature>/ (screens)
+│   ├── context/ hooks/       session, cart, live updates, shared state
+│   └── utils/                validation, formatting, Supabase clients
+├── supabase/
+│   ├── migrations/           the database schema, applied in filename order
+│   ├── seed-data/            menu.json and product-images.json
+│   └── seed.sql              the menu, generated from menu.json
+├── scripts/                  seeding and the end-to-end flow checks
+├── public/brand/             the logo bundled as the default, the GCash QR
 ├── docs/                     this documentation
 └── .mcp.json                 Supabase MCP server address (no credentials)
 ```
 
 ## Current status
 
-**Working and tested** (525 automated tests, plus browser checks of the main flows): all three ordering channels,
+**Working and checked** (61 end-to-end flow checks against the database; the screens moved over from the earlier React app unchanged): all three ordering channels,
 cash and counter payments, the full order lifecycle, rider delivery with cash on delivery, the kiosk, chat with
 photos, profiles, Google sign-in, per-product photos, delivery map pins, the sales dashboard, validation and
 security hardening, multiple branches with branch-scoped admins, the branch map, nearest-branch ordering, per-branch

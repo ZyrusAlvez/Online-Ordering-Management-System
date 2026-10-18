@@ -12,21 +12,24 @@ Read this before putting real customers or real money through it.
 
 ## Principles
 
-1. **The browser is untrusted.** It can ask; the server decides. Prices, totals, roles and payment states sent by a
-   browser are ignored and recomputed.
-2. **Browsers never write to the database.** All writes go through the API, which uses the secret key after checking
-   who is asking. Database policies are read-only and exist to scope what each person may *see* (including live
-   updates).
-3. **The database also defends itself.** Formats, lengths and limits are checked there too, so a script that bypasses
-   the app still cannot store bad data.
-4. **Secrets are hashed or kept server-side.** Nothing a browser holds (a kiosk key, a guest chat token) is stored in
+1. **The browser is untrusted.** Prices, totals, roles and payment states sent by a browser are ignored and
+   recomputed by the database.
+2. **The database is the authority.** Browsers write to Supabase directly (there is no API server), so every write is
+   allowed by a row-level security policy for that role and branch, and the money rules are triggers: prices come from
+   the menu, the total is the sum of the items, a new order starts pending and unpaid, and a customer or rider can only
+   make the moves the app offers them. The controllers check the same rules first, for clear messages.
+3. **The secret key stays on the server.** Only Next.js server actions (gates, kiosk, guest chat, staff accounts,
+   sales report, password change) use it, and the build refuses to bundle it for the browser.
+4. **The database also checks formats.** Lengths and limits are `CHECK` constraints too, so a script that bypasses the
+   app still cannot store bad data.
+5. **Secrets are hashed or kept server-side.** Nothing a browser holds (a kiosk key, a guest chat token) is stored in
    a recoverable form on the server.
-5. **Least privilege per role,** and role decided only by the server.
-6. **Branch isolation.** Staff see and act on only the branches they work at; only the super admin sees all.
+6. **Least privilege per role,** and role decided only by the server.
+7. **Branch isolation.** Staff see and act on only the branches they work at; only the super admin sees all.
 
 ## What each person can do
 
-| | Read | Write (through the API) |
+| | Read | Write |
 | --- | --- | --- |
 | **Visitor** | Menu, site images; their own guest chat (with the token) | Start and use a guest chat |
 | **Customer** | Own orders, payments, profile, own delivery chat | Place and cancel own orders, edit own name/phone/address, change password |
@@ -44,20 +47,20 @@ work at is **403**. Rider and admin routes also refuse accounts that have been d
 
 ### Identity and roles
 
-- Logins are Supabase Auth (email or Google). The API validates the token on every request.
+- Logins are Supabase Auth (email or Google). Every request carries the user's token; server actions verify it with Supabase Auth.
 - **A role is read only from `app_metadata.role`**, which only the server can write. `user_metadata` is editable by the
   user and is never trusted. A login with no role is a customer. Registration can only ever create customers.
 - The role is kept in two places that must agree (`app_metadata.role` in the token, `profiles.role` for listings) and
-  only the profile service changes them together. The `profiles` table cannot be edited directly by users (no update
-  policy), so a user cannot edit their own role or active status.
+  only the server-side account helpers change them together. Users may update only their own `full_name`, `phone` and
+  `default_address` (a column-level grant), so nobody can edit their own role or active status.
 - Cashier and kiosk use shared employee passwords **per branch**: the cashier's is that branch's shared cashier
   account's password; the kiosk's is stored as a salted `scrypt` hash per branch. A correct kiosk password mints a
   per-device key bound to that branch (below). One branch's password never opens another branch.
 
 ### Branch isolation
 
-- Which branches an account works at is stored in `branch_staff` and **read on every request** (not carried in the
-  login token), so removing an admin from a branch applies to their very next request. A super admin is recognised by
+- Which branches an account works at is stored in `branch_staff` and **read by every policy** (`has_branch_access()`,
+  not carried in the login token), so removing an admin from a branch applies to their very next request. A super admin is recognised by
   role and sees all.
 - Every staff list is filtered to the caller's branches; asking for another branch is 403. Every action on a single
   order first loads it and checks its branch, answering 404 otherwise, so ids of other branches' orders are not even
@@ -65,18 +68,21 @@ work at is **403**. Rider and admin routes also refuse accounts that have been d
 - Row-level security applies the same rule to live feeds through `has_branch_access()`, so a cashier's browser never
   receives another branch's orders or chats.
 - Shared things (menu and prices, branches, admin accounts, site images, roles) are writable by the super admin only.
-- Covered by `tests/integration/branch-scope.test.js` (an Imus admin, cashier and rider against GMA Terminal) and
-  `scripts/dev/check-rls.mjs`.
+- Checked by `npm run check:flows` (a branch admin sees no other branch's kiosks, another customer cannot read an
+  order).
 
 ### Row-level security
 
-Every table has it on; every policy is `SELECT`-only. See [data-dictionary.md](./data-dictionary.md#who-can-read-and-write-what).
-Customers have **no** insert or update access to `orders` or `order_items`, so they cannot create free orders or mark
-their own order paid. Server-only tables have no policies at all.
+Every table has it on. Reads are scoped per role and branch; writes are allowed per role by the policies in
+`supabase/migrations/20261018000000_nextjs_client_writes.sql`, and deactivated accounts lose write access at once
+(`is_active_user()`). A customer *can* insert their own online order and its items, but the triggers replace any price
+or total they send and refuse any status change other than cancelling or sending GCash proof. Server-only tables
+(`kiosk_devices`, `employee_credentials`, `chat_thread_secrets`, `order_counters`) have no policies at all. See
+[data-dictionary.md](./data-dictionary.md#who-can-read-and-write-what).
 
 ### Input validation
 
-Three layers with the same rules (form, API, database). Highlights: phone numbers must be 11 digits starting `09`; text
+Three layers with the same rules (form, controller, database). Highlights: phone numbers must be 11 digits starting `09`; text
 is trimmed; money has at most two decimals and a ceiling; quantities 1 to 99; map pins must be inside the Philippines.
 Image links must be `http(s)`. User text used in searches is escaped, so punctuation cannot alter a query.
 Full table: [data-dictionary.md](./data-dictionary.md#input-rules-the-same-everywhere).
@@ -84,14 +90,14 @@ Full table: [data-dictionary.md](./data-dictionary.md#input-rules-the-same-every
 ### Uploads
 
 - Type is decided from the file's **bytes**, not its name or declared type, and only JPEG, PNG and WebP pass.
-- 5 MB limit at the web server and again at the storage bucket.
+- 5 MB limit in the app and again at the storage bucket.
 - Chat photos go to a **private** bucket under their conversation's folder, are shown only through links that expire
   after an hour, and are capped at 30 per conversation. The storage path is never sent to browsers.
 - A refused upload leaves nothing behind.
 
 ### Payments
 
-- Prices are computed on the server from the live menu; the amount charged is the server's total.
+- Prices are taken from the live menu by the database (a trigger), and the amount charged is the database's total.
 - GCash is manual: a customer's reference number or receipt **never** marks an order paid by itself. Staff check it
   against the restaurant's GCash app and approve or reject it; at the counter the cashier checks the receipt and
   records its reference number. Every approval records who made it.
@@ -112,32 +118,29 @@ Full table: [data-dictionary.md](./data-dictionary.md#input-rules-the-same-every
 
 ### Web layer
 
-`helmet` security headers; CORS limited to the configured origins; request bodies capped at 1 MB; error responses hide
-stack traces in production; the API reads the client's real IP through `TRUST_PROXY` so rate limits cannot be dodged by
-spoofing `X-Forwarded-For`.
+Security headers and a Content-Security-Policy are set at the host (see [deployment.md](./deployment.md#building-and-hosting));
+the app sets none itself. Server actions return a message and status, never a stack trace.
 
 ## Rate limits
 
-| Where | Limit | Counted per |
-| --- | --- | --- |
-| Whole API | 300 requests / 15 minutes (kiosk payment polling exempt) | IP |
-| Cashier login | 10 wrong passwords / 15 minutes, all branches together (successful logins are not counted) | IP |
-| Kiosk unlock | 10 wrong passwords / 15 minutes (own budget, separate from the cashier's) | IP |
-| Kiosk orders | 30 / minute | Device |
-| Change password | 10 attempts / 15 minutes | User |
-| Start a guest chat | 5 / hour | IP |
-| Guest chat messages | 20 / minute | IP |
-| Guest chat photos | 10 / 10 minutes | IP |
+The Express API's in-memory rate limits did not survive the move to Next.js (serverless functions keep no memory
+between requests). What remains is **Supabase Auth's own limits** on sign-in and sign-up. Nothing currently limits:
 
-Rate limiting is per server process (in memory). Behind several server instances each would count separately; use a
-shared store if you scale out.
+- wrong passwords at the **cashier gate** and the **kiosk unlock** (the old limit was 10 per 15 minutes per IP),
+- password-change attempts,
+- starting guest chats, guest messages and guest photos (the 30-photo cap per conversation still applies),
+- kiosk orders per device.
+
+The gates are the important ones: their passwords are short and shared. Restoring them needs a shared counter: a small
+`rate_limits` table checked by the server actions, or a store such as Upstash. See
+[Known gaps](#known-gaps-and-accepted-risks).
 
 ## Secrets
 
 | Secret | Lives in | Never… |
 | --- | --- | --- |
-| Supabase **secret key** | `backend/.env` (server only) | in the frontend, in git, in logs |
-| Supabase publishable key | `backend/.env`, `frontend/.env` | (public by design) |
+| Supabase **secret key** | `SUPABASE_SECRET_KEY`, server environment only | in a `NEXT_PUBLIC_` variable, in the browser bundle, in git, in logs |
+| Supabase publishable key | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | (public by design) |
 | Kiosk gate passwords (one per branch) | Hashed in `employee_credentials` | stored in plain text |
 | Cashier passwords (one login per branch) | Supabase Auth (hashed) | |
 | Kiosk device key, guest chat token | Browser; hash on the server | recoverable from the database |
@@ -169,6 +172,8 @@ Found in review or testing, each now covered by a test. Recorded because they ex
 | **Medium** | Editing a product's sizes failed once ordered; an order could be edited after payment began| Options are updated in place; edits blocked once payment starts |
 | **Medium** | Logout ended the user's sessions on **every** device, including all registers sharing the cashier login | Logout ends only that device's session |
 | **Low** | Kiosk failure screens never reset; modals let keyboard focus escape | Fixed (see [changelog.md](./changelog.md)) |
+| **High** | **A rider's claim reset the order total to 0** (found while testing the move to browser writes). The guard trigger summed the order's items as the caller, and RLS hides an order's items from a rider until they hold it, so the cash-on-delivery check compared the cash against ₱0 | The sum runs with owner rights (`order_items_total()`, migration `20261018000100`). `check:flows` asserts the total survives a claim and short cash is refused |
+| **Design** | **Moving writes into the browser** reopened the risk of free or self-paid orders that the 2026-09 fix had closed | Write policies are per role, and triggers own prices, totals and payment status; `check:flows` tries each tampering move |
 | **Low** | With branch policies in place, an anonymous read of `orders` or chats failed with *permission denied for function has_branch_access* instead of returning nothing | The function is executable by `anon` (it answers false) and runs with the caller's rights rather than as a definer |
 
 ## Known gaps and accepted risks
@@ -178,13 +183,13 @@ Found in review or testing, each now covered by a test. Recorded because they ex
 | **Shared cashier login per branch** | Cash payments record *the branch's cashier account*, not the person on shift | Per-cashier accounts or a name prompt at shift start |
 | **One branch per cashier login and rider** | A rider who covers two branches needs two accounts | Allow several rows in `branch_staff` for riders if that becomes common |
 | **A kiosk's device key is extractable** by anyone with developer tools on that terminal | It is a revocable device identifier, not a true secret | Revoke devices from Admin → Kiosks; a locked-down kiosk shell would be stronger |
-| **Logins are stored in the browser (`localStorage`)** | A cross-site-scripting bug anywhere would expose a session | React escapes output and the app renders no user HTML; add a Content-Security-Policy at the host (the frontend sets none) |
+| **Logins are stored in the browser (`localStorage`)** | A cross-site-scripting bug anywhere would expose a session | React escapes output and the app renders no user HTML; add a Content-Security-Policy at the host (the app sets none) |
 | **Leaked-password protection is off** in Supabase | Users may choose a password known from breaches | Turn it on: Authentication → Passwords |
-| **Guests are anonymous** | Spam is limited only by rate limits and the 30-photo cap | Tighten limits, add a challenge, or require a name |
+| **Guests are anonymous** | Spam is limited only by the 30-photo cap | Tighten limits, add a challenge, or require a name |
 | **A chat photo link works for up to an hour** for anyone who is given it | A person in the conversation could share it | Short expiry; only conversation members receive links |
 | **Chat photos outlive a deleted conversation** | Orphaned files remain in storage | A periodic clean-up (see [operations.md](./operations.md#maintenance)) |
 | **Map lookups go to OpenStreetMap, and map tiles to CARTO, from the browser** | OSM sees the searched address and the pinned coordinates; CARTO sees which map area is viewed | Disclose it; self-host a geocoder or tile server if privacy requires |
-| **Rate limits are per process** | Several server instances each count separately | A shared store (e.g. Redis) when scaling out |
+| **No rate limits on the password gates, password change or guest chat** | The cashier and kiosk passwords can be guessed without slowdown; guests can spam the inbox | A `rate_limits` table checked by the server actions, or Upstash (see [Rate limits](#rate-limits)) |
 | **Orders have no duplicate protection** | A dropped connection plus a second tap can create two orders | An idempotency key on order creation |
 
 ## Before going live
@@ -194,13 +199,14 @@ Found in review or testing, each now covered by a test. Recorded because they ex
       out of public view, or delete it.
 - [ ] Give each branch its real address, phone and opening hours (Admin → Branches); the seeds are 08:00–21:00 with
       no address.
-- [ ] `NODE_ENV=production`, `CORS_ORIGIN` set to your site (not `*`), `TRUST_PROXY` matching your hosting, HTTPS everywhere.
+- [ ] HTTPS everywhere; `SUPABASE_SECRET_KEY` set only as a server environment variable.
 - [ ] Supabase: enable leaked-password protection; confirm only your real site addresses are in the redirect URL list;
       decide whether email confirmation is required.
 - [ ] Keep the GitHub repository **private** (it contains development credentials in the docs).
-- [ ] Add a Content-Security-Policy and standard headers at your static host.
+- [ ] Add a Content-Security-Policy and standard headers at your host.
+- [ ] Restore rate limits on the cashier and kiosk gates ([Rate limits](#rate-limits)).
 - [ ] Turn on database backups and confirm you can restore.
-- [ ] Run `npm test` and `scripts/dev/check-rls.mjs` against a **separate** project, never production.
+- [ ] Run `npm run check:flows` against a **separate** project, never production.
 
 The full checklist, with configuration, is in [deployment.md](./deployment.md#go-live-checklist).
 

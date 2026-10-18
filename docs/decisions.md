@@ -11,24 +11,32 @@ The significant choices, each with the reason, so nobody has to rediscover it (o
 
 ## Architecture
 
-### One route namespace per interface
-**Decision.** `/kiosk`, `/pos`, `/orders`, `/rider`, `/admin` rather than one `/orders` that behaves differently per caller.
-**Why.** Each app then has one contract that can be documented and tested; route files read as a table of contents.
-**Trade-off.** A little repetition between namespaces.
+### Next.js and Supabase only; no API server (2026-10-18)
+**Decision.** The Express API and the Vite app were replaced by one Next.js app laid out like the team's Pasuyo project
+(`app/`, `controllers/`, `models/`, `view/components`, `view/presentation/<feature>`). Screens call controllers,
+controllers call models, models call Supabase directly from the browser.
+**Why.** Supabase already is the backend (database, auth, storage, realtime); a second server only relayed requests.
+One app, one deployment.
+**Trade-off.** Rules the API used to enforce had to move into the database (policies and triggers) so a browser cannot
+skip them, and Express's in-memory rate limits were lost ([security.md](./security.md#rate-limits)). The earlier
+decision "browsers never write to the database" is retired: they write, and the database checks.
 
-### Layered backend: routes → controllers → services
-**Decision.** Routes only route, controllers only translate HTTP, services hold rules and all database access.
-**Why.** Rules live in one place and can be tested without HTTP; changes have an obvious home ([architecture.md](./architecture.md#where-does-my-change-go)).
+### The secret key stays on the server, unlike Pasuyo
+**Decision.** Pasuyo puts its service role key in the browser bundle. Here it is read only by
+`src/utils/supabaseAdmin.ts` (`server-only`), used by Next.js server actions for what has no logged-in user (kiosk,
+guest chat, the cashier gate) or manages other people's accounts (riders, admins, employee passwords).
+**Why.** Anyone can read a browser bundle; that key bypasses every policy.
 
-### Browsers never write to the database
-**Decision.** All writes go through the API using the secret key. Database policies are `SELECT`-only.
-**Why.** Pricing, state moves and role checks must be enforced where the browser cannot bypass them. Row-level security is
-kept on anyway because live updates obey it: the policies decide what each person's live feed contains.
-**Trade-off.** Every change needs an endpoint. An earlier version let customers insert and update their own orders
-directly, which allowed free and self-"paid" orders ([security.md](./security.md#issues-found-and-fixed)).
+### Money rules are database triggers
+**Decision.** `price_order_item`, `recompute_order_total`, `guard_order` and `guard_payment` own prices, totals and
+payment status for browser writes. The controllers check the same rules first, for clear messages.
+**Why.** An earlier version let customers insert and update their own orders directly, which allowed free and
+self-"paid" orders ([security.md](./security.md#issues-found-and-fixed)). With browser writes back, the database itself
+must refuse them.
 
-### The supabase-js client in the browser is for live updates (and Google sign-in) only
-**Why.** Keeps one path for data (the API) and makes it impossible for a screen to skip validation by writing directly.
+### Layered: screens → controllers → models
+**Decision.** Screens only render and call controllers; controllers hold the rules and return `Result<T>`; models only
+query. Changes have an obvious home ([architecture.md](./architecture.md#where-does-my-change-go)).
 
 ---
 
@@ -59,7 +67,7 @@ were promoted to super admin.
 ### One shared cashier login and one kiosk password per branch
 **Decision.** Each branch has its own register account (`cashier.<code>@…`, created the first time its password is set;
 GMA Terminal keeps `cashier@3k.local`) and its own kiosk password. The gates ask for the branch first, and remember it.
-**Why.** A register and a kiosk physically belong to one branch, and the API then scopes them without any per-request
+**Why.** A register and a kiosk physically belong to one branch, and the app then scopes them without any per-request
 choice. One branch's password can never open another.
 **Trade-off.** Cash is still attributed to the branch's shared account, not a person.
 
@@ -72,7 +80,7 @@ global uniqueness. A branch prefix would make every number longer for no benefit
 ### Scheduled orders: 15-minute slots, two days ahead, inside opening hours; ASAP only while open
 **Decision.** Online orders are for "as soon as possible" (only while the branch is open) or a 15-minute slot at least 30
 minutes ahead, up to the end of the day after tomorrow, starting inside the branch's hours. The same rules live in
-`backend/src/utils/schedule.js` and `frontend/src/lib/schedule.js`, so the checkout offers only slots the API accepts.
+`src/utils/schedule.ts`, used by both checkout (the slots it offers) and the order controller (what it accepts).
 **Why.** Customers want to order ahead (and at night); the kitchen needs a bounded, readable list. Refusing ASAP when
 closed avoids orders nobody will see until morning being treated as urgent.
 **Trade-off.** No overnight hours (a branch closing after midnight); `closes_at` must be after `opens_at`.
@@ -99,7 +107,7 @@ own location is shown as a dot but does not move the framing.
 
 ### A role comes only from `app_metadata`, and no role means customer
 **Why.** `user_metadata` can be edited by the user, so trusting it let anyone become admin. `app_metadata` is writable only
-by the server. Defaulting to customer matches the database helper `auth_role()`, so the API and the policies agree.
+by the server. Defaulting to customer matches the database helper `auth_role()`, so the app and the policies agree.
 
 ### Shared employee passwords for the cashier and the kiosk
 **Decision.** The cashier screen and the kiosk ask for one shared password (per branch), not personal accounts. The cashier
@@ -130,7 +138,7 @@ delivery). One field could not express both.
 
 ### GCash is manual, and only staff mark it paid
 **Decision.** No payment provider. Customers pay the restaurant's own GCash account (QR, name and number from
-`backend/.env`) and send a reference number and/or receipt; staff approve or reject it against the GCash app. At the
+the `NEXT_PUBLIC_GCASH_*` settings) and send a reference number and/or receipt; staff approve or reject it against the GCash app. At the
 counter (walk-ins, and kiosk orders) the cashier checks the receipt and records the reference number.
 **Why.** A PayMongo account was not available (October 2026). A reference number typed by the customer proves nothing on
 its own, so it only ever puts the order *up for verification*.
@@ -152,7 +160,7 @@ dispatch.
 
 ### Validation lives in three places with the same rules
 **Decision.** Form (instant feedback), API (the real gate), database (a backstop for scripts). The rules are centralised in
-`backend/src/validators/fields.js`, mirrored in `frontend/src/lib/validation.js`, and tabulated in
+`src/utils/validators/fields.ts`, mirrored in `src/utils/validation.ts`, and tabulated in
 [data-dictionary.md](./data-dictionary.md#input-rules-the-same-everywhere).
 **Trade-off.** A rule change touches several files; the table in the docs is the checklist.
 
@@ -203,7 +211,7 @@ so a fixed offset is exact.
 
 ### The report is a database function
 **Why.** The data service returns at most 1,000 rows per request, which a busy month of orders and their items would exceed,
-silently truncating totals. One SQL function returns the finished numbers. Only the API (secret key) can run it.
+silently truncating totals. One SQL function returns the finished numbers. Only the server (secret key, through the sales-report server action) can run it.
 
 ### Hand-built charts
 **Why.** Five simple charts do not justify a charting library's size, colours and animation to override. Each chart carries a text
@@ -232,10 +240,10 @@ The delivery map keeps a full pin, since its point must be precise. All of it li
 
 ### CARTO light tiles on every map
 **Decision.** All maps draw CARTO's light basemap (OpenStreetMap data, *Positron* style), set once in
-`frontend/src/components/mapPins.js`.
+`src/view/components/mapPins.ts`.
 **Why.** A quiet, pale map keeps attention on the red branch pins and fits the warm, minimal design; the default
 OpenStreetMap style is busy and colourful.
-**Trade-off.** CARTO requires a (free) key, `VITE_CARTO_BASEMAPS_KEY`, with a monthly request allowance, and sees which
+**Trade-off.** CARTO requires a (free) key, `NEXT_PUBLIC_CARTO_BASEMAPS_KEY`, with a monthly request allowance, and sees which
 area is viewed. Without the key the maps fall back to standard OpenStreetMap tiles rather than CARTO's "API KEY
 REQUIRED" placeholders. Swapping providers is a one-file change ([deployment.md](./deployment.md)).
 
@@ -265,7 +273,7 @@ inherit it.
 
 ### Placeholder dish photos from openly licensed sources
 **Why.** The menu needed images to be usable. Each photo's author and licence are recorded in
-`backend/supabase/seed-data/product-images.json`; replace them with your own, and credit them if the site is public until you do.
+`supabase/seed-data/product-images.json`; replace them with your own, and credit them if the site is public until you do.
 
 ---
 

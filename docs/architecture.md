@@ -1,266 +1,186 @@
 # Architecture
 
-How the code is organised, how data and live updates flow, and where a change belongs. For *what* the system does,
-read [how-it-works.md](./how-it-works.md); for the big picture, [overview.md](./overview.md).
+How the code is organised, where each rule is enforced, how sign-in and live updates work, and where a change belongs.
+For *what* the system does, read [how-it-works.md](./how-it-works.md); for the big picture, [overview.md](./overview.md).
 
-**Contents:** [Backend](#backend) · [Frontend](#frontend) · [Live updates](#live-updates) ·
-[Sign-in and sessions](#sign-in-and-sessions) · [Walk-throughs](#walk-throughs) · [Database](#database) ·
-[Storage](#storage) · [Where does my change go?](#where-does-my-change-go)
-
----
-
-## Backend
-
-A Node/Express API in ES modules, strictly layered so every file does one job:
-
-```
-request ─▶ routes ─▶ middleware ─▶ controller ─▶ service ─▶ Supabase
-           (path)    (auth, validate)  (HTTP in/out)  (rules + data)
-```
-
-```
-backend/src/
-  config/        env.js (validated at boot), supabase.js (the three clients)
-  constants/     orders.js (statuses, allowed moves, roles and role groups, selects)
-  validators/    zod schemas, one file per area; fields.js holds the shared field rules
-  middleware/    auth.js (login + roles + active check), branch.js (branch scope, order-in-scope),
-                 kiosk.js (device key + its branch), validate.js, upload.js (raw image bodies), errorHandler.js
-  controllers/   read the request, call a service, shape the response (no queries)
-  services/      the business rules and all database access (no req/res)
-  routes/        path + middleware chain + controller, nothing else
-  utils/         ApiError, asyncHandler, pagination, password hashing, manilaDate,
-                 postgrest (safe search), findUser, branchScope (who may see which branch),
-                 schedule (when an online order may be for)
-  app.js         the middleware pipeline          server.js   entry point
-```
-
-**The rule that keeps it readable:** routes never contain queries, and services never touch `req` or `res`. A route
-file reads as a table of contents.
-
-### The request pipeline (`app.js`)
-
-1. `helmet` (security headers), `cors` (only the configured origins), `compression`, request logging.
-2. JSON and form parsers (1 MB limit). Image routes read their own raw body (5 MB).
-3. The global rate limiter (300 requests per 15 minutes per IP by default).
-5. The routes under `/api/v1`, then the not-found and error handlers.
-
-`TRUST_PROXY` tells Express how many proxies sit in front, so the rate limiter sees real client addresses.
-
-### Interfaces, one namespace each
-
-| Interface | Base path | Who may call it |
-| --- | --- | --- |
-| Public | `/branches`, `/menu`, `/categories`, `/products` (reads), `/site/images`, `/health`, `/chat/visitor/*` | Anyone |
-| Auth | `/auth/*` | Login, register, refresh; profile and password need a token |
-| Employee gates | `/employee/cashier/login`, `/employee/kiosk/unlock` | Anyone with the branch's shared password (rate limited) |
-| Kiosk | `/kiosk/*` | A device key (`X-Kiosk-Key`), acting for its branch |
-| POS | `/pos/*` | `cashier`, `admin` or `super_admin`, active, limited to their branches |
-| Online customer | `/orders/*` | Any signed-in user, scoped to their own orders |
-| Rider | `/rider/*` | `rider`, and not deactivated, limited to their branch |
-| Admin | `/admin/*` | `admin` (their branches) or `super_admin` (all, plus branches, admins, site images, roles), active |
-| Menu writes | `/categories`, `/products` (writes) | `super_admin` |
-
-One shared `/orders` that behaves differently per caller was rejected on purpose: it makes each app's contract
-impossible to document and test. See [decisions.md](./decisions.md).
-
-### Clients to the database (`config/supabase.js`)
-
-| Client | Key | Used for |
-| --- | --- | --- |
-| `supabaseAdmin` | Secret key (bypasses row-level security) | Every write, and staff reads. The only client that may change data |
-| `createAnonClient()` | Publishable key, **one per call** | Signing a user in or refreshing a session. A fresh client each time, because signing in stores the session on the client that did it, and a shared one would leak the last person's login into later "anonymous" calls |
-| `supabaseAnon` | Publishable key, shared | Token checks and public reads only |
-| `supabaseForToken(jwt)` | The caller's token | Reads that should obey row-level security as that user |
-
-### Auth middleware (`middleware/auth.js`)
-
-- `requireAuth`: validates the bearer token with Supabase and attaches `req.user`.
-- `requireRole(...roles)`: reads the role **only** from `app_metadata.role` (server-written). No role means `customer`.
-  `user_metadata` is editable by users and is never trusted. See [security.md](./security.md).
-- `requireActive`: refuses accounts that were deactivated (rider, POS and admin routes).
-- `middleware/branch.js`:
-  - `loadBranchScope` attaches `req.branchScope`: `{ all: true }` for a super admin, otherwise the branch ids in
-    `branch_staff`, **read on every request** so a change applies at once.
-  - `requireOrderInScope` loads `:id` into `req.order`, or 404s if it belongs to another branch.
-  - The rules themselves are pure functions in `utils/branchScope.js`: `branchFilter` (a list's branches; 403 for one
-    outside the scope), `resolveBranch` (the one branch an action happens at), `assertBranchAccess`.
-- `middleware/kiosk.js`: the kiosk's device key, compared by hash; attaches the device and its branch.
-
-### Errors
-
-Services throw `ApiError` (400/401/403/404/409…). The error handler returns
-`{ error: { message, details? } }`; database errors are mapped to sensible codes (unique violation → 409, and so on).
-Stack traces appear only outside production.
+**Contents:** [The shape](#the-shape) · [Layers](#layers) · [Who enforces what](#who-enforces-what) ·
+[Server actions](#server-actions) · [Sign-in and sessions](#sign-in-and-sessions) · [Live updates](#live-updates) ·
+[Walk-throughs](#walk-throughs) · [Database](#database) · [Storage](#storage) ·
+[Where does my change go?](#where-does-my-change-go)
 
 ---
 
-## Frontend
+## The shape
 
-One Vite + React app serving every audience. Staff screens are code-split, so customers never download the cashier or
-admin code, and the map library loads only when a delivery address is being entered.
+One Next.js app (App Router, TypeScript) and Supabase. There is no separate API server: the app talks to Supabase
+directly, and the few things that need the secret key run as Next.js **server actions** in the same app.
 
 ```
-frontend/src/
-  App.jsx          routes and which role each needs
-  pages/
-    Landing, Login, Register, AuthCallback        public
-    customer/    Menu, Checkout, Orders, OrderDetail, PaymentResult, Profile
-    cashier/     CashierApp (password gate), Pos
-    kiosk/       KioskApp (gate), KioskFlow, KioskPaymentResult
-    driver/      Driver
-    admin/       AdminApp (menu + routes + branch switcher), AdminSales, AdminOrders, AdminMenu, AdminRiders,
-                 AdminKiosks, AdminSettings, AdminBranches, AdminAdmins, AdminBranding
-  components/    ui.jsx (Button, Card, Field, Input, Modal, Segmented…), MenuBrowser, AddressFields,
-                 AddressMap, BranchMap, BranchList, OrderBranchPicker, ScheduleField, StaffBranch,
-                 mapPins, PhoneInput, ImageField, BottomDock, Avatar, Layouts, guards, chat/*
-  context/       AuthContext (session + login), CartContext, ToastContext (sonner's Toaster + useToast)
-  lib/           api.js, session.js, supabase.js, oauth.js, chat.js, hooks.js, format.js,
-                 validation.js, image.js, geocode.js, siteImages.js, kiosk.js, branches.js,
-                 geo.js (hours, location, distance), schedule.js (order time slots)
+browser                                                         Supabase
+  app/ (routes) ─▶ view/ (screens) ─▶ controllers/ ─▶ models/ ─▶ Postgres (RLS + triggers), Storage, Realtime
+                                         │
+                                         └─▶ controllers/server/ ('use server') ─▶ models/server/ ─▶ secret key
+                                             runs on the server, only for what the browser may not do
 ```
 
-Key modules:
+The structure follows the team's Pasuyo project (`app/`, `controllers/`, `models/`, `view/components`,
+`view/presentation/<feature>`), with one deliberate difference: the secret key never reaches the browser.
 
-| Module | Job |
+## Layers
+
+```
+src/
+  app/                 routes only: each page.tsx renders one screen from view/presentation
+                       /, /login, /register, /auth/callback, (customer)/{menu,checkout,orders,orders/[id],profile},
+                       /cashier, /kiosk, /driver, /admin/{sales,orders,menu,riders,kiosks,settings,branches,admins,branding}
+  view/
+    components/        shared UI: ui (Button, Card, Field, Modal…), MenuBrowser, AddressFields/Map, BranchMap,
+                       BranchList, StaffBranch, ScheduleField, Layouts, guards, chat/*
+    presentation/      one folder per feature: landing, auth, customer, cashier, kiosk, driver, admin
+  controllers/         the business rules. Validate input, check who is calling, call models, return Result<T>
+    server/            'use server' actions plus server-only helpers (accounts, kioskDevices, serverCaller)
+  models/              one file per table group: the Supabase queries, nothing else
+    server/            the same, with the secret key ('server-only')
+  context/             AuthContext (session from Supabase), CartContext, ToastContext
+  hooks/               useBranches, useSiteImage, useGcash, useChat (inbox + visitor), usePosition,
+                       realtime (subscriptions), hooks (useFetch, useDebounced, useTick)
+  utils/               supabase.ts (the browser client), supabaseAdmin.ts (secret key, server-only),
+                       result.ts, apiError.ts, validate.ts, validators/ (zod), navigation, format, geo, geocode,
+                       schedule, image, kioskKey, manilaDate, server/password
+  constants/orders.ts  statuses, allowed moves, roles, the order select
+```
+
+**The rule that keeps it readable:** screens call controllers, never models or Supabase. Controllers never render.
+Models only query.
+
+| Piece | Job |
 | --- | --- |
-| `lib/api.js` | The only way the app talks to the API: adds the token, refreshes it once on a 401, sends images as raw bodies, turns errors into friendly messages |
-| `lib/session.js` | The signed-in session, kept in `localStorage` (`3k.session`), shared across tabs; `roleOf()` |
-| `lib/supabase.js` | The live-update client (subscriptions only; **never** used for writes) |
-| `lib/hooks.js` | `useFetch` with stable `refresh`/`reload` so subscriptions are not rebuilt on every render |
-| `lib/validation.js` | The field rules, mirroring the backend |
-| `context/CartContext` | The cart in `localStorage` (`3k.cart`); cleared on sign-out; quantities clamped |
-| `lib/branches.js` | The branch list (`GET /branches`, fetched once) and the customer's branch: `useSelectedBranch()` returns their pick, or the nearest branch once the location is known, or the first |
-| `lib/geo.js` | Manila opening hours (`isOpenNow`, `hoursLabel`), the customer's location (asked once per page load, shared), distances and the nearest branch |
-| `lib/schedule.js` | The 15-minute slots a branch offers for a scheduled order; mirrors `backend/src/utils/schedule.js` |
-| `components/StaffBranch.jsx` | The staff branch context and switcher (admin, POS), built from the account's branches in `/auth/profile` |
-| `components/BranchMap.jsx` | The landing-page map: every branch, fitted to their bounds; lazy-loaded with Leaflet |
-| `components/ui.jsx` | The design system: buttons (also as links), cards, inputs, dialogs with focus trapping, segmented control |
-| `components/BottomDock` | The one fixed bottom stack for the cart bar and chat button, so they never overlap; toasts appear at the top |
+| `utils/result.ts` | `Result<T>`: `{ success: true, data }` or `{ success: false, error, status }`. Every controller returns one. `status` keeps the HTTP-style codes (404, 409, …) screens use to tell a conflict from a failure |
+| `utils/apiError.ts` | `call(result)` returns the data or throws an `ApiError` (`status`, `message`, `friendly`); `respond(result)` wraps it as `{ data }`. Screens catch these exactly as they caught the old API client's errors |
+| `utils/validators/` | The zod schemas for every input (`fields.ts` holds the shared field rules). Controllers run them through `validate()` |
+| `controllers/callerController.ts` | `getCaller(roles?)`: the signed-in user, their role (from `app_metadata`) and the branches they work at; `canAccessBranch()` |
+| `controllers/server/serverCaller.ts` | The same for server actions: verifies the access token the browser passes, checks `is_active` |
+| `utils/navigation.tsx` | `Link`, `NavLink`, `useNavigate`, `Navigate`, `useLocation`, `useParams` on top of Next.js navigation |
+| `utils/schedule.ts` | When an online order may be for (`orderTimeProblem`), and the 15-minute slots checkout offers |
 
-### Design system
+## Who enforces what
 
-Tokens live in `src/index.css` (`@theme`): brand red `#e8202a`, orange `#f79346`, ink `#2b1812`, a warm near-white page
-`#fbf7f2`, white cards with 1px `#ece3da` borders, Poppins for text and Kaushan Script **only** for the wordmark and
-the hero headline. Red is reserved for primary actions and prices. Radius and shadow scales are redefined there, so the
-whole app inherits them.
+The browser writes to Supabase directly, so the rules a server used to enforce now live in two places:
 
-### Browser storage
-
-| Key | Holds | Cleared |
+| Rule | Controller (for good messages) | Database (cannot be bypassed) |
 | --- | --- | --- |
-| `3k.session` | The login (tokens + user) | Sign-out, or when the server rejects the session |
-| `3k.cart` | The cart | Sign-out; after an order |
-| `3k.branch` | The customer's branch and whether they chose it (`{ id, explicit }`) | Never automatically |
-| `3k.adminBranch`, `3k.posBranch` | The branch a staff screen is looking at | Never automatically |
-| `3k.registerBranch` | The branch a register (cashier gate) belongs to | Never automatically |
-| `3k.chat` | A guest's conversation id and secret token | Never automatically (the guest's own conversation) |
-| `3k.kioskKey` | A kiosk's device key | When the kiosk is locked or the key is revoked |
-| `3k.oauth*` | Google sign-in's temporary state | Immediately after sign-in |
+| Prices come from the menu | `priceOrder` checks availability, sold out, options | `price_order_item` trigger replaces any `unit_price` sent |
+| Total is the sum of the items | computed in centavos | `recompute_order_total` and `guard_order` triggers |
+| New order starts pending and unpaid | sets it | `guard_order` forces it |
+| A customer may only cancel or send GCash proof | `cancelMyOrder`, `submitGcashProof` | `guard_order` refuses anything else |
+| A rider may only claim, return, deliver, collect cash | `riderController` | `guard_order` + rider policies |
+| Who may see or change which branch | `getCaller` + `canAccessBranch` | `is_counter_staff()`, `is_branch_admin()`, `has_branch_access()` in the policies |
+| A deactivated account stops working | `verifyCaller` (server actions) | `is_active_user()` in every write policy |
+| Field formats and lengths | zod schemas | `CHECK` constraints |
+| Order and payment race guards | conditional updates (`.eq('status', current)`) | the same update matches zero rows for the loser |
 
----
+Server-side code (server actions) uses the secret key, which skips RLS; the guard triggers only act on browser requests
+(`anon` / `authenticated`). The full list of policies is in `supabase/migrations/20261018000000_nextjs_client_writes.sql`.
 
-## Live updates
+## Server actions
 
-Three mechanisms, chosen by who can authenticate:
+Everything in `src/controllers/server/*Actions.ts` starts with `'use server'`. **Every export of such a file is a public
+endpoint any browser can call**, so each one checks its caller first; helpers that must not be callable
+(`accounts.ts`, `kioskDevices.ts`, `serverCaller.ts`) are separate `server-only` modules.
 
-| Who | Mechanism | Why |
+| File | What | Why it is on the server |
 | --- | --- | --- |
-| Cashier, admin, customer, rider (logged in) | Supabase **postgres_changes** on `orders`, `chat_messages`, `chat_threads` | Row-level security scopes the feed to what each may read, so a customer is never sent another's order and a cashier never another branch's |
-| Guests chatting | **Broadcast** ping on `chat:<thread id>`, then a fetch with the guest's token | A guest has no login to scope a feed; the ping carries no content |
-| Kiosk | **Polling** `GET /kiosk/orders/:id` every 2 s | It has no login either |
+| `employeeActions.ts` | Cashier gate login, kiosk unlock | Looks up the branch's cashier account; checks the scrypt kiosk password |
+| `kioskActions.ts` | Kiosk "who am I", place order, read own order | A kiosk has no account; it presents a device key |
+| `visitorChatActions.ts` | Guest chat: start, read, send, send photo | A guest has no account; the thread token's hash must stay secret |
+| `staffActions.ts` | Riders, admins, kiosk devices, employee passwords, sales report | Creates and edits other people's accounts (Auth admin API) |
+| `accountActions.ts` | Change own password | Re-checks the current password first |
 
-In every case the event is only a *signal to refetch over the REST API*; the data itself always comes from the API.
-Chat clients additionally refresh about every 20 s, and the session keeper refreshes tokens in the background so a
-realtime-only screen (the rider's) keeps a valid connection.
-
----
+The browser passes its access token (`accessToken()` from `AuthContext`); `verifyCaller` validates it with Supabase Auth.
 
 ## Sign-in and sessions
 
 ```
-Email + password:  browser ─▶ POST /auth/login ─▶ API ─▶ Supabase Auth ─▶ { user, session } ─▶ localStorage
-Google:            browser ─▶ Supabase (PKCE) ─▶ Google ─▶ /auth/callback ─▶ exchange code ─▶ same session shape
-Cashier / kiosk:   password ─▶ POST /employee/... ─▶ cashier session  /  a new kiosk device key
+Email + password:  login screen ─▶ authController.login ─▶ Supabase Auth ─▶ session in localStorage (3k.auth)
+Google:            supabase.auth.signInWithOAuth (PKCE) ─▶ Google ─▶ /auth/callback ─▶ exchangeCodeForSession
+Cashier gate:      password ─▶ employeeActions.loginCashier (server) ─▶ tokens ─▶ authController.adoptSession
+Kiosk gate:        password ─▶ employeeActions.unlockKiosk (server) ─▶ a device key in localStorage (3k.kioskKey)
 ```
 
-- After sign-in everything works the same whichever way you arrived: a Supabase session with access and refresh tokens.
-- The Google flow uses a **separate** client only to complete the redirect. The app then keeps its own session, and
-  that client's leftovers are deleted from storage. It must **not** call sign-out on it: that would end the very
-  session just handed to the app (a bug that once made users bounce to the login page).
-- `lib/api.js` retries once after a 401 by refreshing; it ends the session only if the server **rejects** the refresh
-  token, not on a network error or server hiccup. `keepSessionFresh()` refreshes before expiry and when a tab wakes.
-- Sign-out (`POST /auth/logout`) revokes **only that device's** session, because the cashier login is shared.
+- One Supabase client (`utils/supabase.ts`) holds the session and refreshes it automatically; `AuthContext` listens to
+  it, including sign-in and sign-out in other tabs.
+- The role is read **only** from `app_metadata.role` (server-written). No role means `customer`. `user_metadata` is
+  editable by users and is never trusted.
+- Sign-out ends **only this device's** session (`scope: 'local'`), because a branch's cashier login is shared.
+- Route guards (`view/components/guards.tsx`) only decide what to render; the database and server actions check again.
 
----
+## Live updates
+
+| Who | Mechanism |
+| --- | --- |
+| Signed in (customer, cashier, admin, rider) | Supabase **postgres_changes** on `orders`, `chat_messages`, `chat_threads`; RLS scopes what each receives |
+| Guests chatting | A **broadcast** ping on `chat:<thread id>`, then a fetch with the guest's token |
+
+Every event is only a signal to refetch through the controllers (`hooks/realtime.ts`). Chat screens also refresh every
+20 s in case a socket drops.
 
 ## Walk-throughs
 
 ### A customer places a delivery order
 
 ```
-Checkout form ──▶ POST /orders { type, payment, phone, address(+pin), items[] }
-   validators (fields.js) ─▶ orders.controller ─▶ order.service.createOrder
-      priceOrder: look up live prices ─▶ total in centavos
-      insert order (+ trigger sets order_number) ─▶ insert items (roll back the order on failure)
-   ◀── 201 { order }   then, for GCash: the order page shows our QR; the customer pays in their GCash app and
-                       POST /orders/:id/payment { reference_number | receipt_path } ─▶ awaiting verification
-Realtime: orders row inserted ─▶ cashier's feed fires ─▶ POS refetches /pos/orders
+Checkout ─▶ orderController.placeOnlineOrder(body)
+   validate(createOnlineOrderSchema) ─▶ branch open / slot valid (utils/schedule) ─▶ priceOrder (live prices)
+   orderModel.insertOrder ── guard_order: pending, unpaid, total 0 ─▶ trigger assigns O-0001
+   orderModel.insertOrderItems ── price_order_item: menu price ─▶ recompute_order_total: total = Σ items
+   (items failed? delete the empty order)
+Realtime: the orders row ─▶ the cashier's POS refetches its queue
+GCash: uploadReceipt (private bucket, policy: own order) ─▶ submitGcashProof ─▶ payment_status processing
 ```
 
-### A chat photo
+### A rider claims and delivers
 
 ```
-Attach ─▶ shrink in the browser ─▶ POST …/images (raw bytes)
-   upload middleware (5 MB) ─▶ chat.service: authorise (token / role / order) ─▶ cap check
-   check the real bytes ─▶ store in the private bucket ─▶ insert message(image_path) ─▶ ping/realtime
-Other side refetches messages ─▶ service signs short-lived links ─▶ <img src=link>
+riderController.claimOrder ─▶ update … where status = ready and rider_id is null   (the loser matches 0 rows: 409)
+markDelivered(collected) ─▶ settleCashInternal (amount ≥ total) ─▶ payments row (cash, paid) ─▶ completed
 ```
-
----
 
 ## Database
 
-- **Migrations are the source of truth** (`backend/supabase/migrations/`, applied in filename order). Never edit one
-  that has been applied; add a new one. Each starts with a comment explaining the reason, and the live database should
-  always equal "all migrations applied".
-- **Conventions:** every table has row-level security on; policies are `SELECT`-only (writes are the API's job);
-  helper functions use `security invoker` and `set search_path = ''`, then `revoke all … from public, anon,
-  authenticated` (revoking only the named roles does not remove the default public access; the second hardening
-  migration exists because of that).
-- **Server-only tables** (no policies at all): `kiosk_devices`, `order_counters`,
-  `employee_credentials`, `chat_thread_secrets`.
-- **SQL functions:** `auth_role()` (role from the token, used by policies), `has_branch_access(branch)` (super admin,
-  or the caller works at that branch; used by the staff policies), `handle_new_user()` (creates a profile at sign-up),
-  `next_order_number()` / `set_order_number()` (per-branch, per-day numbering in Manila time), `sales_report()` (the
-  dashboard, optionally for some branches). Table-by-table detail is in [data-dictionary.md](./data-dictionary.md).
-- **Where each business rule is enforced** (form, API, database) is tabulated in the data dictionary's *Input rules*.
+- **Migrations are the source of truth** (`supabase/migrations/`, applied in filename order). Never edit one that has
+  been applied; add a new one. Each starts with a comment explaining why it exists.
+- **Every table has RLS on.** Reads are open as the screens need; writes are allowed per role by the policies in
+  `20261018000000_nextjs_client_writes.sql`, and the money rules are triggers (see [above](#who-enforces-what)).
+- **Server-only tables** (no policies, secret key only): `kiosk_devices`, `employee_credentials`,
+  `chat_thread_secrets`, `order_counters`.
+- **SQL functions:** `auth_role()`, `has_branch_access()`, `is_active_user()`, `is_super_admin()`,
+  `is_counter_staff()`, `is_branch_admin()`, `is_client_request()`, `chat_partner_name()`, `order_items_total()`,
+  `handle_new_user()`, `next_order_number()` / `set_order_number()`, `sales_report()`. Table detail is in
+  [data-dictionary.md](./data-dictionary.md).
 
 ## Storage
 
-| Bucket | Visibility | Holds |
-| --- | --- | --- |
-| `menu-images` | Public read | Product photos, the logo |
-| `chat-images` | **Private** | Chat photos, shown only via short-lived signed links |
-
-Neither bucket has any policy that lets a browser write; uploads go through the API with the secret key.
-
----
+| Bucket | Visibility | Holds | Who may write |
+| --- | --- | --- | --- |
+| `menu-images` | Public | Product photos, the logo | Super admin |
+| `payment-receipts` | Private, signed links | GCash receipts, `<order id>/…` | The order's customer (staff of the branch may read) |
+| `chat-images` | Private, signed links | Chat photos, `<thread id>/…` | Whoever can read the thread; guests through the server action |
 
 ## Where does my change go?
 
 | Changing… | Edit |
 | --- | --- |
-| The URL, method, or who may call it | `routes/` |
-| What a request must contain | `validators/` (and `frontend/src/lib/validation.js`, the DB constraint, the data dictionary) |
-| The shape of an HTTP response | `controllers/` |
-| A business rule, or anything touching the database | `services/` |
-| A status name or allowed move | `constants/orders.js` |
-| Who may see which branch | `utils/branchScope.js`, `middleware/branch.js`, and the policies using `has_branch_access()` |
-| When an online order may be for | `utils/schedule.js` and `frontend/src/lib/schedule.js` together |
-| The database structure | a **new** migration, then [data-dictionary.md](./data-dictionary.md) |
-| A screen | `frontend/src/pages/<audience>/` |
-| Something shared by several screens | `frontend/src/components/` |
-| Colours, radius, fonts | `frontend/src/index.css` tokens, then `components/ui.jsx` |
-| A setting that varies per environment | `config/env.js`, `.env.example`, [deployment.md](./deployment.md) |
+| A page or its URL | `src/app/…/page.tsx` |
+| What a screen shows | `src/view/presentation/<feature>/` |
+| Something several screens share | `src/view/components/` |
+| What an input must contain | `src/utils/validators/` (and the DB constraint, the data dictionary) |
+| A business rule | `src/controllers/` (and the trigger/policy if it is about money or access) |
+| A query | `src/models/` |
+| Something that needs the secret key | `src/controllers/server/` (`'use server'` files check the caller first) |
+| A status name or allowed move | `src/constants/orders.ts` |
+| Who may write which rows | a **new** migration in `supabase/migrations/`, then [data-dictionary.md](./data-dictionary.md) |
+| Colours, radius, fonts | `src/app/globals.css` tokens, then `view/components/ui.tsx` |
+| A setting per environment | `.env.example`, [deployment.md](./deployment.md) |
 
-Then add a test ([testing.md](./testing.md)) and update the docs ([README](./README.md#keeping-the-documentation-true)).
+Then run `npm run typecheck`, `npm run build` and `npm run check:flows` ([testing.md](./testing.md)), and update the docs
+([README](./README.md#keeping-the-documentation-true)).

@@ -10,7 +10,7 @@ Running the system day to day, keeping it healthy, and fixing it when something 
 ## Routine tasks
 
 ### Opening
-1. Check the API is up: `GET /api/v1/health` answers `ok` (and `/health/supabase` can reach the database).
+1. Open the site: the landing page shows the branches and the menu (that means the app and Supabase are both up).
 2. Open `/cashier`, choose your branch (remembered on that device), enter its password, **Open register**. Check
    **Messages** for anything overnight.
 3. Look at the **Scheduled** orders in the Active tab: online orders placed while you were closed are there, marked
@@ -60,8 +60,8 @@ Running the system day to day, keeping it healthy, and fixing it when something 
 | **Retire or lock out a kiosk** | Admin → Kiosks → **Revoke**. The terminal locks and asks for the password again |
 | **Set up a new kiosk** | Open `/kiosk` on the device, choose the branch, enter that branch's kiosk password. It registers itself and appears in Admin → Kiosks |
 | **Lock a kiosk from the device** | Tap the logo on the start screen five times quickly and confirm |
-| **Forgot the super admin password, or GMA's cashier or kiosk password** | On the server: `SEED_ADMIN_PASSWORD=… SEED_CASHIER_PASSWORD=… SEED_KIOSK_PASSWORD=… node --env-file=.env scripts/seed-accounts.mjs`. Other branches' passwords: the super admin resets them in Employee passwords |
-| **Change someone's role** | Only the super admin, via `PATCH /admin/users/:id/role` ([api.md](./api.md)); there is no screen for it, deliberately. Admins are created from the Admins page |
+| **Forgot the super admin password, or GMA's cashier or kiosk password** | From the project: `SEED_ADMIN_PASSWORD=… SEED_CASHIER_PASSWORD=… SEED_KIOSK_PASSWORD=… npm run seed:accounts` (with `.env.local` pointing at the live project). Other branches' passwords: the super admin resets them in Employee passwords |
+| **Change someone's role** | There is no screen for it, deliberately. Admins are created from the Admins page and riders from Riders. Anything else is a developer task: set both `app_metadata.role` (Supabase → Authentication → the user) and `profiles.role`, which must agree |
 | **Change the logo** | Super admin → **Site images** |
 | **Change a dish, its price or photo** | Super admin → Menu → **Edit** the dish (the menu is shared by every branch) |
 
@@ -92,14 +92,14 @@ Only through new migration files ([architecture.md](./architecture.md#database))
 then confirm with the advisors. After a schema change, update [data-dictionary.md](./data-dictionary.md).
 
 ### Rotating keys
-- **Supabase keys:** create the new keys in the dashboard, update `backend/.env` (and the publishable key in
-  `frontend/.env`, then rebuild), restart the API, then disable the old keys.
-- **GCash account:** change `GCASH_NAME`, `GCASH_NUMBER` and `GCASH_QR_IMAGE` in `backend/.env` and restart the API.
-  Put a new QR image in `frontend/public/brand/` (then rebuild the frontend) or host it anywhere and use its URL.
+- **Supabase keys:** create the new keys in the dashboard, update `SUPABASE_SECRET_KEY` and
+  `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` on the host, redeploy, then disable the old keys.
+- **GCash account:** change the `NEXT_PUBLIC_GCASH_*` settings and redeploy. Put a new QR image in `public/brand/` or
+  host it anywhere and use its URL.
 
 ### Dependencies
-`npm outdated` / `npm audit` in `backend/` and `frontend/` from time to time; update, run `npm test` and
-`npm run build`, then redeploy. Pin nothing to "latest" in production.
+`npm outdated` / `npm audit` from time to time; update, run `npm run typecheck`, `npm run build` and
+`npm run check:flows` (against a test project), then redeploy. Pin nothing to "latest" in production.
 
 ### Backups
 Confirm they run; **practise a restore** into a scratch project, since an untested backup is a hope, not a backup.
@@ -112,18 +112,16 @@ Confirm they run; **practise a restore** into a scratch project, since an untest
 
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
-| API exits with "Invalid environment configuration" | A required variable in `backend/.env` is missing or malformed | Fix what it lists; see [deployment.md](./deployment.md#environment-variables) |
-| `EADDRINUSE … :4000` | Another API is already running (often a second `npm run dev`) | Stop the other one (`ss -ltnp \| grep :4000` shows which). The first one is fine to keep |
-| Vite says port 5173 is in use | Another frontend dev server is running. The port is fixed on purpose (CORS expects it) | Stop the other one |
-| Page is blank in development and the console says "does not provide an export named 'default'" | Vite cached a file while it was half-saved | Save the file again, or restart `npm run dev` |
-| App shows "Cannot reach the server" | API not running, wrong `VITE_API_URL`, or `CORS_ORIGIN` does not include the website's address | Check `/health`, the `.env` values, and rebuild the frontend after changing `VITE_*` |
+| Every screen fails to load data, or sign-in says the key is invalid | `NEXT_PUBLIC_SUPABASE_URL` or `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` is missing or wrong | Fix `.env.local` (or the host's settings) and restart `npm run dev` / redeploy; see [deployment.md](./deployment.md#environment-variables) |
+| Cashier gate, kiosk, guest chat or the admin Riders/Kiosks/Sales pages fail, the rest works | `SUPABASE_SECRET_KEY` is missing or wrong on the server | Set it (server-side only) and restart |
+| `npm run dev` says port 5173 is in use | Another dev server is running | Stop the other one (`ss -ltnp \| grep :5173` shows which) |
+| App shows "Cannot reach the server" | The browser is offline, or Supabase is unreachable | Check the connection and the Supabase status page |
 | First request is very slow | The Supabase project was idle and is waking | Normal; later requests are fast |
 
 ### Logging in
 
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
-| Cashier or kiosk password refused 10 times then "Too many attempts" | The limit is 10 wrong guesses per 15 minutes per address (correct logins are not counted) | Wait 15 minutes, or restart the API in development |
 | The right cashier or kiosk password is refused | The wrong **branch** is chosen on the gate, or that branch has no password yet | Pick the register's branch; an admin sets the branch's password in Employee passwords |
 | An admin cannot see a branch, or a page (Branches, Admins, Site images) | They are not assigned to it; those pages are the super admin's | Super admin → Admins → **Branches** on their row |
 | Everyone suddenly gets "Too many requests" | Many users share one address and `TRUST_PROXY` is too low, or genuinely too much traffic | Set `TRUST_PROXY` to the number of proxies; raise `RATE_LIMIT_MAX` if needed |
@@ -140,8 +138,8 @@ Confirm they run; **practise a restore** into a scratch project, since an untest
 | A customer can't order "as soon as possible" ("closed now, schedule your order") | The branch is outside its opening hours | Expected: they schedule a time. Check the hours in Branches if they look wrong |
 | An order is missing from the cashier's queue | It was placed at another branch (the customer's chosen or nearest branch) | Find it in Admin → Orders with **All branches**; it can only be handled by its branch |
 | A dish shows "Sold out" at one branch only | That branch marked it sold out | Admin → Menu, that branch chosen → **Back on** |
-| GCash is missing from checkout and the kiosk, or answers "not available" (503) | A `GCASH_*` setting is empty | Set all three in `backend/.env` and restart; cash still works |
-| The GCash QR image is broken | `GCASH_QR_IMAGE` points at a file that is not there | Check the file is in `frontend/public/` (path) or the URL opens |
+| GCash is missing from checkout and the kiosk, or answers "not available" (503) | `NEXT_PUBLIC_GCASH_NUMBER` is empty | Set the three `NEXT_PUBLIC_GCASH_*` settings and rebuild; cash still works |
+| The GCash QR image is broken | `NEXT_PUBLIC_GCASH_QR_IMAGE` points at a file that is not there | Check the file is in `public/` (path) or the URL opens |
 | Customer says they paid by GCash but the order is still unpaid | They have not sent the reference number/receipt yet, or it is **Awaiting verification** | Ask them to send it from their order page, or approve it in the cashier screen |
 | "Verify or reject the GCash payment before voiding" | The customer's proof is waiting; the money may already be in | Check the GCash app, approve or reject, then void |
 | "Order is no longer available to claim" | Another rider took it first | Normal |
@@ -178,8 +176,7 @@ Confirm they run; **practise a restore** into a scratch project, since an untest
 
 | What | Where |
 | --- | --- |
-| API log | The terminal or log of the process running `npm start`; request lines, `[chat]` and `[config]` warnings |
-| API health | `GET /api/v1/health`, `GET /api/v1/health/supabase` |
+| Server action log | The terminal running `npm run dev` / `npm start`, or the host's function logs (Vercel → Logs) |
 | Database and auth logs, advisors | Supabase dashboard → Logs / Advisors |
 | Who did what to an order | `orders` (`voided_by`, `void_reason`, `rider_id`, timestamps) and `payments` (`raw` holds who took cash, tendered, change; `verified_by` is who approved a GCash payment) |
 | Why a rule exists | [decisions.md](./decisions.md), [security.md](./security.md) |

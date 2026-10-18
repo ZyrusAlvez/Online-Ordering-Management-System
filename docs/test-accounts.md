@@ -2,23 +2,21 @@
 
 > **Development only.** These credentials are deliberately simple and written down here.
 > Before the system goes live: change every password (Admin → Employee passwords for each
-> branch's cashier and kiosk, the admin and rider accounts from the API/Supabase), delete the
+> branch's cashier and kiosk, the admin and rider accounts from Admin or Supabase), delete the
 > `@3k.local` test accounts, and remove this file.
 
 ## Start the app
 
 ```bash
-cd backend  && npm run dev      # API on http://localhost:4000
-cd frontend && npm run dev      # app on http://localhost:5173
+npm run dev                     # app on http://localhost:5173
 ```
 
 If a login stops working, re-seed (safe to repeat, it resets the passwords below):
 
 ```bash
-cd backend
 SEED_ADMIN_PASSWORD=admin-3k-2026 SEED_CASHIER_PASSWORD=cashier123 SEED_KIOSK_PASSWORD=kiosk123 \
-  node --env-file=.env scripts/seed-accounts.mjs          # super admin, GMA cashier, GMA kiosk
-node --env-file=.env scripts/dev/seed-test-users.mjs      # customers, riders, every branch's admin/cashier/kiosk, area admin
+  npm run seed:accounts        # super admin, GMA cashier, GMA kiosk
+npm run seed:test-users        # customers, riders, every branch's admin/cashier/kiosk, area admin
 ```
 
 ## Accounts
@@ -49,7 +47,7 @@ Admin → Kiosks, which an admin can revoke.
 | --- | --- | --- | --- | --- |
 | **Super admin** | `admin@3k.local` | `admin-3k-2026` | `/login` → lands on `/admin` (Sales) | Every branch: sales (with sales by branch), all orders and refunds, the shared menu and product photos, riders, kiosk devices, employee passwords of every branch, **Branches** (add/edit), **Admins** (create branch admins), site images (the logo). |
 | **Area admin** (several branches) | `admin.area@3k.local` | `testpass12345` | `/login` → `/admin` | **Dasma Bayan, Langkaan and Gen-Tri**: the branch switcher offers those three (and all three together); sales by branch across them; their orders, riders, kiosks, employee passwords and sold-out dishes. Nothing of the other branches, and no Branches, Admins or Site images pages. |
-| **Branch admin** | `admin.<code>@3k.local` (table above) | `testpass12345` | `/login` → `/admin` | One branch only, otherwise the same as the area admin. Asking the API for another branch (`?branch_id=`) is a 403. |
+| **Branch admin** | `admin.<code>@3k.local` (table above) | `testpass12345` | `/login` → `/admin` | One branch only, otherwise the same as the area admin. Another branch's orders, riders and kiosks never show up for them. |
 | **Cashier** | *(gate)* | table above | `/cashier` → branch + password | Point of sale for that branch: order queue (scheduled orders highlighted), walk-in orders, confirm and advance orders, take cash, take GCash (check the receipt, type its reference no.), approve or reject a customer's GCash payment, void, edit items, **Messages** inbox for the branch's website chats. Cannot open `/admin` or `/driver`. |
 | **Kiosk** | *(gate)* | table above | `/kiosk` → branch + password (once per browser) | Self-order terminal: dine-in and take-out orders, paying cash at the counter or GCash by scanning the QR and showing the receipt to the cashier. |
 | **Rider (GMA Terminal)** | `rider1@3k.local` | `testpass12345` | `/login` → lands on `/driver` | GMA Terminal's delivery pool, claim and release orders, mark delivered (with cash collected), chat with the customer on a claimed order. |
@@ -140,7 +138,7 @@ scheduled.
 
 ## Test data to use
 
-- **Mobile numbers must be 11 digits starting `09`**, digits only, e.g. `09171234567`. Anything else is rejected by the form, the API and the database.
+- **Mobile numbers must be 11 digits starting `09`**, digits only, e.g. `09171234567`. Anything else is rejected by the form, the app and the database.
 - **Delivery needs a mobile number and an address.** On the checkout map, tap anywhere (or *Use my location*) to drop a pin; the street, barangay and city fill in. Try typing your own street afterwards: it is kept when you move the pin. The rider sees an **Open in Maps** link on the delivery card.
 - The maps need internet access (they load CARTO map tiles and OpenStreetMap address lookups).
 
@@ -163,16 +161,13 @@ Use two different browsers, or one normal window plus one private window, so ses
 
 | Limit | Value |
 | --- | --- |
-| Cashier password and kiosk unlock attempts | 10 wrong guesses per 15 minutes per IP, all branches together. A `429` clears after the window. |
 | Ordering as soon as possible | Only while the branch is open (08:00–21:00 for the seeded branches); otherwise schedule |
-| Starting website chats | 5 per hour per IP |
-| Chat messages | 20 per minute |
-| Changing a password | 10 attempts per 15 minutes |
-| New sign-ups | Supabase rate-limits sign-ups per IP; create extra users from the admin API instead |
+| Photos in one chat | 30 per conversation |
+| New sign-ups | Supabase rate-limits sign-ups per IP; create extra users with `npm run seed:test-users` or Admin → Riders instead |
 
-## Automated tests
+## Automated checks
 
-`cd backend && npm test` logs in with these same accounts (read from `backend/.env`:
-`TEST_ADMIN_PASSWORD`, `TEST_CASHIER_PASSWORD`, `TEST_KIOSK_PASSWORD`; the Imus accounts and riders use
-`testpass12345`). If you change a password here, update `.env` too, or run the seed commands so both stay
-in step. The branch tests set Imus's kiosk password to `kiosk-imus`, the same value as above.
+`npm run check:flows` signs in with these same accounts (the super admin, cashier and kiosk passwords from `.env.local`:
+`TEST_ADMIN_PASSWORD`, `TEST_CASHIER_PASSWORD`, `TEST_KIOSK_PASSWORD`; the others use `testpass12345`). If you change a
+password here, re-run the seed commands so the accounts and `.env.local` stay in step. See [testing.md](./testing.md)
+for what the checks leave in the database.

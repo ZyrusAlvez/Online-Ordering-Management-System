@@ -1,14 +1,9 @@
 # Getting started
 
-How to take a fresh checkout to a running system on your own machine. Allow about 30 minutes, most of it creating
-the Supabase project and applying the database.
+From nothing to the app running on your machine: the Supabase project, the database, the settings, the logins, and
+the optional extras (photos, Google sign-in, GCash). Production hosting is in [deployment.md](./deployment.md).
 
-**You need**
-
-- Node.js 20 or newer (the project is developed on 22) and npm
-- A free [Supabase](https://supabase.com) project
-- Optional, only for the feature that needs it: a Google Cloud project (Google sign-in). Everything else works
-  without it.
+You need **Node.js 20 or newer** and a **Supabase** account.
 
 ---
 
@@ -20,12 +15,12 @@ In the Supabase dashboard create a project, then open **Project Settings → API
 | --- | --- | --- |
 | Project URL | `https://abcdefgh.supabase.co` | |
 | Publishable key | `sb_publishable_…` | Safe for browsers |
-| Secret key | `sb_secret_…` | **Server only.** Never put it in the frontend or in git |
+| Secret key | `sb_secret_…` | **Server only.** Never in a `NEXT_PUBLIC_` variable, never in git |
 
 ## 2. Create the database
 
-The schema is a series of SQL files in `backend/supabase/migrations/`. **Apply them all, in filename order.**
-Open the Supabase **SQL Editor**, paste each file in turn and run it (or use the Supabase CLI if you prefer).
+The schema is a series of SQL files in `supabase/migrations/`. **Apply them all, in filename order.** Open the
+Supabase **SQL Editor**, paste each file in turn and run it (or use the Supabase CLI).
 
 | # | File | What it adds |
 | --- | --- | --- |
@@ -36,129 +31,95 @@ Open the Supabase **SQL Editor**, paste each file in turn and run it (or use the
 | 5 | `20260920000000_employee_credentials.sql` | Hashed kiosk password |
 | 6 | `20260921000000_menu_images_storage.sql` | Public `menu-images` bucket and the site images table |
 | 7 | `20260922000000_chat.sql` | Chat conversations and messages |
-| 8 | `20260923000000_profile_address.sql` | Saved delivery address; closes direct profile edits |
+| 8 | `20260923000000_profile_address.sql` | Saved delivery address |
 | 9 | `20260924000000_chat_guest_number.sql` | `Guest-1023` style guest numbers |
-| 10 | `20260925000000_validation_and_hardening.sql` | Phone and length rules, one-cash-payment rule, closes direct order writes, order numbers per day |
+| 10 | `20260925000000_validation_and_hardening.sql` | Phone and length rules, one-cash-payment rule, order numbers per day |
 | 11 | `20260925010000_fix_pin_constraints.sql` | Corrects the map-pin check |
 | 12 | `20260926000000_sales_report.sql` | The sales report function |
 | 13 | `20260927000000_chat_images.sql` | Private `chat-images` bucket and photo messages |
 | 14 | `20261010000000_super_admin_role.sql` | The `super_admin` role (its own file: a new enum value cannot be used in the transaction that adds it) |
-| 15 | `20261010010000_branches.sql` | The seven branches, staff-to-branch links, a branch on every order, kiosk, chat and kiosk password, per-branch order numbers, branch-scoped policies and sales report; promotes admins to super admin |
-| 16 | `20261010010100_has_branch_access_anon.sql` | Lets anonymous reads evaluate the branch check (they get no rows instead of an error) |
+| 15 | `20261010010000_branches.sql` | The seven branches, staff-to-branch links, a branch on every order, kiosk, chat and kiosk password, per-branch order numbers, branch-scoped policies and sales report |
+| 16 | `20261010010100_has_branch_access_anon.sql` | Lets anonymous reads evaluate the branch check |
 | 17 | `20261010010200_has_branch_access_invoker.sql` | Runs the branch check with the caller's own rights |
 | 18 | `20261010020000_branch_availability.sql` | Sold out at one branch |
 | 19 | `20261010030000_scheduled_orders.sql` | Scheduled online orders |
-| 20 | `20261011000000_remove_promo_image.sql` | Removes the promo photo: the logo is the only site image |
-| 21 | `20261012000000_manual_gcash.sql` | Manual GCash: reference number, receipt and verifier on payments, private `payment-receipts` bucket |
+| 20 | `20261011000000_remove_promo_image.sql` | The logo is the only site image |
+| 21 | `20261012000000_manual_gcash.sql` | Manual GCash: reference number, receipt, verifier; private `payment-receipts` bucket |
 | 22 | `20261012000100_drop_paymongo.sql` | Drops the PayMongo columns and the webhook log |
+| 23 | `20261018000000_nextjs_client_writes.sql` | The browser's write policies, storage policies, and the triggers that keep prices, totals and payment status honest |
+| 24 | `20261018000100_order_total_definer.sql` | The order total is summed with owner rights (a rider claiming an order used to reset it to 0) |
+| 25 | `20261018000200_tighten_function_grants.sql` | Removes two unneeded function grants |
 
-Then load the menu: run `backend/supabase/seed.sql` in the same editor. It is safe to run twice. It is generated from
-`backend/supabase/seed-data/menu.json`; to change the menu, edit that file and run `npm run seed:menu` in `backend/`
-to regenerate it (or just use the Menu page in the admin area once the app is running).
+Then load the menu: run `supabase/seed.sql` in the same editor (safe to run twice). It is generated from
+`supabase/seed-data/menu.json`; to change the menu, edit that file and run `npm run seed:menu`, or just use the admin
+Menu page once the app is running.
 
-> Each migration file starts with a comment explaining why it exists. Read them if you want the reasoning.
-
-## 3. Configure the backend
-
-```bash
-cd backend
-npm install
-cp .env.example .env
-```
-
-Open `.env` and fill in at least:
-
-```
-SUPABASE_URL=https://abcdefgh.supabase.co
-SUPABASE_PUBLISHABLE_KEY=sb_publishable_…
-SUPABASE_SECRET_KEY=sb_secret_…
-```
-
-Everything else has a sensible default for development. The full list is in
-[deployment.md](./deployment.md#environment-variables). The server checks the file when it starts and says exactly
-what is wrong if something is missing.
-
-## 4. Configure the frontend
+## 3. Configure the app
 
 ```bash
-cd frontend
 npm install
-cp .env.example .env
+cp .env.example .env.local
 ```
 
-```
-VITE_API_URL=http://localhost:4000/api/v1
-VITE_SUPABASE_URL=https://abcdefgh.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_…
-```
+Fill in `.env.local` (every setting is explained in [deployment.md](./deployment.md#environment-variables)):
 
-For the light map style on every map, request a free key at <https://carto.com/basemaps/apikey> and set
-`VITE_CARTO_BASEMAPS_KEY=` to it; without it the maps use standard OpenStreetMap tiles.
+| Setting | Value |
+| --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | The project URL |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | The publishable key |
+| `SUPABASE_SECRET_KEY` | The secret key (only server actions and scripts read it) |
+| `CASHIER_EMAIL` | Leave `cashier@3k.local`; its domain names each branch's register login |
+| `NEXT_PUBLIC_GCASH_*` | Optional, see [GCash](#gcash) |
+| `NEXT_PUBLIC_CARTO_BASEMAPS_KEY` | Optional, for the light map style |
 
-Use the **publishable** key here, never the secret one. Optionally set `VITE_MAP_DEFAULT_LAT` and
-`VITE_MAP_DEFAULT_LNG` for where the delivery-address map opens (it defaults to General Mariano Alvarez, Cavite). The
-landing-page branch map needs no setting: it frames whatever branches exist.
-
-## 5. Create the logins
+## 4. Create the logins
 
 The super admin, GMA Terminal's cashier and GMA Terminal's kiosk all need a password before anyone can sign in:
 
 ```bash
-cd backend
 SEED_ADMIN_PASSWORD='choose-one' SEED_CASHIER_PASSWORD='choose-one' SEED_KIOSK_PASSWORD='choose-one' \
-  node --env-file=.env scripts/seed-accounts.mjs
+  npm run seed:accounts
 ```
 
-- Leave the `SEED_…` variables out and it **generates** strong passwords, prints them once, and saves them to `.env`.
-- It is safe to run again; it re-applies the password in `.env` so the account and the file can never disagree.
-- The cashier and kiosk are *passwords only* (no email), per branch. The super admin is `admin@3k.local` unless you set
-  `SEED_ADMIN_EMAIL`. The other branches' cashier and kiosk passwords are set from Admin → **Employee passwords** (the
-  first cashier password for a branch creates its register login).
-- Give the branches their real address, phone and hours in Admin → **Branches**; the migration seeds the seven
-  branches with their map locations and 08:00–21:00.
+- Leave the `SEED_…` variables out and it **generates** strong passwords, prints them once, and saves them to
+  `.env.local` (`TEST_*_PASSWORD`).
+- It is safe to run again; it re-applies the saved password so the account and the file never disagree.
+- The other branches' cashier and kiosk passwords are set from Admin → **Employee passwords** (the first cashier
+  password for a branch creates its register login).
 
-For development and testing you also want the sample customers, riders and a second branch's admin and cashier
-(Imus):
+For development and testing you also want the sample customers, riders and every branch's admin, cashier and kiosk:
 
 ```bash
-node --env-file=.env scripts/dev/seed-test-users.mjs
+npm run seed:test-users
 ```
 
-The resulting logins are listed in [test-accounts.md](./test-accounts.md).
+The resulting logins are in [test-accounts.md](./test-accounts.md).
 
-## 6. Optional: photos
+## 5. Optional: photos
 
 ```bash
 npm run seed:brand            # uploads the bundled logo to Storage
-npm run seed:product-images   # gives every dish a placeholder photo (openly licensed, see seed-data/product-images.json)
+npm run seed:product-images   # placeholder dish photos (openly licensed, see seed-data/product-images.json)
 ```
 
-Both only fill in what is still empty, so they never overwrite a photo you uploaded. Replace any of them later from
-the admin area.
+Both only fill in what is still empty; pass `-- --force` to replace.
 
-## 7. Run it
-
-Two terminals:
+## 6. Run it
 
 ```bash
-cd backend  && npm run dev      # API on http://localhost:4000/api/v1
-cd frontend && npm run dev      # app on http://localhost:5173
+npm run dev                   # http://localhost:5173
 ```
 
-Check the API is alive: `curl localhost:4000/api/v1/health` should answer `{"status":"ok",…}`.
-Open <http://localhost:5173>. Each screen's address is in [overview.md](./overview.md#the-people-and-the-screens).
+Each screen's address is in [overview.md](./overview.md#the-people-and-the-screens).
 
-> The backend port (4000) and the frontend port (5173) are what the CORS settings assume. If you change them,
-> change `CORS_ORIGIN` too.
-
-## 8. Check everything works
+## 7. Check everything works
 
 ```bash
-cd backend && npm test          # 525 tests, about 8 minutes, against your real Supabase project
+npm run typecheck && npm run build
+npm run check:flows           # every order, payment, rider, chat and gate flow, against your Supabase project
 ```
 
-It needs the logins from step 5. See [testing.md](./testing.md) for what it does to your database (it cleans up after
-itself) and [test-accounts.md](./test-accounts.md) for trying the app by hand.
+`check:flows` writes a few test orders as the `@3k.local` accounts; see [testing.md](./testing.md).
 
 ---
 
@@ -166,51 +127,44 @@ itself) and [test-accounts.md](./test-accounts.md) for trying the app by hand.
 
 The "Continue with Google" button works once Google is enabled in Supabase.
 
-1. **Google Cloud Console** → create or choose a project → **Google Auth Platform**. Set up the consent screen
-   first (app name, your email, audience *External*).
-2. **Clients → Create client** → type *Web application*. Under *Authorized redirect URIs* add
+1. **Google Cloud Console** → **Google Auth Platform**: set up the consent screen (audience *External*).
+2. **Clients → Create client** → *Web application*. Under *Authorized redirect URIs* add
    `https://<your-project-ref>.supabase.co/auth/v1/callback`. Copy the **Client ID** and **Client secret**.
-3. **Supabase dashboard → Authentication → Sign In / Providers → Google**: enable it and paste both values.
+3. **Supabase → Authentication → Sign In / Providers → Google**: enable it and paste both values.
 4. **Supabase → Authentication → URL Configuration → Redirect URLs**: add `http://localhost:5173/auth/callback`
    (and your real site's `/auth/callback` when you deploy).
-5. While the Google app is in *Testing*, only addresses listed under **Audience → Test users** can sign in. Click
-   **Publish app** to open it to everyone (basic sign-in needs no review).
+5. While the Google app is in *Testing*, only listed test users can sign in. **Publish app** opens it to everyone.
 
 Google accounts become ordinary customers. They never get staff roles.
 
 ## GCash
 
 GCash is paid by hand into the restaurant's own GCash account; there is no payment provider. Set the account in
-`backend/.env`:
+`.env.local`:
 
 ```
-GCASH_NAME=Ruchell Quesada
-GCASH_NUMBER=0907 131 2306
-GCASH_QR_IMAGE=/brand/gcash-qr.svg
+NEXT_PUBLIC_GCASH_NAME=Ruchell Quesada
+NEXT_PUBLIC_GCASH_NUMBER=0907 131 2306
+NEXT_PUBLIC_GCASH_QR_IMAGE=/brand/gcash-qr.svg
 ```
 
-`GCASH_QR_IMAGE` is a full URL or a path on the frontend site. `/brand/gcash-qr.svg` is a **placeholder**: put the
-real QR exported from the GCash app in `frontend/public/brand/` and point this at it. Leave any of the three empty and
-GCash is hidden everywhere (cash only). See [how-it-works.md](./how-it-works.md#gcash-manual).
+`NEXT_PUBLIC_GCASH_QR_IMAGE` is a full URL or a path on the site. `/brand/gcash-qr.svg` is a **placeholder**: put the
+real QR exported from the GCash app in `public/brand/` and point this at it. Leave the number empty and GCash is hidden
+everywhere (cash only). See [how-it-works.md](./how-it-works.md#gcash-manual).
 
 ---
 
 ## Everyday commands
 
-| Where | Command | What it does |
-| --- | --- | --- |
-| `backend/` | `npm run dev` | API with auto-restart on file changes |
-| | `npm start` | API without file watching |
-| | `npm test` | Everything (525 tests) |
-| | `npm run test:unit` / `test:integration` / `test:e2e` | One layer (about 1 s / 7 min / 40 s) |
-| | `npm run test:coverage` | Everything, with coverage |
-| | `npm run seed:accounts` | Create or reset the super admin, GMA cashier and GMA kiosk passwords |
-| | `npm run seed:menu` | Regenerate `seed.sql` from `menu.json` |
-| | `npm run seed:brand` | Upload the logo |
-| | `npm run seed:product-images` | Placeholder dish photos |
-| | `node --env-file=.env scripts/dev/check-rls.mjs` | Check each role sees only what it should |
-| `frontend/` | `npm run dev` | App with hot reload |
-| | `npm run build` | Production build into `dist/` |
-| | `npm run preview` | Serve the production build locally |
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | The app with hot reload, on port 5173 |
+| `npm run build` / `npm start` | Production build, then serve it |
+| `npm run typecheck` | TypeScript over `src/` and `scripts/` |
+| `npm run check:flows` | End-to-end checks of every flow (writes test orders) |
+| `npm run seed:accounts` | Create or reset the super admin, GMA cashier and GMA kiosk passwords |
+| `npm run seed:test-users` | Every test login in [test-accounts.md](./test-accounts.md) |
+| `npm run seed:menu` | Regenerate `supabase/seed.sql` from `menu.json` |
+| `npm run seed:brand` / `seed:product-images` | Logo and placeholder dish photos |
 
 Something not working? See [operations.md](./operations.md#troubleshooting).

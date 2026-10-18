@@ -124,7 +124,7 @@ orders are always now.
 
 | Rule | Value |
 | --- | --- |
-| As soon as possible | Only while the branch is **open now**. When it is closed, the order must be scheduled (the API answers 409 and checkout preselects the earliest time) |
+| As soon as possible | Only while the branch is **open now**. When it is closed, the order must be scheduled (placing it answers 409 and checkout preselects the earliest time) |
 | Slots | Every **15 minutes** (8:00, 8:15, …), Manila time |
 | Earliest | **30 minutes** from now |
 | Latest | The end of the day **after tomorrow** (today plus two days) |
@@ -171,7 +171,7 @@ paid ──(void a GCash order)──▶ refund_pending ──(money sent back, 
 ### GCash (manual)
 
 There is no payment provider. Customers pay the restaurant's own GCash account (QR, name and number set in
-`backend/.env`, served by `GET /site/gcash`), and a person checks every payment against the GCash app.
+the `NEXT_PUBLIC_GCASH_*` settings), and a person checks every payment against the GCash app.
 
 - **Online:** after placing the order, the order page shows the QR and the amount. The customer pays, then sends the
   **reference number**, a **receipt screenshot**, or both. The order shows **Awaiting verification** until a cashier
@@ -272,7 +272,7 @@ Delivery-chat rules for text apply equally to photos: closed chats refuse both.
 | What | Where | Rules |
 | --- | --- | --- |
 | **Product photos** | Public `menu-images` bucket; set per dish in Admin → Menu | JPEG/PNG/WebP, 5 MB; replacing or removing deletes the old file; a pasted web link is also accepted |
-| **Logo** | Same bucket; Admin → Site images (super admin) | "Reset" returns to the bundled default (`frontend/public/brand/logo.jpg`) |
+| **Logo** | Same bucket; Admin → Site images (super admin) | "Reset" returns to the bundled default (`public/brand/logo.jpg`) |
 | **Chat photos** | Private `chat-images` bucket | See above |
 
 Replaced photos get a new address, so no browser or network cache can show the old one.
@@ -329,7 +329,7 @@ busy month would otherwise be cut short silently.
 ## Validation
 
 Every field is checked in **three places**, with the same rules: in the form (so people get an immediate message), in
-the API (the real gate), and in the database (so a script cannot sneak bad data in). The complete list of rules, with
+the controller (a clear message for anything the form missed), and in the database (the real gate: a script cannot sneak bad data in). The complete list of rules, with
 examples and where each is enforced, is in [data-dictionary.md](./data-dictionary.md#input-rules-the-same-everywhere).
 
 The two worth remembering:

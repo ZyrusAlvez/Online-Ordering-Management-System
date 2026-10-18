@@ -1,8 +1,28 @@
 # Changelog
 
 What has been built, grouped by feature, with the database migration that goes with each. Newest first. Migration
-numbers are the dates in the file names under `backend/supabase/migrations/`. Security-relevant changes are also
+numbers are the dates in the file names under `supabase/migrations/`. Security-relevant changes are also
 listed in [security.md](./security.md#issues-found-and-fixed).
+
+## Next.js and Supabase only (no Express)
+*Migrations `20261018000000_nextjs_client_writes.sql`, `20261018000100_order_total_definer.sql`, `20261018000200_tighten_function_grants.sql`*
+- **One Next.js app** (App Router, TypeScript) replaces the Vite frontend and the Express API, laid out MVC like the
+  Pasuyo project: `src/app` (routes), `controllers`, `models`, `view/components`, `view/presentation/<feature>`. Every
+  screen, route and flow is the same.
+- **The browser talks to Supabase directly.** The Express services' rules (pricing, branch hours and scheduling,
+  status moves, payment states, race guards, void and refund, chat) live in the controllers.
+- **The database guards the money:** new write policies per role and branch, and triggers that take prices from the
+  menu, keep totals equal to the items, start orders pending and unpaid, and allow customers and riders only their own
+  moves. Storage policies for receipts, chat photos and menu images. Users can edit only their own name, phone and
+  address.
+- **Server actions** (the only users of the secret key): cashier gate, kiosk unlock and orders, guest chat, riders,
+  admins, kiosk devices, employee passwords, sales report, password change.
+- Google sign-in exchanges its code on `/auth/callback`; the old separate OAuth client and its workaround are gone.
+- **Fixed during the move:** a rider's claim reset the order total to 0 (the guard summed items the rider could not yet
+  see), letting cash on delivery accept too little.
+- **Removed:** the 525-test Express suite and `check-rls.mjs` (replaced by `npm run check:flows`, 61 end-to-end checks),
+  the curl testing guide, and the API's in-memory rate limits (a known gap, see security).
+- Settings are now `NEXT_PUBLIC_*` plus `SUPABASE_SECRET_KEY` in one `.env.local`; `backend/supabase` is now `supabase/`.
 
 ## Manual GCash replaces PayMongo
 *Migrations `20261012000000_manual_gcash.sql`, `20261012000100_drop_paymongo.sql`*
