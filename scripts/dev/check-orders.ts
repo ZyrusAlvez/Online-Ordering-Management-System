@@ -127,8 +127,10 @@ check('customer places delivery order', o2.success, o2);
 const id2 = o2.success ? o2.data.id : '';
 
 await as(...CASHIER);
-for (const step of ['confirmed', 'preparing', 'ready']) {
-  const r = step === 'confirmed' ? await order.confirmOrder(id2) : await order.advanceStatus(id2, step);
+const jump = await order.advanceStatus(id2, 'ready');
+check('a new order cannot skip the kitchen (409)', !jump.success && jump.status === 409, jump);
+for (const step of ['preparing', 'ready']) {
+  const r = await order.advanceStatus(id2, step);
   check(`cashier moves order to ${step}`, r.success && r.data.status === step, r);
 }
 const skip = await order.advanceStatus(id2, 'pending');
@@ -212,8 +214,17 @@ const w = await order.createWalkInOrder({
 check('cashier creates walk-in order', w.success && w.data.channel === 'pos', w);
 const edited = await order.replaceItems(w.success ? w.data.id : '', { items: [{ product_id: product.id, quantity: 2 }] });
 check('cashier can still edit items before payment', edited.success && Number(edited.data.total_amount) === price * 2, edited);
-const cash = await pay.payCash(w.success ? w.data.id : '', { tendered_amount: price * 2 + 50 });
+const wid = w.success ? w.data.id : '';
+const early = await order.advanceStatus(wid, 'preparing');
+check('an unpaid walk-in cannot go to the kitchen (409)', !early.success && early.status === 409 && /payment/i.test(early.error), early);
+const earlyDb = await supabase.from('orders').update({ status: 'preparing' }).eq('id', wid).select('status');
+check('…not even by a direct database update', earlyDb.error?.code === 'P0001', earlyDb.error ?? earlyDb.data);
+const cash = await pay.payCash(wid, { tendered_amount: price * 2 + 50 });
 check('cashier takes cash, change computed', cash.success && cash.data.change === 50, cash);
+for (const step of ['preparing', 'ready', 'completed']) {
+  const r = await order.advanceStatus(wid, step);
+  check(`paid walk-in moves to ${step}`, r.success && r.data.status === step, r);
+}
 const q = await order.listStaffOrders({ branch_id: gma.id, limit: 5 });
 check('POS queue lists branch orders', q.success && q.data.data.length > 0, q);
 

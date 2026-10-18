@@ -60,7 +60,7 @@ export default function Orders() {
                 <div className="text-right">
                   <p className="text-lg font-bold text-brand">{money(o.total_amount)}</p>
                   <div className="mt-1 flex justify-end gap-1.5">
-                    <StatusBadge status={o.status} />
+                    <StatusBadge status={o.status} forCustomer />
                     <PaymentBadge status={o.payment_status} />
                   </div>
                 </div>

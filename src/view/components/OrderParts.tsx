@@ -60,9 +60,10 @@ export function ScheduledBanner({ at }: any) {
   );
 }
 
-export function StatusBadge({ status }: any) {
+/** `forCustomer`: a new order reads "Received" to the customer (staff see "New"). */
+export function StatusBadge({ status, forCustomer = false }: any) {
   const s = STATUS[status] ?? { label: status, tone: 'gray' };
-  return <Badge tone={s.tone}>{s.label}</Badge>;
+  return <Badge tone={s.tone}>{forCustomer && status === 'pending' ? 'Received' : s.label}</Badge>;
 }
 
 export function PaymentBadge({ status }: any) {

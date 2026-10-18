@@ -19,8 +19,7 @@ export const dateTime = (iso) =>
 
 // tone -> Badge colour (see components/ui.jsx)
 export const STATUS = {
-  pending: { label: 'Pending', tone: 'amber' },
-  confirmed: { label: 'Confirmed', tone: 'blue' },
+  pending: { label: 'New', tone: 'amber' },
   preparing: { label: 'Preparing', tone: 'orange' },
   ready: { label: 'Ready', tone: 'green' },
   out_for_delivery: { label: 'Out for delivery', tone: 'blue' },
@@ -49,10 +48,9 @@ export const FULFILLMENT = {
 
 export const CHANNEL = { kiosk: 'Kiosk', pos: 'Counter', online: 'Online' };
 
-/** Mirrors the backend's legal POS transitions so buttons only offer valid moves. */
+/** The cashier's one next step for each status (mirrors ALLOWED_TRANSITIONS). */
 export const NEXT_STATUS = {
-  pending: { to: 'confirmed', label: 'Confirm' },
-  confirmed: { to: 'preparing', label: 'Start preparing' },
+  pending: { to: 'preparing', label: 'Start preparing' },
   preparing: { to: 'ready', label: 'Mark ready' },
   ready: { to: 'completed', label: 'Complete' },
   out_for_delivery: { to: 'completed', label: 'Complete' },

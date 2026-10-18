@@ -12,6 +12,9 @@ Newest first. Migration numbers are the dates in `supabase/migrations/`.
 - **Rate limits restored**, counted in the database: gates, password change, kiosk orders, guest chat. *(27)*
 - **Faster:** menu photos resized to their drawn size (11.5 MB → 2.8 MB for the whole menu on a phone); self-hosted
   fonts; stale-while-revalidate caching for public data only; fewer requests on the cashier screen; skeleton loading.
+- **Simpler cashier screen:** the order flow is New → Preparing → Ready → Completed (the "Confirmed" step and the
+  "Send to kitchen" button are gone); at most three controls per order (Take payment, the next step, More); kiosk and
+  walk-in orders are paid before the kitchen; the header no longer repeats a single branch's name. *(29)*
 - **Old payment provider fully removed:** its table and columns, and the unused `refund_failed` status. *(22, 28)*
 - **Polish:** per-page titles, an error page with *Try again*, staff headers that fit on phones, even menu cards, no
   invalid HTML nesting.

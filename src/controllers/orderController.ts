@@ -245,7 +245,7 @@ export const replaceItems = async (id: string, input: unknown): Promise<Result<O
   if (body.success === false) return body;
   const { order } = scoped.data;
 
-  if (!['pending', 'confirmed'].includes(order.status)) return fail(`Cannot modify an order that is ${order.status}`, 409);
+  if (order.status !== 'pending') return fail(`Cannot modify an order that is ${order.status}`, 409);
   // A GCash receipt for PHP 100 on an order edited up to PHP 500 would be approved as paid in full.
   if (!['unpaid', 'failed'].includes(order.payment_status)) {
     return fail(`Cannot modify an order whose payment is ${order.payment_status}`, 409);
@@ -276,17 +276,10 @@ export const replaceItems = async (id: string, input: unknown): Promise<Result<O
   return ok(data);
 };
 
-/** pending -> confirmed. Conditional, so a double-confirm is a 409 rather than a no-op. */
-export const confirmOrder = async (id: string): Promise<Result<Order>> => {
-  const scoped = await getScopedOrder(id);
-  if (scoped.success === false) return scoped;
-  const { data, error } = await orderModel.updateOrderWhere(id, { status: 'pending' }, { status: 'confirmed' });
-  if (error) return fromDbError(error);
-  if (!data) return fail('Order not found or is no longer pending', 409);
-  return ok(data);
-};
+/** Kiosk and walk-in orders are paid at the counter before the kitchen starts them. */
+export const mustPayFirst = (order: Order) => ['kiosk', 'pos'].includes(order.channel) && order.payment_status !== 'paid';
 
-/** Moves an order along the pipeline, rejecting transitions that skip stages. */
+/** Moves an order along the pipeline (new -> preparing -> ready -> completed), rejecting skipped steps. */
 export const advanceStatus = async (id: string, next: string): Promise<Result<Order>> => {
   const scoped = await getScopedOrder(id);
   if (scoped.success === false) return scoped;
@@ -299,6 +292,7 @@ export const advanceStatus = async (id: string, next: string): Promise<Result<Or
       409,
     );
   }
+  if (next === 'preparing' && mustPayFirst(order)) return fail('Take payment first', 409);
   const { data, error } = await orderModel.updateOrderWhere(id, { status: order.status }, { status: next });
   if (error) return fromDbError(error);
   if (!data) return fail('Order changed while being updated; retry', 409);
@@ -311,7 +305,7 @@ export const cancelMyOrder = async (id: string): Promise<Result<Order>> => {
   if (caller.success === false) return caller;
   const { data, error } = await orderModel.updateOrderWhere(
     id,
-    { customer_id: caller.data.user.id, status: ['pending', 'confirmed'], payment_status: ['unpaid', 'failed'] },
+    { customer_id: caller.data.user.id, status: 'pending', payment_status: ['unpaid', 'failed'] },
     { status: 'cancelled' },
   );
   if (error) return fromDbError(error);

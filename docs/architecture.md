@@ -57,6 +57,7 @@ database (cannot be bypassed).
 | Prices from the menu | `priceOrder` | `price_order_item` trigger |
 | Total = sum of items | centavos math | `recompute_order_total`, `guard_order` |
 | New order starts pending, unpaid | sets it | `guard_order` forces it |
+| Kiosk and walk-in orders paid before the kitchen | `advanceStatus` (`mustPayFirst`) | `guard_order` |
 | Online order: branch open/active, valid slot, delivery address + phone | `placeOnlineOrder` + `utils/schedule.ts` | `check_online_order` trigger |
 | Customer may only cancel or send GCash proof; can't add items later | `cancelMyOrder`, `submitGcashProof` | `guard_order`, `price_order_item` |
 | Rider may only claim, return, deliver, collect cash | `riderController` | `guard_order` + policies |
@@ -77,7 +78,7 @@ Triggers act only on browser requests (`is_client_request()`); server actions us
 | Public | `getActiveBranches`, `getMenu({ branchId })`, `getSiteImages`, `getGcashAccount` |
 | Auth | `login`, `register`, `loginWithGoogle`, `finishGoogleLogin`, `adoptSession`, `logout` (this device) |
 | Customer | `placeOnlineOrder`, `listMyOrders`, `getOrder`, `getOrderWithPayment`, `cancelMyOrder`, `uploadReceipt`, `submitGcashProof`, `getMyProfile`, `updateMyProfile`, delivery chat |
-| Counter staff | `listStaffOrders`, `createWalkInOrder`, `replaceItems`, `confirmOrder`, `advanceStatus`, `payCash`, `payGcashAtCounter`, `verifyGcash`, `voidOrder`, support-chat inbox |
+| Counter staff | `listStaffOrders`, `createWalkInOrder`, `replaceItems`, `advanceStatus`, `payCash`, `payGcashAtCounter`, `verifyGcash`, `voidOrder`, support-chat inbox |
 | Rider | `getPool`, `getMyDeliveries`, `claimOrder`, `unclaimOrder`, `markDelivered`, delivery chat |
 | Admin | `markRefunded`, `setSoldOut`; super admin: branches, menu (categories, products, photos), site images |
 

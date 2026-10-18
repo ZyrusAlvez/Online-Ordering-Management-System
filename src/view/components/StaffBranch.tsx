@@ -62,18 +62,10 @@ export function StaffBranchProvider({ storageKey, allowAll = false, children }: 
 
 export const useStaffBranch = () => useContext(StaffBranchContext);
 
-/** The branch switcher for the staff bar. A single branch is shown as a label. */
+/** The branch switcher for the staff bar. Nothing for a single branch: the bar's title already names it. */
 export function BranchPicker({ className = '' }: any) {
   const { branches, branchId, setBranchId, canChooseAll, isSuper } = useStaffBranch();
-  if (branches.length === 0) return null;
-
-  if (branches.length === 1) {
-    return (
-      <span className={`flex items-center gap-1.5 rounded-xl bg-cream-deep px-3 py-2 text-sm font-semibold ${className}`}>
-        <Store size={15} /> {branches[0].name}
-      </span>
-    );
-  }
+  if (branches.length <= 1) return null;
 
   return (
     <label className={`flex items-center gap-1.5 ${className}`}>

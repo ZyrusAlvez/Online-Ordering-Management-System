@@ -25,12 +25,11 @@ import DeliveryChat from '@/view/components/chat/DeliveryChat';
 import { Check } from '@/view/components/icons';
 
 const STEPS = {
-  delivery: ['pending', 'confirmed', 'preparing', 'ready', 'out_for_delivery', 'completed'],
-  pickup: ['pending', 'confirmed', 'preparing', 'ready', 'completed'],
+  delivery: ['pending', 'preparing', 'ready', 'out_for_delivery', 'completed'],
+  pickup: ['pending', 'preparing', 'ready', 'completed'],
 };
 const STEP_LABEL = {
   pending: 'Received',
-  confirmed: 'Confirmed',
   preparing: 'Preparing',
   ready: 'Ready',
   out_for_delivery: 'On the way',
@@ -203,8 +202,7 @@ export default function OrderDetail() {
     order.payment_method === 'gcash' &&
     ['unpaid', 'failed', 'processing'].includes(order.payment_status) &&
     !['completed', 'cancelled', 'voided'].includes(order.status);
-  const canCancel =
-    ['pending', 'confirmed'].includes(order.status) && order.payment_status === 'unpaid';
+  const canCancel = order.status === 'pending' && order.payment_status === 'unpaid';
 
   return (
     <div className="mx-auto mt-2 max-w-2xl space-y-4">
@@ -228,7 +226,7 @@ export default function OrderDetail() {
             <MethodLabel order={order} />
           </div>
           <div className="flex flex-col items-end gap-1.5">
-            <StatusBadge status={order.status} />
+            <StatusBadge status={order.status} forCustomer />
             <PaymentBadge status={order.payment_status} />
           </div>
         </div>

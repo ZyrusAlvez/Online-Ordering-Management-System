@@ -24,6 +24,7 @@ Apply every file in `supabase/migrations/` **in filename order** (SQL editor or 
 | 26 | `20261018000300_lock_chat_threads_and_items` | Chat thread fields locked; customers cannot add items to a placed order |
 | 27 | `20261018000400_rate_limits_and_order_rules` | Rate-limit counters; the database checks an online order's branch, time and delivery details |
 | 28 | `20261018000500_remove_refund_failed` | Drops the unused `refund_failed` payment status (refunds are by hand) |
+| 29 | `20261018000600_remove_confirmed_status` | Order flow New → Preparing → Ready → Completed (no `confirmed`); kiosk and walk-in orders paid before the kitchen |
 
 Never edit an applied migration; add a new one.
 

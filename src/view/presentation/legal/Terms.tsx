@@ -50,7 +50,7 @@ const sections: Section[] = [
     title: 'Cancellations and refunds',
     body: (
       <ul>
-        <li>You can cancel an online order yourself while it is waiting or confirmed and has not been paid.</li>
+        <li>You can cancel an online order yourself until the kitchen starts it, as long as it has not been paid.</li>
         <li>After that, ask the branch through the chat. A paid order that we cancel is refunded in full.</li>
         <li>GCash refunds are sent back to the GCash number you paid from within 3 working days.</li>
         <li>If an order arrives wrong or incomplete, tell the branch the same day and we will make it right.</li>

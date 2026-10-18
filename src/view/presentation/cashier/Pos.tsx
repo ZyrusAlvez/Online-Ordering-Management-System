@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { call, respond } from '@/utils/apiError';
-import { advanceStatus, confirmOrder, createWalkInOrder, listStaffOrders, replaceItems } from '@/controllers/orderController';
+import { advanceStatus, createWalkInOrder, listStaffOrders, mustPayFirst, replaceItems } from '@/controllers/orderController';
 import { getOrderWithPayment, payCash, payGcashAtCounter, verifyGcash, voidOrder } from '@/controllers/paymentController';
 import { useInbox } from '@/hooks/useChat';
+import { useGcashAccount } from '@/hooks/useGcash';
 import { useDebounced, useFetch, useTick } from '@/hooks/hooks';
 import { subscribeToOrders } from '@/hooks/realtime';
 import {
@@ -35,6 +36,7 @@ import {
   addressLine,
 } from '@/view/components/OrderParts';
 import {
+  ActionMenu,
   Skeleton,
   Button,
   Empty,
@@ -49,7 +51,7 @@ import {
 import { OrderPanelSkeleton, QueueSkeleton } from '@/view/presentation/cashier/SkeletonLoading';
 import { Chat, Plus, Search } from '@/view/components/icons';
 
-const ACTIVE = ['pending', 'confirmed', 'preparing', 'ready', 'out_for_delivery'];
+const ACTIVE = ['pending', 'preparing', 'ready', 'out_for_delivery'];
 const TABS = [
   { value: 'active', label: 'Active' },
   { value: 'completed', label: 'Done' },
@@ -74,7 +76,7 @@ const dueAt = (o) => o.scheduled_for ?? o.created_at;
 // A scheduled order still waiting on the kitchen gets a coloured edge: amber,
 // then orange once it is close, so it is neither started too early nor missed.
 const scheduleEdge = (order) => {
-  if (!order.scheduled_for || !['pending', 'confirmed'].includes(order.status)) return '';
+  if (!order.scheduled_for || order.status !== 'pending') return '';
   return minutesUntil(order.scheduled_for) <= DUE_SOON_MINUTES ? 'border-l-4 border-l-orange-600' : 'border-l-4 border-l-amber-400';
 };
 
@@ -109,11 +111,58 @@ function QueueRow({ order, selected, onSelect }: any) {
   );
 }
 
-function CashModal({ order, onClose, onPaid }: any) {
+/**
+ * Take payment: one window for both ways a customer pays at the counter, opening on the method
+ * they chose (Cash or GCash). GCash is left out when the restaurant's GCash is switched off.
+ */
+function PaymentModal({ order, onClose, onPaid }: any) {
+  const gcashOn = Boolean(useGcashAccount());
+  const [method, setMethod] = useState(gcashOn && order.payment_method === 'gcash' ? 'gcash' : 'cash');
+  const [paidCash, setPaidCash] = useState(null);
+
+  if (paidCash) {
+    return (
+      <Modal open onClose={onClose} title="Payment received">
+        <div className="space-y-4 text-center">
+          <p className="text-sm text-ink-soft">Change to give back</p>
+          <p className="text-6xl font-extrabold text-leaf">{money(paidCash.change)}</p>
+          <p className="text-sm text-ink-soft">Tendered {money(paidCash.tendered)}</p>
+          <Button size="lg" className="w-full" onClick={onClose}>
+            Done
+          </Button>
+        </div>
+      </Modal>
+    );
+  }
+
+  return (
+    <Modal open onClose={onClose} title={`Take payment · ${order.order_number}`}>
+      <div className="space-y-5">
+        {gcashOn && (
+          <Segmented
+            value={method}
+            onChange={setMethod}
+            className="w-full [&>button]:flex-1"
+            options={[
+              { value: 'cash', label: 'Cash' },
+              { value: 'gcash', label: 'GCash' },
+            ]}
+          />
+        )}
+        {method === 'cash' ? (
+          <CashPanel order={order} onPaid={(res) => { setPaidCash(res); onPaid(); }} />
+        ) : (
+          <GcashPanel order={order} onPaid={() => { onPaid(); onClose(); }} />
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+function CashPanel({ order, onPaid }: any) {
   const toast = useToast();
   const [tendered, setTendered] = useState(String(order.total_amount));
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState(null);
 
   const amount = Number(tendered);
   const change = Math.max(0, amount - Number(order.total_amount));
@@ -125,9 +174,7 @@ function CashModal({ order, onClose, onPaid }: any) {
   const pay = async () => {
     setBusy(true);
     try {
-      const res = await call(payCash(order.id, { tendered_amount: amount }));
-      setDone(res);
-      onPaid();
+      onPaid(await call(payCash(order.id, { tendered_amount: amount })));
     } catch (err) {
       toast.error(err.friendly);
       setBusy(false);
@@ -135,58 +182,45 @@ function CashModal({ order, onClose, onPaid }: any) {
   };
 
   return (
-    <Modal open onClose={onClose} title={done ? 'Payment received' : `Cash · ${order.order_number}`}>
-      {done ? (
-        <div className="space-y-4 text-center">
-          <p className="text-sm text-ink-soft">Change to give back</p>
-          <p className="text-6xl font-extrabold text-leaf">{money(done.change)}</p>
-          <p className="text-sm text-ink-soft">Tendered {money(done.tendered)}</p>
-          <Button size="lg" className="w-full" onClick={onClose}>
-            Done
-          </Button>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          <div className="flex justify-between text-lg">
-            <span>Amount due</span>
-            <strong>{money(order.total_amount)}</strong>
-          </div>
-          <Field label="Cash tendered">
-            <Input
-              type="number"
-              inputMode="decimal"
-              min="0"
-              max="999999.99"
-              step="0.01"
-              autoFocus
-              value={tendered}
-              onChange={(e) => setTendered(e.target.value)}
-              className="!text-2xl"
-            />
-          </Field>
-          <div className="flex flex-wrap gap-2">
-            {quick.map((n) => (
-              <button
-                key={n}
-                onClick={() => setTendered(String(n))}
-                className="rounded-full bg-cream-deep px-4 py-1.5 text-sm font-semibold hover:bg-sun/40"
-              >
-                {n === Number(order.total_amount) ? 'Exact' : money(n)}
-              </button>
-            ))}
-          </div>
-          <div className="flex justify-between rounded-2xl bg-cream-deep/60 p-3 text-lg">
-            <span>Change</span>
-            <strong className={short ? 'text-brand' : 'text-leaf'}>
-              {short ? 'Not enough' : money(change)}
-            </strong>
-          </div>
-          <Button size="lg" className="w-full" loading={busy} disabled={short || !tendered} onClick={pay}>
-            Confirm payment
-          </Button>
-        </div>
-      )}
-    </Modal>
+    <div className="space-y-4">
+      <div className="flex justify-between text-lg">
+        <span>Amount due</span>
+        <strong>{money(order.total_amount)}</strong>
+      </div>
+      <Field label="Cash tendered">
+        <Input
+          type="number"
+          inputMode="decimal"
+          min="0"
+          max="999999.99"
+          step="0.01"
+          autoFocus
+          value={tendered}
+          onChange={(e) => setTendered(e.target.value)}
+          className="!text-2xl"
+        />
+      </Field>
+      <div className="flex flex-wrap gap-2">
+        {quick.map((n) => (
+          <button
+            key={n}
+            onClick={() => setTendered(String(n))}
+            className="rounded-full bg-cream-deep px-4 py-1.5 text-sm font-semibold hover:bg-sun/40"
+          >
+            {n === Number(order.total_amount) ? 'Exact' : money(n)}
+          </button>
+        ))}
+      </div>
+      <div className="flex justify-between rounded-2xl bg-cream-deep/60 p-3 text-lg">
+        <span>Change</span>
+        <strong className={short ? 'text-brand' : 'text-leaf'}>
+          {short ? 'Not enough' : money(change)}
+        </strong>
+      </div>
+      <Button size="lg" className="w-full" loading={busy} disabled={short || !tendered} onClick={pay}>
+        Receive {money(order.total_amount)}
+      </Button>
+    </div>
   );
 }
 
@@ -194,7 +228,7 @@ function CashModal({ order, onClose, onPaid }: any) {
  * GCash at the counter: the customer scans our QR (or already paid at the kiosk),
  * shows their receipt, and the cashier copies the reference number off it.
  */
-function GcashModal({ order, onClose, onPaid }: any) {
+function GcashPanel({ order, onPaid }: any) {
   const toast = useToast();
   const [reference, setReference] = useState('');
   const [busy, setBusy] = useState(false);
@@ -205,7 +239,6 @@ function GcashModal({ order, onClose, onPaid }: any) {
       await call(payGcashAtCounter(order.id, { reference_number: reference.trim() }));
       toast.success(`${order.order_number} paid with GCash`);
       onPaid();
-      onClose();
     } catch (err) {
       toast.error(err.friendly);
       setBusy(false);
@@ -213,27 +246,25 @@ function GcashModal({ order, onClose, onPaid }: any) {
   };
 
   return (
-    <Modal open onClose={onClose} title={`GCash · ${order.order_number}`}>
-      <div className="space-y-5">
-        <GcashAccount amount={order.total_amount} />
-        <p className="text-center text-sm text-ink-soft">
-          Check the customer's GCash receipt: our account name, the amount, and today's date.
-        </p>
-        <Field label="Reference no. on the receipt">
-          <Input
-            autoFocus
-            value={reference}
-            onChange={(e) => setReference(e.target.value)}
-            maxLength={40}
-            autoComplete="off"
-            placeholder="e.g. 1012 345 678901"
-          />
-        </Field>
-        <Button size="lg" className="w-full" loading={busy} disabled={reference.trim().length < 6} onClick={pay}>
-          Mark paid
-        </Button>
-      </div>
-    </Modal>
+    <div className="space-y-5">
+      <GcashAccount amount={order.total_amount} />
+      <p className="text-center text-sm text-ink-soft">
+        Check the customer's GCash receipt: our account name, the amount, and today's date.
+      </p>
+      <Field label="Reference no. on the receipt">
+        <Input
+          autoFocus
+          value={reference}
+          onChange={(e) => setReference(e.target.value)}
+          maxLength={40}
+          autoComplete="off"
+          placeholder="e.g. 1012 345 678901"
+        />
+      </Field>
+      <Button size="lg" className="w-full" loading={busy} disabled={reference.trim().length < 6} onClick={pay}>
+        Mark paid
+      </Button>
+    </div>
   );
 }
 
@@ -397,12 +428,22 @@ function OrderPanel({ orderId, onChanged, onClose }: any) {
   const open = ACTIVE.includes(order.status);
   const next = NEXT_STATUS[order.status];
   const isDelivery = order.fulfillment_type === 'delivery';
-  // Delivery orders finish with the rider, not at the counter.
+  const canPay = open && !isDelivery && ['unpaid', 'failed'].includes(order.payment_status);
+  // Delivery orders finish with the rider, not at the counter; kiosk and walk-in orders are paid first.
   const canAdvance =
-    open && next && !(isDelivery && ['ready', 'out_for_delivery'].includes(order.status));
-  const canPay =
-    open && !isDelivery && ['unpaid', 'failed'].includes(order.payment_status);
-  const canEdit = ['pending', 'confirmed'].includes(order.status);
+    open &&
+    next &&
+    !(isDelivery && ['ready', 'out_for_delivery'].includes(order.status)) &&
+    !(next.to === 'preparing' && mustPayFirst(order));
+  const more = [
+    ...(order.status === 'pending' && ['unpaid', 'failed'].includes(order.payment_status)
+      ? [{ label: 'Edit items', onClick: () => setModal('edit') }]
+      : []),
+    // A GCash payment waiting on staff is approved or rejected first: the money may be in.
+    ...(open && order.payment_status !== 'processing'
+      ? [{ label: 'Void order', danger: true, onClick: () => setModal('void') }]
+      : []),
+  ];
 
   return (
     <div className="space-y-4">
@@ -449,72 +490,38 @@ function OrderPanel({ orderId, onChanged, onClose }: any) {
         <p className="rounded-2xl bg-brand/10 p-3 text-sm text-brand-dark">Voided: {order.void_reason}</p>
       )}
 
-      <div className="flex flex-wrap gap-2">
+      {/* At most: take payment, the one next step, and More (edit, void). */}
+      <div className="flex flex-wrap items-center gap-2">
         {canPay && (
-          <>
-            <Button tone="green" onClick={() => setModal('cash')}>
-              Take cash
-            </Button>
-            <Button tone="sun" onClick={() => setModal('gcash')}>
-              GCash
-            </Button>
-          </>
+          <Button tone="green" onClick={() => setModal('pay')}>
+            Take payment · {money(order.total_amount)}
+          </Button>
         )}
         {canAdvance && (
           <Button
             loading={busy === 'advance'}
             onClick={() =>
-              act(
-                'advance',
-                () =>
-                  order.status === 'pending'
-                    ? call(confirmOrder(order.id))
-                    : call(advanceStatus(order.id, next.to)),
-                `${order.order_number} → ${STATUS[next.to].label}`,
-              )
+              act('advance', () => call(advanceStatus(order.id, next.to)), `${order.order_number} → ${STATUS[next.to].label}`)
             }
           >
             {next.label}
           </Button>
         )}
-        {canAdvance && order.status === 'pending' && (
-          <Button
-            tone="outline"
-            loading={busy === 'prep'}
-            onClick={() =>
-              act(
-                'prep',
-                () => call(advanceStatus(order.id, 'preparing')),
-                `${order.order_number} → Preparing`,
-              )
-            }
-          >
-            Send to kitchen
-          </Button>
-        )}
-        {canEdit && (
-          <Button tone="outline" onClick={() => setModal('edit')}>
-            Edit items
-          </Button>
-        )}
-        {/* A GCash payment waiting on staff is approved or rejected first: the money may be in. */}
-        {open && order.payment_status !== 'processing' && (
-          <Button tone="danger" onClick={() => setModal('void')}>
-            Void
-          </Button>
-        )}
+        <div className="ml-auto">
+          <ActionMenu items={more} />
+        </div>
       </div>
+      {canPay && mustPayFirst(order) && order.status === 'pending' && (
+        <p className="text-sm text-ink-soft">Take payment first, then send it to the kitchen.</p>
+      )}
       {isDelivery && ['ready', 'out_for_delivery'].includes(order.status) && (
         <p className="text-sm text-ink-soft">
           {order.status === 'ready' ? 'Waiting for a rider to claim this order.' : 'Out with the rider.'}
         </p>
       )}
 
-      {modal === 'cash' && (
-        <CashModal order={order} onClose={() => setModal(null)} onPaid={() => { refresh(); onChanged(); }} />
-      )}
-      {modal === 'gcash' && (
-        <GcashModal order={order} onClose={() => setModal(null)} onPaid={() => { refresh(); onChanged(); }} />
+      {modal === 'pay' && (
+        <PaymentModal order={order} onClose={() => setModal(null)} onPaid={() => { refresh(); onChanged(); }} />
       )}
       {modal === 'void' && (
         <VoidModal order={order} onClose={() => setModal(null)} onDone={() => { refresh(); onChanged(); }} />

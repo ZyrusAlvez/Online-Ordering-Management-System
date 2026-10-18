@@ -41,7 +41,7 @@ Enforced in the form (`src/utils/validation.ts`), the controller (`src/utils/val
 | Role (`app_metadata.role`, `profiles.role`) | `customer`, `cashier`, `rider`, `admin`, `super_admin` |
 | `order_channel` | `kiosk`, `pos`, `online` |
 | `fulfillment_type` | `dine_in`, `take_out` (kiosk, pos); `delivery`, `pickup` (online), enforced |
-| `orders.status` | `pending`, `confirmed`, `preparing`, `ready`, `out_for_delivery`, `completed`, `cancelled`, `voided` |
+| `orders.status` | `pending` (shown as New), `preparing`, `ready`, `out_for_delivery`, `completed`, `cancelled`, `voided` |
 | `payment_method` | `cash`, `gcash` |
 | `payment_status` | `unpaid`, `processing` (GCash proof awaiting verification), `paid`, `failed` (rejected), `refund_pending`, `refunded` |
 | `chat_threads.kind` / `sender_role` | `support`, `delivery` / `visitor`, `customer`, `cashier`, `rider` |
@@ -121,7 +121,8 @@ All buckets: 5 MB, JPEG/PNG/WebP.
 | `kiosk_devices`, `employee_credentials`, `order_counters`, `chat_thread_secrets`, `rate_limits` | Nobody | Server only (secret key) |
 
 **Triggers** (browser requests only): `price_order_item` (menu price, sold out, no lines added to a placed order),
-`recompute_order_total`, `guard_order` (new orders pending/unpaid; only allowed moves per role), `check_online_order`
+`recompute_order_total`, `guard_order` (new orders pending/unpaid; only allowed moves per role; unpaid kiosk and walk-in
+orders can't start preparing), `check_online_order`
 (branch active and open, valid slot, delivery details), `guard_payment` (amount from the order), `guard_chat_thread`,
 `set_order_number`.
 

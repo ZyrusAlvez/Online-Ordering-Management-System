@@ -34,7 +34,7 @@ Logins are in [credentials.md](./credentials.md). Use two browsers (or a private
 | --- | --- |
 | Visitor | `/`: map framed on all branches; allow location → **Nearest to you**; **Order here** on another branch; add dishes → **Checkout** → login → back at checkout with the cart; **Chat with us** |
 | Customer | Pickup and delivery (map pin, phone required); ASAP and **Schedule for later**; cash order → **My orders** updates live; cancel an unpaid order; GCash: send a reference (e.g. `1012 345 678901`) or receipt → **Awaiting verification**; profile edits prefill checkout |
-| Cashier | `/cashier` GMA Terminal: new orders arrive live; scheduled orders amber; Confirm → Preparing → Ready → Complete; Edit items; Void; **Walk-in** with cash (change) or GCash; Approve/Reject GCash; **Messages** |
+| Cashier | `/cashier` GMA Terminal: new orders arrive live; scheduled orders amber; an unpaid kiosk order shows only **Take payment** + More; after paying, Start preparing → Mark ready → Complete; More → Edit items / Void order; **Walk-in** with cash (change) or GCash; Approve/Reject GCash; **Messages** |
 | Rider | Customer places a delivery, cashier marks it ready → `rider.gma` sees it under **Available** (Imus rider doesn't) → Claim → Chat → Mark delivered with cash |
 | Kiosk | `/kiosk` GMA Terminal → Touch to order → dine in → pay cash or GCash; revoke it in Admin → Kiosks and it locks |
 | Admins | Super admin: Sales ranges and **By branch**, Orders filters and **Mark refunded**, Menu edits and photos, **Mark sold out** per branch, Branches, Admins, Riders, Kiosks, Employee passwords, Site images. `admin.area` sees only its three branches; a branch admin only theirs |

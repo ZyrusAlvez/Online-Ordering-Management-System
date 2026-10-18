@@ -43,14 +43,16 @@ admin; each branch can only mark a dish **sold out** for itself.
 - **Prices** always come from the live menu (the browser only says what and how many) and are saved on each line, so
   menu changes never rewrite history. Sold-out, unknown or unpriced dishes are refused. 1–99 per line, at most 50
   dishes per order.
-- **Lifecycle:** `pending → confirmed → preparing → ready → completed`; a delivery goes `ready → out_for_delivery`
-  (rider) `→ completed`. "Send to kitchen" = confirm + preparing. No skipping or going back (409). A completed order
-  can't be voided. **Edit items** only while pending/confirmed and before any payment starts.
+- **Lifecycle:** **New** (`pending`) → **Preparing** → **Ready** → **Completed**; a delivery goes Ready →
+  **Out for delivery** (rider) → Completed. No skipping or going back (409). A completed order can't be voided.
+- **Kiosk and walk-in orders are paid before they go to the kitchen** (app and database refuse otherwise). Online
+  orders can be prepared before payment (cash at pickup or on delivery; GCash verified by staff).
+- **Edit items** only while the order is New and no payment has started.
 
 | | Cancel | Void |
 | --- | --- | --- |
 | Who | The customer | Cashier or admin of the branch |
-| When | Pending or confirmed, and unpaid | Any open order, except while GCash proof waits for verification |
+| When | While New, and unpaid | Any open order, except while GCash proof waits for verification |
 | Needs | Nothing | A reason (recorded with who and when) |
 
 ### Scheduled orders (online only)
@@ -147,10 +149,11 @@ typed fields are never overwritten), **Cash** or **GCash**, **Place order**. **M
 while allowed, and **Chat with your rider** once a rider has it.
 
 **Cashier.** `/cashier` → branch + password → **Open register**. Left: the queue (search by name or number, filter by
-channel, tabs Active · Done · Cancelled · All, status counters). Right: the selected order with only the buttons that
-apply: **Confirm**, **Send to kitchen**, **Start preparing**, **Mark ready**, **Complete**, **Take cash**, **GCash**,
-**Approve / Reject** (online GCash), **Edit items**, **Void**. **Walk-in** creates a counter order; **Messages** is the
-branch's website-chat inbox. Delivery orders have no payment buttons (paid online or collected by the rider).
+channel, tabs Active · Done · Cancelled · All, status counters). Right: the selected order with at most three
+controls: **Take payment** (one window, Cash or GCash), the **one next step** (Start preparing → Mark ready →
+Complete), and **More** (Edit items, Void order). An unpaid kiosk or walk-in order shows Take payment first, then
+Start preparing. Online GCash proof gets **Approve / Reject**. **Walk-in** creates a counter order; **Messages** is the
+branch's website-chat inbox. Delivery orders have no payment button (paid online or collected by the rider).
 
 **Rider.** `/driver`: **Available** (your branch's ready deliveries, with address, phone, cash to collect, map link) →
 **Claim this delivery** → **My deliveries** (Chat, Release, Mark delivered) → **History**.

@@ -5,7 +5,6 @@
 
 export const ORDER_STATUSES = [
   'pending',
-  'confirmed',
   'preparing',
   'ready',
   'out_for_delivery',
@@ -41,13 +40,11 @@ export const COUNTER_FULFILLMENT = ['dine_in', 'take_out'] as const;
 export const REMOTE_FULFILLMENT = ['delivery', 'pickup'] as const;
 
 /**
- * Which status a cashier may move an order to, and from where. Encoded on the
- * server so an out-of-order transition is rejected by the API, not merely
- * hidden by the UI.
+ * Which status a cashier may move an order to, and from where: new -> preparing -> ready -> completed.
+ * Checked by the controller (and the guard_order trigger) so a skipped step is refused, not just hidden.
  */
 export const ALLOWED_TRANSITIONS = {
-  pending: ['confirmed', 'preparing'],
-  confirmed: ['preparing', 'ready'],
+  pending: ['preparing'],
   preparing: ['ready'],
   ready: ['completed'],
   out_for_delivery: ['completed'],

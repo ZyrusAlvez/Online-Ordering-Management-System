@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from '@/utils/navigation';
 import { X } from '@/view/components/icons';
 
@@ -290,6 +290,52 @@ export function Modal({ open, onClose, title, children, wide = false, footer }: 
         <div className="scroll-thin flex-1 overflow-y-auto px-5 py-4">{children}</div>
         {footer && <div className="border-t border-line bg-cream px-5 py-4">{footer}</div>}
       </div>
+    </div>
+  );
+}
+
+/**
+ * A "More" button that opens a short list of less common actions. Closes on a pick, an outside
+ * click or Escape. `items`: [{ label, onClick, danger? }]; nothing renders when it is empty.
+ */
+export function ActionMenu({ label = 'More', items }: any) {
+  const [open, setOpen] = useState(false);
+  const box = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const close = (e) => (e.type === 'keydown' ? e.key === 'Escape' && setOpen(false) : !box.current?.contains(e.target) && setOpen(false));
+    document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', close);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('keydown', close);
+    };
+  }, [open]);
+
+  if (!items.length) return null;
+  return (
+    <div ref={box} className="relative">
+      <Button tone="outline" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        {label} <span aria-hidden="true">▾</span>
+      </Button>
+      {open && (
+        <div role="menu" className="absolute right-0 top-full z-30 mt-2 w-48 overflow-hidden rounded-xl border border-line bg-white py-1 shadow-lg">
+          {items.map((item) => (
+            <button
+              key={item.label}
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                item.onClick();
+              }}
+              className={cx('block w-full px-4 py-2.5 text-left text-sm font-medium hover:bg-cream', item.danger ? 'text-brand' : 'text-ink')}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
