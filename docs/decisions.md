@@ -228,32 +228,32 @@ and the app is on 18; the pin is inline SVG so no marker image files need bundli
 OpenStreetMap.
 
 ### Minimal maps
-**Decision.** Every map is pared down: pale tiles (CARTO light, or the OpenStreetMap fallback greyed out with a CSS filter),
+**Decision.** Every map is pared down: pale tiles (OpenStreetMap, greyed out with a CSS filter),
 zoom buttons tucked bottom-right, credits without the Leaflet prefix, and the app's own font in popups and labels. The
 branch map is washed out to near-white, and each branch is a **red pin with the 3K Kitchen logo** (the one set in Site
 images) in the white disc of its head, standing on a ring, so the branches are unmistakable; the customer's branch is
 larger and labelled, the rest show their name on hover. Pins shrink on phone-width maps so nearby branches do not
 overlap. The logo is an `<image>` inside the pin's SVG, clipped to the disc: Leaflet's stylesheet resizes ordinary
 `<img>` elements in markers.
-The delivery map keeps a full pin, since its point must be precise. All of it lives in `index.css` and `mapPins.js`.
+The delivery map keeps a full pin, since its point must be precise. All of it lives in `src/app/globals.css` and `src/view/components/mapPins.ts`.
 **Why.** The map is the landing page's hero; the branches should be the only thing that stands out on it.
 
-### CARTO light tiles on every map
-**Decision.** All maps draw CARTO's light basemap (OpenStreetMap data, *Positron* style), set once in
-`src/view/components/mapPins.ts`.
-**Why.** A quiet, pale map keeps attention on the red branch pins and fits the warm, minimal design; the default
-OpenStreetMap style is busy and colourful.
-**Trade-off.** CARTO requires a (free) key, `NEXT_PUBLIC_CARTO_BASEMAPS_KEY`, with a monthly request allowance, and sees which
-area is viewed. Without the key the maps fall back to standard OpenStreetMap tiles rather than CARTO's "API KEY
-REQUIRED" placeholders. Swapping providers is a one-file change ([deployment.md](./deployment.md)).
+### OpenStreetMap tiles, greyed out, with no key
+**Decision.** Every map uses the standard OpenStreetMap tiles with a grey CSS filter (set once in
+`src/view/components/mapPins.ts`). CARTO's light tiles were supported until 2026-10-18 but needed a key that was never
+set, so the grey OpenStreetMap look is what everyone saw; that look is now the only one.
+**Why.** Free, no account or key, and the quiet style lets the red branch pins stand out.
+**Trade-off.** OpenStreetMap's tile usage policy suits light traffic only. A busy site should move to a hosted tile
+provider (one line in `mapPins.ts`).
 
 ### The pin is optional, and typed addresses always win
 **Why.** Plenty of addresses are better typed; a pin is a precision aid for the rider. A field the customer typed is never
 overwritten by a lookup.
 
-### The app owns its session; Google sign-in uses a separate client
-**Why.** One session shape and one refresh path for every sign-in method, shared between tabs, refreshed before it expires, and
-ended only when the server rejects it. The Google client must never call sign-out, which ends the session just handed over.
+### One Supabase client holds the session for every sign-in method
+**Why.** Email, Google and the cashier gate all end in the same Supabase session, kept by the one browser client
+(`src/utils/supabase.ts`), refreshed automatically and shared between tabs. Google's code is exchanged on
+`/auth/callback` by that same client, so the old separate OAuth client (and its sign-out pitfall) is gone.
 
 ### Toasts at the top, one bottom dock for the cart bar and chat button
 **Why.** Two things pinned to the same bottom spot overlapped. Stacking the persistent items in one flow layout guarantees

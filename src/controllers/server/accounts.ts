@@ -105,11 +105,14 @@ export const getStaffProfile = async (id: string, roles: string[]) => {
   return { ...profile, branches: (staff ?? []).map((r: any) => r.branch).filter(Boolean) };
 };
 
-const cashierEmailFor = (code: string) => `cashier.${code}@${(process.env.CASHIER_EMAIL ?? 'cashier@3k.local').split('@')[1]}`;
+// Each branch's cashier gate signs in to a real Supabase account (so the register works under the
+// database rules as that branch's staff), and Supabase logins need an email. Nobody types it: the
+// gate finds it from the branch. GMA Terminal's is cashier@3k.local, from before branches existed.
+const cashierEmailFor = (code: string) => `cashier.${code}@3k.local`;
 
 /**
  * Sets a branch's cashier gate password: the password of its shared cashier account. The first
- * time, this also creates that account (cashier.<code>@<CASHIER_EMAIL domain>).
+ * time, this also creates that account (cashier.<code>@3k.local).
  */
 export const setCashierPassword = async (branchId: string, password: string): Promise<Result<null>> => {
   const { data: row } = await accountModel.getBranchCashierId(branchId);

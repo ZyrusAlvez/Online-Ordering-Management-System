@@ -63,7 +63,7 @@ Every order belongs to one branch: the kiosk's, the cashier's, or the one the on
    │  Auth (logins, Google) · Storage (menu, chat, receipts)      │
    │  Realtime (postgres_changes, broadcast)                      │
    └──────────────────────────────────────────────────────────────┘
-   The browser also loads CARTO map tiles and OpenStreetMap address lookup directly.
+   The browser also loads OpenStreetMap map tiles and address lookups directly.
 ```
 
 Two rules shape everything:
@@ -85,7 +85,7 @@ More in [architecture.md](./architecture.md) and [security.md](./security.md).
 | Server code | Next.js server actions (the only place the secret key is used) |
 | Database and platform | Supabase: Postgres, Row Level Security, Auth, Storage, Realtime |
 | Payments | Cash, and manual GCash into the restaurant's own account (staff verify the reference number / receipt) |
-| Maps | Leaflet with CARTO light tiles (OpenStreetMap data) and Nominatim address search (no API key) |
+| Maps | Leaflet with OpenStreetMap tiles (greyed out) and Nominatim address search, no API key |
 | Checks | `npm run check:flows`: the app's controllers and server actions run end to end against the database |
 
 ## Repository layout

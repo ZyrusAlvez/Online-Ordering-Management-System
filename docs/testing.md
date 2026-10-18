@@ -31,7 +31,7 @@ prints `PASS` or `FAIL`; the run ends with `ALL PASSED` or the number of failure
 **What it does to the database:** it writes real rows as the test accounts: a few orders at GMA Terminal (left
 refunded, completed, cancelled or rejected), chat messages, one guest conversation, and a kiosk device it revokes at the
 end. Run it against a **separate** Supabase project when you can, never against production with real customers. The
-test accounts must exist first (`npm run seed:accounts` and `npm run seed:test-users`).
+test accounts in [test-accounts.md](./test-accounts.md) must exist (they do in the demo project).
 
 The scripts run under `tsx` with the `react-server` condition, so the server-only modules load outside Next.js.
 

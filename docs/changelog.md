@@ -23,6 +23,10 @@ listed in [security.md](./security.md#issues-found-and-fixed).
 - **Removed:** the 525-test Express suite and `check-rls.mjs` (replaced by `npm run check:flows`, 61 end-to-end checks),
   the curl testing guide, and the API's in-memory rate limits (a known gap, see security).
 - Settings are now `NEXT_PUBLIC_*` plus `SUPABASE_SECRET_KEY` in one `.env.local`; `backend/supabase` is now `supabase/`.
+- `.env.local` holds only the Supabase URL and keys and the GCash account. Removed: the CARTO map option (maps keep the
+  greyed OpenStreetMap look), `CASHIER_EMAIL` (branch register logins are always `cashier.<code>@3k.local`), the map's
+  default position (a constant in the map component), and `seed:accounts` with its `TEST_*`/`SEED_*` passwords (the
+  demo accounts already exist; a new project creates its first super admin by hand, see getting-started).
 
 ## Manual GCash replaces PayMongo
 *Migrations `20261012000000_manual_gcash.sql`, `20261012000100_drop_paymongo.sql`*

@@ -32,11 +32,7 @@ Set these on the host (Vercel: Project → Settings → Environment Variables), 
 | `NEXT_PUBLIC_SUPABASE_URL` | yes | The project URL |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | yes | The publishable key (public by design) |
 | `SUPABASE_SECRET_KEY` | yes | The secret key. **Server only**: read by `src/utils/supabaseAdmin.ts`, which the build refuses to bundle for the browser. Never prefix it with `NEXT_PUBLIC_` |
-| `CASHIER_EMAIL` | no | Default `cashier@3k.local`. Its domain names each branch's register login (`cashier.<code>@…`) |
 | `NEXT_PUBLIC_GCASH_NAME`, `NEXT_PUBLIC_GCASH_NUMBER`, `NEXT_PUBLIC_GCASH_QR_IMAGE` | no | The GCash account customers pay into. No number = GCash hidden, cash only |
-| `NEXT_PUBLIC_CARTO_BASEMAPS_KEY` | no | CARTO key for the light map style; without it, OpenStreetMap tiles |
-| `NEXT_PUBLIC_MAP_DEFAULT_LAT`, `NEXT_PUBLIC_MAP_DEFAULT_LNG` | no | Where the address map opens (default General Mariano Alvarez) |
-| `TEST_ADMIN_PASSWORD`, `TEST_CASHIER_PASSWORD`, `TEST_KIOSK_PASSWORD`, `SEED_*` | dev only | Written and read by the seed scripts; never set them in production |
 
 ## Supabase
 
@@ -87,14 +83,13 @@ npm start                     # serves on PORT (default 3000)
 ```
 
 Run it under a process manager behind a reverse proxy that terminates HTTPS. Set security headers there (or in
-`next.config.ts`), in particular a **Content-Security-Policy** allowing Supabase (including websockets), CARTO map
-tiles (`basemaps.cartocdn.com`, or `tile.openstreetmap.org` without a CARTO key), Nominatim
+`next.config.ts`), in particular a **Content-Security-Policy** allowing Supabase (including websockets), OpenStreetMap
+tiles (`tile.openstreetmap.org`), Nominatim
 (`nominatim.openstreetmap.org`), Google Fonts, and images from Supabase Storage.
 
-**Map tiles.** Every map uses CARTO's *light* basemap when `NEXT_PUBLIC_CARTO_BASEMAPS_KEY` is set (free from
-<https://carto.com/basemaps/apikey>; 1 million tile requests a month for commercial use). Keep the "© OpenStreetMap
-contributors, © CARTO" attribution. Without the key the maps use OpenStreetMap's own tiles, whose fair-use policy suits
-light traffic only. The choice lives in `src/view/components/mapPins.ts`.
+**Map tiles.** Every map uses the standard OpenStreetMap tiles, greyed out by the app: free and with no key, under
+OpenStreetMap's tile usage policy, which suits light traffic. Keep the "© OpenStreetMap contributors" attribution (the
+maps show it). If traffic grows, switch to a hosted tile provider in `src/view/components/mapPins.ts`.
 
 ---
 

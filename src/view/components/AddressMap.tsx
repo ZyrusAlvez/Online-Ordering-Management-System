@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import {
-  DEFAULT_CENTER,
   inPhilippines,
   reverseGeocode,
   round6,
@@ -13,6 +12,9 @@ import {
 } from '@/utils/geocode';
 import { getPosition } from '@/hooks/usePosition';
 import { BASEMAP_OPTIONS, BASEMAP_URL, minimalControls, pinIcon } from '@/view/components/mapPins';
+
+/** Where the map opens before a pin is dropped: General Mariano Alvarez, Cavite. */
+const DEFAULT_CENTER: [number, number] = [14.2985, 120.997];
 import { Button, Input } from '@/view/components/ui';
 
 const pin = pinIcon();

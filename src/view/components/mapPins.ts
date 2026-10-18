@@ -16,24 +16,13 @@ export const pinIcon = (color = '#e8202a', scale = 1) => {
   });
 };
 
-// Every map uses CARTO's light basemap: OpenStreetMap data in a quiet style that
-// lets the red pins stand out. CARTO serves it only with a (free) key; without
-// one every tile is an "API KEY REQUIRED" placeholder, so with no key set the
-// maps fall back to the standard OpenStreetMap tiles instead.
-const CARTO_KEY = process.env.NEXT_PUBLIC_CARTO_BASEMAPS_KEY?.trim();
-
+// Every map uses the standard OpenStreetMap tiles (free, no key, fair-use policy), greyed out
+// (`map-tiles-muted` in globals.css) so the red pins stand out.
 const OSM_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
-// `{r}` asks for sharp tiles on high-density screens.
-export const BASEMAP_URL = CARTO_KEY
-  ? `https://basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}{r}.png?key=${encodeURIComponent(CARTO_KEY)}`
-  : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+export const BASEMAP_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 
-// The standard OpenStreetMap style is busy and colourful, so without the CARTO key
-// it is greyed out (`map-tiles-muted` in index.css) to keep the same quiet look.
-export const BASEMAP_OPTIONS = CARTO_KEY
-  ? { maxZoom: 20, attribution: `${OSM_ATTRIBUTION} &copy; <a href="https://carto.com/attributions">CARTO</a>` }
-  : { maxZoom: 19, attribution: OSM_ATTRIBUTION, className: 'map-tiles-muted' };
+export const BASEMAP_OPTIONS = { maxZoom: 19, attribution: OSM_ATTRIBUTION, className: 'map-tiles-muted' };
 
 // The branch pin, drawn on a 64 x 84 grid: a red teardrop whose round head holds
 // a white disc (centre 32,28, radius 17) showing the logo, standing on a ring at
@@ -78,14 +67,8 @@ export const logoIcon = (logoUrl, selected = false, compact = false) => {
   });
 };
 
-/**
- * Tile options for the landing-page branch map: the same tiles, washed out to
- * near-white. CARTO's light tiles are already pale, so they only lose their tint.
- */
-export const WHITE_BASEMAP_OPTIONS = {
-  ...BASEMAP_OPTIONS,
-  className: CARTO_KEY ? 'map-tiles-white-soft' : 'map-tiles-white',
-};
+/** Tile options for the landing-page branch map: the same tiles, washed out to near-white. */
+export const WHITE_BASEMAP_OPTIONS = { ...BASEMAP_OPTIONS, className: 'map-tiles-white' };
 
 /** Quiet controls shared by every map: zoom bottom-right, and only the data credits (no Leaflet prefix). */
 export const minimalControls = (map) => {

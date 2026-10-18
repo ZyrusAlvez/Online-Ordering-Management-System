@@ -107,7 +107,7 @@ body {
   background: #f4f1ec;
 }
 
-/* The OpenStreetMap fallback (no CARTO key), greyed out to match the light style. */
+/* The OpenStreetMap tiles, greyed out so the red pins stand out. */
 .map-tiles-muted {
   filter: grayscale(1) sepia(0.12) brightness(1.16) contrast(0.7);
 }
@@ -115,9 +115,6 @@ body {
 /* The landing-page branch map: washed out to near-white, so only the logos stand out. */
 .map-tiles-white {
   filter: grayscale(1) contrast(0.4) brightness(1.55);
-}
-.map-tiles-white-soft {
-  filter: grayscale(1) brightness(1.04);
 }
 .branch-map.branch-map {
   background: #fff;

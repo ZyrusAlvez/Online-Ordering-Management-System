@@ -9,7 +9,7 @@ between guests and a branch's cashier and between customers and riders, and a sa
 | --- | --- |
 | **App** | Next.js (App Router) + TypeScript + Tailwind, one app for every screen, MVC in `src/` |
 | **Backend** | Supabase only: Postgres (with RLS and triggers), Auth, Storage, Realtime. No separate API server |
-| **Maps** | OpenStreetMap data with CARTO light tiles |
+| **Maps** | OpenStreetMap tiles and address search (free, no key) |
 
 ## Quick start
 
@@ -17,13 +17,13 @@ between guests and a branch's cashier and between customers and riders, and a sa
 # 1. Create a Supabase project, apply supabase/migrations/* in order, run supabase/seed.sql
 # 2. The app
 npm install
-cp .env.example .env.local        # Supabase URL, publishable key and secret key
-npm run seed:accounts             # super admin, GMA cashier and GMA kiosk passwords
-npm run seed:test-users           # optional: every test login in docs/test-accounts.md
+cp .env.example .env.local        # Supabase URL, publishable key, secret key, GCash account
+npm run seed:test-users           # optional, new projects only: the sample logins in docs/test-accounts.md
 npm run dev                       # http://localhost:5173
 ```
 
-The full walk-through, including the database, optional Google sign-in and GCash, is in
+A new Supabase project also needs its first super admin (one SQL statement). The full walk-through, including
+the database, optional Google sign-in and GCash, is in
 **[docs/getting-started.md](docs/getting-started.md)**.
 
 ## Documentation

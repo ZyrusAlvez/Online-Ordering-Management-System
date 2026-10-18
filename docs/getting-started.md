@@ -68,32 +68,35 @@ Fill in `.env.local` (every setting is explained in [deployment.md](./deployment
 | `NEXT_PUBLIC_SUPABASE_URL` | The project URL |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | The publishable key |
 | `SUPABASE_SECRET_KEY` | The secret key (only server actions and scripts read it) |
-| `CASHIER_EMAIL` | Leave `cashier@3k.local`; its domain names each branch's register login |
 | `NEXT_PUBLIC_GCASH_*` | Optional, see [GCash](#gcash) |
-| `NEXT_PUBLIC_CARTO_BASEMAPS_KEY` | Optional, for the light map style |
 
 ## 4. Create the logins
 
-The super admin, GMA Terminal's cashier and GMA Terminal's kiosk all need a password before anyone can sign in:
+The demo project already has every login in [test-accounts.md](./test-accounts.md); skip this step there.
 
-```bash
-SEED_ADMIN_PASSWORD='choose-one' SEED_CASHIER_PASSWORD='choose-one' SEED_KIOSK_PASSWORD='choose-one' \
-  npm run seed:accounts
-```
+For a **new** Supabase project, create the first super admin once, by hand:
 
-- Leave the `SEED_…` variables out and it **generates** strong passwords, prints them once, and saves them to
-  `.env.local` (`TEST_*_PASSWORD`).
-- It is safe to run again; it re-applies the saved password so the account and the file never disagree.
-- The other branches' cashier and kiosk passwords are set from Admin → **Employee passwords** (the first cashier
-  password for a branch creates its register login).
+1. Supabase → **Authentication → Users → Add user**: the email and a strong password, with *Auto confirm user* on.
+2. Supabase → **SQL Editor**, with that email:
 
-For development and testing you also want the sample customers, riders and every branch's admin, cashier and kiosk:
+   ```sql
+   update auth.users set raw_app_meta_data = raw_app_meta_data || '{"role":"super_admin"}'
+    where email = 'owner@example.com';
+   update public.profiles set role = 'super_admin'
+    where id = (select id from auth.users where email = 'owner@example.com');
+   ```
+
+   (The role lives in both places and they must agree: the first is what the app and the database rules read.)
+3. Sign in at `/login`. Everything else is made from the admin area: **Employee passwords** sets each branch's
+   cashier and kiosk password (the first cashier password for a branch creates its register login,
+   `cashier.<branch code>@3k.local`), **Riders** and **Admins** create those accounts, and **Branches** holds each
+   branch's address, phone and hours.
+
+For development you can also create the sample customers, riders and every branch's admin, cashier and kiosk:
 
 ```bash
 npm run seed:test-users
 ```
-
-The resulting logins are in [test-accounts.md](./test-accounts.md).
 
 ## 5. Optional: photos
 
@@ -162,7 +165,6 @@ everywhere (cash only). See [how-it-works.md](./how-it-works.md#gcash-manual).
 | `npm run build` / `npm start` | Production build, then serve it |
 | `npm run typecheck` | TypeScript over `src/` and `scripts/` |
 | `npm run check:flows` | End-to-end checks of every flow (writes test orders) |
-| `npm run seed:accounts` | Create or reset the super admin, GMA cashier and GMA kiosk passwords |
 | `npm run seed:test-users` | Every test login in [test-accounts.md](./test-accounts.md) |
 | `npm run seed:menu` | Regenerate `supabase/seed.sql` from `menu.json` |
 | `npm run seed:brand` / `seed:product-images` | Logo and placeholder dish photos |

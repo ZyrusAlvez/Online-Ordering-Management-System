@@ -5,12 +5,6 @@
 
 const BASE = 'https://nominatim.openstreetmap.org';
 
-/** Where the map opens when nothing is pinned: General Mariano Alvarez, Cavite (override in .env). */
-export const DEFAULT_CENTER: [number, number] = [
-  Number(process.env.NEXT_PUBLIC_MAP_DEFAULT_LAT) || 14.2985,
-  Number(process.env.NEXT_PUBLIC_MAP_DEFAULT_LNG) || 120.997,
-];
-
 /** Philippines, so a pin (and the API's own bounds check) can never land anywhere else. */
 export const PH_BOUNDS = { south: 4, west: 116, north: 22, east: 128 };
 export const inPhilippines = (lat, lng) =>

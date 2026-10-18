@@ -8,7 +8,6 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "seed:menu": "node supabase/generate-seed.mjs",
-    "seed:accounts": "tsx --env-file=.env.local --conditions=react-server scripts/seed-accounts.ts",
     "seed:test-users": "tsx --env-file=.env.local --conditions=react-server scripts/dev/seed-test-users.ts",
     "seed:product-images": "tsx --env-file=.env.local --conditions=react-server scripts/seed-product-images.ts",
     "seed:brand": "tsx --env-file=.env.local --conditions=react-server scripts/upload-brand-images.ts",

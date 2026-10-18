@@ -1,6 +1,7 @@
 // Dev-only fixtures: two customers, riders at GMA Terminal and Imus, and for EVERY branch an admin,
 // a cashier login and a kiosk password, plus one area admin over several branches. The full list is
-// in docs/test-accounts.md. GMA's cashier and kiosk passwords belong to seed-accounts.ts.
+// in docs/test-accounts.md. The super admin and GMA Terminal's cashier and kiosk passwords already
+// exist in the database and are left alone.
 //
 //   npm run seed:test-users
 //
@@ -75,7 +76,7 @@ const BRANCHES = [
 for (const { code, name } of BRANCHES) {
   await ensureStaff({ email: `admin.${code}@3k.local`, role: 'admin', fullName: `${name} Admin`, branches: [code] });
 
-  // GMA's gates are seed-accounts.ts's; Imus's cashier is the account above.
+  // GMA's gates already exist and are left alone; Imus's cashier is the account above.
   if (code === 'gma') continue;
   const id = await branchId(code);
   if (code !== 'imus') {

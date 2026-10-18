@@ -60,7 +60,8 @@ Running the system day to day, keeping it healthy, and fixing it when something 
 | **Retire or lock out a kiosk** | Admin → Kiosks → **Revoke**. The terminal locks and asks for the password again |
 | **Set up a new kiosk** | Open `/kiosk` on the device, choose the branch, enter that branch's kiosk password. It registers itself and appears in Admin → Kiosks |
 | **Lock a kiosk from the device** | Tap the logo on the start screen five times quickly and confirm |
-| **Forgot the super admin password, or GMA's cashier or kiosk password** | From the project: `SEED_ADMIN_PASSWORD=… SEED_CASHIER_PASSWORD=… SEED_KIOSK_PASSWORD=… npm run seed:accounts` (with `.env.local` pointing at the live project). Other branches' passwords: the super admin resets them in Employee passwords |
+| **Forgot a cashier or kiosk password** | The super admin (or that branch's admin) sets a new one in Admin → **Employee passwords** |
+| **Forgot the super admin password** | Supabase → Authentication → Users → the account → **Send password recovery**, or set a new password there |
 | **Change someone's role** | There is no screen for it, deliberately. Admins are created from the Admins page and riders from Riders. Anything else is a developer task: set both `app_metadata.role` (Supabase → Authentication → the user) and `profiles.role`, which must agree |
 | **Change the logo** | Super admin → **Site images** |
 | **Change a dish, its price or photo** | Super admin → Menu → **Edit** the dish (the menu is shared by every branch) |
@@ -129,7 +130,7 @@ Confirm they run; **practise a restore** into a scratch project, since an untest
 | Google works, then the next page asks to log in again | An expired or revoked session | Sign in again. If it recurs, clear the site's data and report it |
 | A new customer sees "Wrong account" | They are signed in as staff in the same browser | Sign out and use the right account |
 | A rider is told their account is deactivated | An admin switched it off | Admin → Riders → reactivate |
-| Can't remember the admin or cashier password | | Re-run `seed-accounts` with new `SEED_…` values (see above) |
+| Can't remember the admin or cashier password | | See *Forgot a … password* in [Routine tasks](#routine-tasks) |
 
 ### Orders and payments
 

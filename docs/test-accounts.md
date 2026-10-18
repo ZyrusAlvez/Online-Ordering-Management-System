@@ -11,13 +11,10 @@
 npm run dev                     # app on http://localhost:5173
 ```
 
-If a login stops working, re-seed (safe to repeat, it resets the passwords below):
-
-```bash
-SEED_ADMIN_PASSWORD=admin-3k-2026 SEED_CASHIER_PASSWORD=cashier123 SEED_KIOSK_PASSWORD=kiosk123 \
-  npm run seed:accounts        # super admin, GMA cashier, GMA kiosk
-npm run seed:test-users        # customers, riders, every branch's admin/cashier/kiosk, area admin
-```
+All of these accounts already exist in the demo Supabase project. If one of the sample logins (customers,
+riders, branch admins, the other branches' gates) stops working, reset them with `npm run seed:test-users`. The super
+admin and GMA Terminal's cashier and kiosk passwords are not touched by it: change those from Admin → Employee
+passwords or the Supabase dashboard.
 
 ## Accounts
 
@@ -140,7 +137,7 @@ scheduled.
 
 - **Mobile numbers must be 11 digits starting `09`**, digits only, e.g. `09171234567`. Anything else is rejected by the form, the app and the database.
 - **Delivery needs a mobile number and an address.** On the checkout map, tap anywhere (or *Use my location*) to drop a pin; the street, barangay and city fill in. Try typing your own street afterwards: it is kept when you move the pin. The rider sees an **Open in Maps** link on the delivery card.
-- The maps need internet access (they load CARTO map tiles and OpenStreetMap address lookups).
+- The maps need internet access (they load OpenStreetMap tiles and address lookups).
 
 ## Two-browser recipes
 
@@ -167,7 +164,5 @@ Use two different browsers, or one normal window plus one private window, so ses
 
 ## Automated checks
 
-`npm run check:flows` signs in with these same accounts (the super admin, cashier and kiosk passwords from `.env.local`:
-`TEST_ADMIN_PASSWORD`, `TEST_CASHIER_PASSWORD`, `TEST_KIOSK_PASSWORD`; the others use `testpass12345`). If you change a
-password here, re-run the seed commands so the accounts and `.env.local` stay in step. See [testing.md](./testing.md)
-for what the checks leave in the database.
+`npm run check:flows` signs in with these same accounts and passwords (see [testing.md](./testing.md) for what the
+checks leave in the database). If you change one of these passwords, the checks need the same change.
