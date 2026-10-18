@@ -32,6 +32,7 @@ import {
 import { MenuSectionsSkeleton } from '@/view/presentation/admin/SkeletonLoading';
 import { ChefHat, Plus, Trash } from '@/view/components/icons';
 import ImageField from '@/view/components/ImageField';
+import MenuPhoto from '@/view/components/MenuPhoto';
 
 function CategoryModal({ category, onClose, onSaved }: any) {
   const toast = useToast();
@@ -299,7 +300,9 @@ export default function AdminMenu() {
               <li key={p.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
                 <div className="flex items-center gap-3">
                   {p.image_url ? (
-                    <img src={p.image_url} alt="" className="h-12 w-12 rounded-xl object-cover" />
+                    <span className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl">
+                      <MenuPhoto src={p.image_url} sizes="48px" />
+                    </span>
                   ) : (
                     <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-cream-deep text-sun-dark"><ChefHat size={22} /></span>
                   )}

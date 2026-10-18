@@ -82,10 +82,17 @@ npm run build
 npm start                     # serves on PORT (default 3000)
 ```
 
-Run it under a process manager behind a reverse proxy that terminates HTTPS. Set security headers there (or in
+Run it under a process manager behind a reverse proxy that terminates HTTPS. The proxy **must overwrite
+`x-forwarded-for`** with the visitor's real address: the rate limits count by it, and a header passed through from the
+visitor could be anything (Vercel already does this). Set security headers there (or in
 `next.config.ts`), in particular a **Content-Security-Policy** allowing Supabase (including websockets), OpenStreetMap
 tiles (`tile.openstreetmap.org`), Nominatim
 (`nominatim.openstreetmap.org`), and images from Supabase Storage. Fonts are self-hosted, so Google Fonts is not needed.
+
+**Menu photos.** They are resized on demand by Next.js's image optimizer (`/_next/image`) and the result is cached for
+a year (each upload has a new name). On Vercel this counts toward the plan's image-optimization allowance: about 70
+photos at a few sizes each, far inside the free tier. On a Node host it uses the `sharp` library installed with Next.js.
+`NEXT_PUBLIC_SUPABASE_URL` must be set at **build** time, since it decides which images may be resized.
 
 **Map tiles.** Every map uses the standard OpenStreetMap tiles, greyed out by the app: free and with no key, under
 OpenStreetMap's tile usage policy, which suits light traffic. Keep the "© OpenStreetMap contributors" attribution (the

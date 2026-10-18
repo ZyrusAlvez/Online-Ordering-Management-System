@@ -4,7 +4,9 @@ import Providers from './providers';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: '3K Kitchen – GMA Terminal Branch',
+  // Each page sets its own title ("Menu", "Cashier"...), shown as "Menu · 3K Kitchen".
+  title: { default: '3K Kitchen', template: '%s · 3K Kitchen' },
+  description: 'Order from 3K Kitchen in Cavite: delivery, take-out or dine-in.',
   icons: { icon: '/brand/logo.jpg' },
 };
 

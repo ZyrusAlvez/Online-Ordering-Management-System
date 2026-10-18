@@ -142,17 +142,18 @@ export function StaffBar({ title, subtitle, children, onLogout }: any) {
   const { user } = useAuth();
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-white">
-      <div className="mx-auto flex max-w-[1500px] items-center justify-between gap-3 px-4 py-3">
-        <div className="flex items-center gap-3">
-          <Logo to={null} size={38} text={false} />
-          <div className="leading-tight">
-            <p className="font-display text-lg">{title}</p>
-            <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-sun-dark">
+      {/* On a phone the buttons move to a second row instead of squeezing the title. */}
+      <div className="mx-auto flex max-w-[1500px] flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <Logo to={null} size={38} text={false} className="shrink-0" />
+          <div className="min-w-0 leading-tight">
+            <p className="whitespace-nowrap font-display text-lg">{title}</p>
+            <p className="truncate text-[10px] font-medium uppercase tracking-[0.18em] text-sun-dark">
               {subtitle ? `${RESTAURANT} · ${subtitle}` : RESTAURANT}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-2 whitespace-nowrap">
           {children}
           {user?.email && (
             <span className="hidden text-xs text-ink-soft md:inline">{user.email}</span>

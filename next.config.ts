@@ -1,9 +1,13 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  // Menu images and the logo are served from Supabase Storage.
+  // Menu photos are served resized by the image optimizer (src/view/components/MenuPhoto.tsx).
+  // Only this project's public menu folder is allowed, so the optimizer cannot be used to fetch
+  // and resize images from anywhere else.
   images: {
-    remotePatterns: [{ protocol: 'https', hostname: '*.supabase.co' }],
+    remotePatterns: [new URL(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/menu-images/**`)],
+    // Every upload gets a new file name, so a resized photo never goes out of date.
+    minimumCacheTTL: 31536000,
   },
 
   async headers() {

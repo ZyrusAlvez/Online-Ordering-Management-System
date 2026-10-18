@@ -6,6 +6,7 @@ import { getMenu } from '@/controllers/menuController';
 import { useFetch } from '@/hooks/hooks';
 import { money } from '@/utils/format';
 import { Button, ErrorNote, Modal } from '@/view/components/ui';
+import MenuPhoto from '@/view/components/MenuPhoto';
 import { MenuSkeleton } from '@/view/components/Skeletons';
 import { ChefHat, Minus, Plus, Search } from '@/view/components/icons';
 
@@ -27,22 +28,23 @@ const priceLabel = (p) => {
   return p.price != null ? money(p.price) : 'Not priced yet';
 };
 
-function ProductImage({ product, className = '' }: any) {
-  if (product.image_url) {
-    return (
-      <img
-        src={product.image_url}
-        alt={product.name}
-        loading="lazy"
-        className={`object-cover ${className}`}
-      />
-    );
-  }
+// How wide a card is drawn, matching the grid columns below (the page is at most 72rem wide).
+const CARD_SIZES = '(min-width: 1280px) 280px, (min-width: 768px) 33vw, 50vw';
+const KIOSK_CARD_SIZES = '(min-width: 1280px) 33vw, 50vw';
+
+/** A fixed-height box, so every card in a row has the same photo height whatever the photo. */
+function ProductImage({ product, big }: any) {
   return (
     <div
-      className={`flex items-center justify-center bg-cream-deep text-ink/25 ${className}`}
+      className={`relative w-full shrink-0 bg-cream-deep ${big ? 'h-44' : 'h-28 sm:h-32'} ${
+        product.image_url ? '' : 'flex items-center justify-center text-ink/25'
+      }`}
     >
-      <ChefHat size={36} />
+      {product.image_url ? (
+        <MenuPhoto src={product.image_url} alt={product.name} sizes={big ? KIOSK_CARD_SIZES : CARD_SIZES} />
+      ) : (
+        <ChefHat size={36} />
+      )}
     </div>
   );
 }
@@ -270,7 +272,7 @@ export default function MenuBrowser({ onAdd, branchId = null, size = 'normal', s
                     ok ? 'hover:border-ink/25 active:scale-[0.99]' : 'opacity-60'
                   }`}
                 >
-                  <ProductImage product={p} className={`w-full ${big ? 'h-44' : 'h-28 sm:h-32'}`} />
+                  <ProductImage product={p} big={big} />
                   <div className={`flex flex-1 flex-col gap-1 ${big ? 'p-4' : 'p-3'}`}>
                     <span className={`font-semibold leading-snug ${big ? 'text-xl' : 'text-sm sm:text-base'}`}>
                       {p.name}
