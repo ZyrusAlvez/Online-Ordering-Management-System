@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { ROLES } from '@/constants/orders';
 import { branchId, paginationQuery } from './common.validators';
 import { email, password, personName, phone } from './fields';
 import { addDays, daysInRange, isRealDate, manilaToday } from '@/utils/manilaDate';
@@ -34,10 +33,6 @@ export const updateRiderSchema = z
 
 export const createKioskSchema = z.object({ name: personName(), branch_id: branchId });
 
-export const soldOutParams = z.object({ id: branchId, productId: z.string().uuid() });
-
-export const kioskListQuery = z.object({ branch_id: branchId.optional() });
-
 // --- admin accounts (super admin only) ---
 const branchIds = z.array(branchId).min(1, 'Choose at least one branch').max(50);
 
@@ -58,11 +53,6 @@ export const updateAdminSchema = z
     branch_ids: branchIds.optional(),
   })
   .refine((body) => Object.keys(body).length > 0, { message: 'Nothing to update' });
-
-// The only replaceable site image (the landing page's hero is the branch map, not a photo).
-export const siteImageKeyParam = z.object({ key: z.enum(['logo']) });
-
-export const roleSchema = z.object({ role: z.enum(ROLES) });
 
 export const MAX_REPORT_DAYS = 366;
 

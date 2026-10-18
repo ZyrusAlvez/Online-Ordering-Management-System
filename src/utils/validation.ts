@@ -11,7 +11,6 @@
 export const PHONE_PATTERN = /^09\d{9}$/;
 export const PHONE_MESSAGE = 'Enter an 11-digit mobile number starting with 09, e.g. 09171234567';
 
-export const isValidPhone = (value) => PHONE_PATTERN.test(String(value ?? '').trim());
 
 /** Keeps digits only and at most 11 of them, so letters and spaces never get in. */
 export const cleanPhoneInput = (value) => String(value ?? '').replace(/\D/g, '').slice(0, 11);
@@ -43,8 +42,3 @@ export const LIMITS = {
   maxQuantity: 99,
 };
 
-/** Pesos with at most two decimals, for typed amounts. */
-export const isValidMoney = (value) => {
-  const n = Number(value);
-  return Number.isFinite(n) && n >= 0 && n <= LIMITS.maxPrice && Math.abs(n * 100 - Math.round(n * 100)) < 1e-6;
-};

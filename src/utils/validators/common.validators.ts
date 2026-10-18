@@ -1,8 +1,6 @@
 import { z } from 'zod';
 import { optionalText, quantity } from './fields';
 
-export const idParam = z.object({ id: z.string().uuid() });
-
 /** Which branch an order, kiosk, rider or conversation belongs to. */
 export const branchId = z.string().uuid('Choose a branch');
 

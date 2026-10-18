@@ -1,6 +1,8 @@
 import type { Session } from '@supabase/supabase-js';
 import * as authModel from '@/models/authModel';
 import { fail, ok, type Result } from '@/utils/result';
+import { validate } from '@/utils/validate';
+import { credentialsSchema, registerSchema } from '@/utils/validators/auth.validators';
 
 export type Role = 'customer' | 'cashier' | 'rider' | 'admin' | 'super_admin';
 
@@ -23,11 +25,10 @@ export const ADMIN_ROLES: Role[] = ['admin', 'super_admin'];
 export const roleOf = (session: Session | null): Role | null =>
   session?.user ? ((session.user.app_metadata?.role as Role | undefined) ?? 'customer') : null;
 
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 export const login = async (email: string, password: string): Promise<Result<Session>> => {
-  if (!email || !password) return fail('Please fill in all fields');
-  const { data, error } = await authModel.signInWithPassword(email.trim(), password);
+  const body = validate(credentialsSchema, { email, password });
+  if (body.success === false) return fail('Invalid email or password', 401);
+  const { data, error } = await authModel.signInWithPassword(body.data.email, body.data.password);
   if (error || !data.session) return fail('Invalid email or password', 401);
   return ok(data.session);
 };
@@ -37,12 +38,10 @@ export const register = async (
   password: string,
   fullName?: string,
 ): Promise<Result<{ session: Session | null }>> => {
-  if (!EMAIL.test(email.trim())) return fail('Please enter a valid email address');
-  if (password.length < 8 || password.length > 72) return fail('Password must be 8 to 72 characters');
-  const name = fullName?.trim();
-  if (name && name.length > 120) return fail('Name is too long');
+  const body = validate(registerSchema, { email, password, ...(fullName?.trim() ? { fullName } : {}) });
+  if (body.success === false) return body;
 
-  const { data, error } = await authModel.signUp(email.trim(), password, name || undefined);
+  const { data, error } = await authModel.signUp(body.data.email, body.data.password, body.data.fullName);
   if (error) {
     if (/registered|exists/i.test(error.message)) return fail('That email is already registered', 409);
     return fail(error.message || 'Sign up failed');

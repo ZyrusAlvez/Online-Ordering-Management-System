@@ -3,6 +3,8 @@ import type { CategoryRow, ProductRow } from '@/models/menuModel';
 import { getSoldOutIds } from '@/controllers/branchController';
 import { removePublicImage, uploadPublicImage } from '@/controllers/storageController';
 import { fail, fromDbError, ok, type Result } from '@/utils/result';
+import { validate } from '@/utils/validate';
+import { categoryBody, productBody } from '@/utils/validators/catalog.validators';
 
 export type MenuProduct = ProductRow & { available_everywhere?: boolean; sold_out_here?: boolean };
 export type MenuCategory = Omit<CategoryRow, 'products'> & { products: MenuProduct[] };
@@ -42,28 +44,18 @@ export const getMenu = async ({
 // Categories (super admin)
 // ---------------------------------------------------------------------------
 
-const validCategoryName = (name?: string) => {
-  const n = name?.trim() ?? '';
-  return n.length >= 1 && n.length <= 100 ? n : null;
-};
-
-export const createCategory = async (input: { name: string; sort_order?: number }) => {
-  const name = validCategoryName(input.name);
-  if (!name) return fail('Category name must be 1-100 characters');
-  const { data, error } = await menuModel.insertCategory({ name, sort_order: input.sort_order ?? 0 });
+export const createCategory = async (input: unknown) => {
+  const body = validate(categoryBody, input);
+  if (body.success === false) return body;
+  const { data, error } = await menuModel.insertCategory({ name: body.data.name, sort_order: body.data.sort_order ?? 0 });
   if (error) return fromDbError(error, 'Failed to create category');
   return ok(data);
 };
 
-export const updateCategory = async (id: string, input: { name?: string; sort_order?: number }) => {
-  const fields: { name?: string; sort_order?: number } = {};
-  if (input.name !== undefined) {
-    const name = validCategoryName(input.name);
-    if (!name) return fail('Category name must be 1-100 characters');
-    fields.name = name;
-  }
-  if (input.sort_order !== undefined) fields.sort_order = input.sort_order;
-  const { data, error } = await menuModel.updateCategory(id, fields);
+export const updateCategory = async (id: string, input: unknown) => {
+  const body = validate(categoryBody.partial(), input);
+  if (body.success === false) return body;
+  const { data, error } = await menuModel.updateCategory(id, body.data);
   if (error) return fromDbError(error, 'Failed to update category');
   if (!data) return fail('Category not found', 404);
   return ok(data);
@@ -79,41 +71,14 @@ export const deleteCategory = async (id: string) => {
 // Products (super admin)
 // ---------------------------------------------------------------------------
 
-export type VariantInput = { label: string; price: number | null; sort_order?: number };
+export type VariantInput = { label: string; price?: number | null; sort_order?: number };
 
-export type ProductInput = {
-  category_id?: string | null;
-  name?: string;
-  description?: string | null;
-  price?: number | null;
-  image_url?: string | null;
-  is_available?: boolean;
-  customizations?: string[];
-  sort_order?: number;
-  variants?: VariantInput[];
-};
-
-const validPrice = (p: number | null | undefined) =>
-  p == null || (Number.isFinite(p) && p >= 0 && p <= 999999.99 && Math.round(p * 100) === p * 100);
-
-/** Same rules as the old product validator. */
-const validateProduct = (input: ProductInput, partial: boolean): string | null => {
-  if (!partial || input.name !== undefined) {
-    const n = input.name?.trim() ?? '';
-    if (n.length < 1 || n.length > 200) return 'Name must be 1-200 characters';
-  }
-  if (input.description && input.description.length > 2000) return 'Description is too long';
-  if (!validPrice(input.price)) return 'Price must be 0 to 999999.99 with at most 2 decimals';
-  if (input.variants) {
-    if (input.variants.length > 30) return 'At most 30 options';
-    const labels = new Set<string>();
-    for (const v of input.variants) {
-      const label = v.label?.trim() ?? '';
-      if (label.length < 1 || label.length > 100) return 'Each option needs a label of 1-100 characters';
-      if (labels.has(label)) return `Option "${label}" is listed twice`;
-      labels.add(label);
-      if (!validPrice(v.price)) return `Option "${label}" has an invalid price`;
-    }
+/** Options are matched by label when a product is edited, so a label may appear once. */
+const duplicateLabel = (variants?: VariantInput[]) => {
+  const seen = new Set<string>();
+  for (const v of variants ?? []) {
+    if (seen.has(v.label)) return `Option "${v.label}" is listed twice`;
+    seen.add(v.label);
   }
   return null;
 };
@@ -125,16 +90,20 @@ const getProduct = async (id: string) => {
   return ok(data);
 };
 
-export const createProduct = async ({ variants, ...product }: ProductInput) => {
-  const problem = validateProduct({ ...product, variants }, false);
-  if (problem) return fail(problem);
+export const createProduct = async (input: unknown) => {
+  const body = validate(productBody, input);
+  if (body.success === false) return body;
+  const { variants: parsed, ...product } = body.data;
+  const variants = parsed as VariantInput[] | undefined;
+  const dup = duplicateLabel(variants);
+  if (dup) return fail(dup);
 
-  const { data: created, error } = await menuModel.insertProduct({ ...product, name: product.name?.trim() });
+  const { data: created, error } = await menuModel.insertProduct(product);
   if (error) return fromDbError(error, 'Failed to create product');
 
   if (variants?.length) {
     const { error: variantsError } = await menuModel.insertVariants(
-      variants.map((v, i) => ({ ...v, label: v.label.trim(), sort_order: v.sort_order ?? i, product_id: created.id })),
+      variants.map((v, i) => ({ label: v.label, price: v.price ?? null, sort_order: v.sort_order ?? i, product_id: created.id })),
     );
     if (variantsError) {
       // Do not leave behind a product the admin never successfully made.
@@ -154,7 +123,7 @@ const syncVariants = async (productId: string, wanted: VariantInput[]): Promise<
   const { data: existing, error } = await menuModel.getVariants(productId);
   if (error) return fromDbError(error);
 
-  const labels = new Set(wanted.map((v) => v.label.trim()));
+  const labels = new Set(wanted.map((v) => v.label));
   const removed = (existing ?? []).filter((v) => !labels.has(v.label));
 
   if (removed.length) {
@@ -173,7 +142,7 @@ const syncVariants = async (productId: string, wanted: VariantInput[]): Promise<
 
   const byLabel = new Map((existing ?? []).map((v) => [v.label, v.id]));
   for (const [i, v] of wanted.entries()) {
-    const row = { label: v.label.trim(), price: v.price, sort_order: v.sort_order ?? i };
+    const row = { label: v.label, price: v.price ?? null, sort_order: v.sort_order ?? i };
     const id = byLabel.get(row.label);
     const { error: writeError } = id
       ? await menuModel.updateVariant(id, row)
@@ -188,12 +157,16 @@ const syncVariants = async (productId: string, wanted: VariantInput[]): Promise<
   return ok(null);
 };
 
-export const updateProduct = async (id: string, { variants, ...product }: ProductInput) => {
-  const problem = validateProduct({ ...product, variants }, true);
-  if (problem) return fail(problem);
+export const updateProduct = async (id: string, input: unknown) => {
+  const body = validate(productBody.partial(), input);
+  if (body.success === false) return body;
+  const { variants: parsed, ...product } = body.data;
+  const variants = parsed as VariantInput[] | undefined;
+  const dup = duplicateLabel(variants);
+  if (dup) return fail(dup);
 
   if (Object.keys(product).length > 0) {
-    const { error } = await menuModel.updateProduct(id, product.name ? { ...product, name: product.name.trim() } : product);
+    const { error } = await menuModel.updateProduct(id, product);
     if (error) return fromDbError(error, 'Failed to update product');
   }
   if (variants) {

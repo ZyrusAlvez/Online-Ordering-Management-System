@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from '@/utils/navigation';
+import { useNavigate } from '@/utils/navigation';
 import { call, respond } from '@/utils/apiError';
 import { getMyProfile, updateMyProfile } from '@/controllers/profileController';
 import { placeOnlineOrder } from '@/controllers/orderController';
@@ -15,7 +15,7 @@ import { useCart } from '@/context/CartContext';
 import { useToast } from '@/context/ToastContext';
 import PhoneInput from '@/view/components/PhoneInput';
 import AddressFields, { blankAddress, cleanAddress, fromSaved } from '@/view/components/AddressFields';
-import { Button, Card, Empty, ErrorNote, Field, Input, Segmented, Textarea } from '@/view/components/ui';
+import { Button, Card, Empty, ErrorNote, Field, Segmented, Textarea } from '@/view/components/ui';
 import { Minus, Plus, Trash } from '@/view/components/icons';
 
 export default function Checkout() {

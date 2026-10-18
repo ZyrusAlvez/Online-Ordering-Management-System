@@ -53,6 +53,11 @@ src/
 **The rule that keeps it readable:** screens call controllers, never models or Supabase. Controllers never render.
 Models only query.
 
+**Screens render in the browser only.** They read browser storage while rendering (the session, the cart, the chosen
+branch, the kiosk key), which the server cannot see, so `src/app/providers.tsx` shows the loader until the app has
+started in the browser; otherwise the server's HTML would differ from the first browser render (React error #418).
+This matches the single-page app the screens came from.
+
 | Piece | Job |
 | --- | --- |
 | `utils/result.ts` | `Result<T>`: `{ success: true, data }` or `{ success: false, error, status }`. Every controller returns one. `status` keeps the HTTP-style codes (404, 409, …) screens use to tell a conflict from a failure |

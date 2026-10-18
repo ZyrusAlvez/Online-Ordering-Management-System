@@ -18,9 +18,3 @@ export const getBranch = (id: string) =>
     .select('id, code, name, address, phone, latitude, longitude, opens_at, closes_at, is_active')
     .eq('id', id)
     .maybeSingle();
-
-export const listBranchesByIds = (ids: string[] | null) => {
-  let query = supabaseAdmin.from('branches').select('id, code, name, is_active').order('name');
-  if (ids) query = query.in('id', ids);
-  return query;
-};

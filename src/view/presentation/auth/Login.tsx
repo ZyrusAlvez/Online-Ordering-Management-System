@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Link, Navigate, useLocation, useNavigate } from '@/utils/navigation';
+import { useEffect, useState } from 'react';
+import { Link, Navigate, forgetFrom, useLocation, useNavigate } from '@/utils/navigation';
 import { HOME_FOR_ROLE, useAuth } from '@/context/AuthContext';
 import { roleOf } from '@/controllers/authController';
 import GoogleButton, { OrDivider } from '@/view/components/GoogleButton';
@@ -13,6 +13,8 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const from = location.state?.from;
+  // `from` lasted one navigation in react-router; here it is kept until this screen is left.
+  useEffect(() => () => forgetFrom(), []);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

@@ -54,8 +54,6 @@ export const createOnlineOrderSchema = z
     path: ['customer_phone'],
   });
 
-export const statusBody = z.object({ status: z.enum(ORDER_STATUSES) });
-
 /**
  * "I've paid by GCash": a reference number, a receipt (the path returned by the
  * receipt upload), or both.

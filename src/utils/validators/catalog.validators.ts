@@ -1,16 +1,9 @@
 import { z } from 'zod';
-import { paginationQuery } from './common.validators';
 import { imageUrl, money, optionalText, personName, sortOrder } from './fields';
 
 export const categoryBody = z.object({
   name: personName(100),
   sort_order: sortOrder.default(0).optional(),
-});
-
-export const productListQuery = paginationQuery.extend({
-  search: z.string().trim().min(1).max(120).optional(),
-  category_id: z.string().uuid().optional(),
-  available: z.enum(['true', 'false']).optional(),
 });
 
 const variantSchema = z.object({

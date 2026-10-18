@@ -14,8 +14,6 @@ export const registerSchema = z.object({
   fullName: personName().optional(),
 });
 
-export const refreshSchema = z.object({ refreshToken: z.string().min(1) });
-
 /**
  * What a user may change about themselves. Strict on purpose: role and
  * is_active are not here, so sending them is a 400 rather than silently ignored.

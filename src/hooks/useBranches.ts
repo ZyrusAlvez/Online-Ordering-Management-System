@@ -73,8 +73,6 @@ const readChoice = () => {
 
 let choice = readChoice();
 
-export const getSelectedBranchId = () => choice?.id ?? null;
-
 export const setSelectedBranch = (id, { explicit = true } = {}) => {
   choice = id ? { id, explicit } : null;
   try {

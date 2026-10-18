@@ -34,8 +34,6 @@ export const getFullMenu = (includeUnavailable: boolean) => {
   return query.returns<CategoryRow[]>();
 };
 
-export const getCategories = () => supabase.from('categories').select('*').order('sort_order');
-
 export const insertCategory = (fields: { name: string; sort_order?: number }) =>
   supabase.from('categories').insert(fields).select().single();
 
