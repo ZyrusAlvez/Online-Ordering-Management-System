@@ -1,6 +1,7 @@
 import * as orderModel from '@/models/orderModel';
 import * as branchModel from '@/models/branchModel';
-import { ALLOWED_TRANSITIONS, COUNTER_ROLES } from '@/constants/orders';
+import { z } from 'zod';
+import { ALLOWED_TRANSITIONS, COUNTER_ROLES, ORDER_STATUSES } from '@/constants/orders';
 import { canAccessBranch, getCaller } from '@/controllers/callerController';
 import { getGcashAccount } from '@/controllers/siteController';
 import { shapeBranch } from '@/controllers/branchController';
@@ -51,7 +52,14 @@ export const listStaffOrders = async (query: Record<string, unknown> = {}): Prom
   const caller = await getCaller([...COUNTER_ROLES]);
   if (caller.success === false) return caller;
   // The POS queue searches by `q`; the admin list narrows by `from`/`to`.
-  const q = validate(posQueueQuery.merge(adminOrderQuery), query);
+  const q = validate(
+    posQueueQuery.merge(adminOrderQuery).extend({
+      // The POS queue asks for all of a tab's statuses in one request (up to 100 of each).
+      statuses: z.array(z.enum(ORDER_STATUSES)).min(1).max(ORDER_STATUSES.length).optional(),
+      limit: z.coerce.number().int().min(1).max(100 * ORDER_STATUSES.length).default(20),
+    }),
+    query,
+  );
   if (q.success === false) return q;
   const { branch_id: branchId, payment_status: paymentStatus, q: search, from, to, ...rest } = q.data as any;
 

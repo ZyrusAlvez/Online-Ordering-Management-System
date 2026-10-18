@@ -5,6 +5,7 @@ export type OrderFilters = {
   page?: number;
   limit?: number;
   status?: string;
+  statuses?: string[];
   paymentStatus?: string;
   channel?: string;
   search?: string;
@@ -24,6 +25,7 @@ export const listOrders = ({
   page = 1,
   limit = 20,
   status,
+  statuses,
   paymentStatus,
   channel,
   search,
@@ -44,6 +46,7 @@ export const listOrders = ({
   if (branchIds) query = query.in('branch_id', branchIds);
   if (customerId) query = query.eq('customer_id', customerId);
   if (status) query = query.eq('status', status);
+  if (statuses) query = query.in('status', statuses);
   if (paymentStatus) query = query.eq('payment_status', paymentStatus);
   if (channel) query = query.eq('channel', channel);
   if (createdAfter) query = query.gte('created_at', createdAfter);

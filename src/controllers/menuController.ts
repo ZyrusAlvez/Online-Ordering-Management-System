@@ -4,6 +4,7 @@ import { getSoldOutIds } from '@/controllers/branchController';
 import { removePublicImage, uploadPublicImage } from '@/controllers/storageController';
 import { fail, fromDbError, ok, type Result } from '@/utils/result';
 import { validate } from '@/utils/validate';
+import { cached, invalidate } from '@/utils/cache';
 import { categoryBody, productBody } from '@/utils/validators/catalog.validators';
 
 export type MenuProduct = ProductRow & { available_everywhere?: boolean; sold_out_here?: boolean };
@@ -18,12 +19,18 @@ export const getMenu = async ({
   includeUnavailable = false,
   branchId = null,
 }: { includeUnavailable?: boolean; branchId?: string | null } = {}): Promise<Result<MenuCategory[]>> => {
-  const [{ data, error }, soldOut] = await Promise.all([
-    menuModel.getFullMenu(includeUnavailable),
+  const [menu, soldOut] = await Promise.all([
+    // The menu is public and changes rarely: kept on the device for 5 minutes. Prices shown from
+    // it are only an estimate; an order is always priced from the live menu.
+    cached(`menu:${includeUnavailable ? 'all' : 'available'}`, { ttlMs: 5 * 60_000, kind: 'public' }, async () => {
+      const { data, error } = await menuModel.getFullMenu(includeUnavailable);
+      return error ? fromDbError(error, 'Failed to load the menu') : ok(data ?? []);
+    }),
     getSoldOutIds(branchId),
   ]);
-  if (error) return fromDbError(error, 'Failed to load the menu');
-  if (!branchId) return ok(data ?? []);
+  if (menu.success === false) return menu;
+  const data = menu.data;
+  if (!branchId) return ok(data);
 
   return ok(
     (data ?? []).map((category) => ({
@@ -49,6 +56,7 @@ export const createCategory = async (input: unknown) => {
   if (body.success === false) return body;
   const { data, error } = await menuModel.insertCategory({ name: body.data.name, sort_order: body.data.sort_order ?? 0 });
   if (error) return fromDbError(error, 'Failed to create category');
+  invalidate('menu');
   return ok(data);
 };
 
@@ -58,12 +66,14 @@ export const updateCategory = async (id: string, input: unknown) => {
   const { data, error } = await menuModel.updateCategory(id, body.data);
   if (error) return fromDbError(error, 'Failed to update category');
   if (!data) return fail('Category not found', 404);
+  invalidate('menu');
   return ok(data);
 };
 
 export const deleteCategory = async (id: string) => {
   const { error } = await menuModel.deleteCategory(id);
   if (error) return fromDbError(error, 'Failed to delete category');
+  invalidate('menu');
   return ok(null);
 };
 
@@ -111,6 +121,7 @@ export const createProduct = async (input: unknown) => {
       return fromDbError(variantsError, 'Failed to save options');
     }
   }
+  invalidate('menu');
   return getProduct(created.id);
 };
 
@@ -173,6 +184,7 @@ export const updateProduct = async (id: string, input: unknown) => {
     const synced = await syncVariants(id, variants);
     if (synced.success === false) return synced;
   }
+  invalidate('menu');
   return getProduct(id);
 };
 
@@ -189,6 +201,7 @@ export const setProductImage = async (id: string, file: Blob) => {
     return fromDbError(error, 'Failed to save the image');
   }
   await removePublicImage(current.data.image_url);
+  invalidate('menu');
   return getProduct(id);
 };
 
@@ -198,6 +211,7 @@ export const clearProductImage = async (id: string) => {
   const { error } = await menuModel.updateProduct(id, { image_url: null });
   if (error) return fromDbError(error, 'Failed to remove the image');
   await removePublicImage(current.data.image_url);
+  invalidate('menu');
   return getProduct(id);
 };
 
@@ -217,5 +231,6 @@ export const deleteProduct = async (id: string) => {
   const { error } = await menuModel.deleteProduct(id);
   if (error) return fromDbError(error, 'Failed to delete product');
   await removePublicImage(current.data.image_url);
+  invalidate('menu');
   return ok(null);
 };

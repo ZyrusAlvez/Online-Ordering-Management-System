@@ -6,6 +6,7 @@ import * as authController from '@/controllers/authController';
 import { loginCashier as loginCashierAction } from '@/controllers/server/employeeActions';
 import { LOGOUT_EVENT } from '@/context/CartContext';
 import { call } from '@/utils/apiError';
+import { clearPrivate } from '@/utils/cache';
 
 export { HOME_FOR_ROLE, ADMIN_ROLES } from '@/controllers/authController';
 
@@ -34,7 +35,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setReady(true);
     });
     // Also fires when another tab signs in or out, and on every token refresh.
-    const { data } = authController.onAuthStateChange((_event, s) => setSession(s));
+    let userId: string | null = null;
+    const { data } = authController.onAuthStateChange((_event, s) => {
+      // Nothing about one person may be shown to the next on a shared device (a register, a
+      // family laptop): a different user, or none, drops every private cached result.
+      const next = s?.user?.id ?? null;
+      if (next !== userId) clearPrivate();
+      userId = next;
+      setSession(s);
+    });
     return () => data.subscription.unsubscribe();
   }, []);
 
@@ -54,6 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     await authController.logout();
+    clearPrivate();
     setSession(null);
     window.dispatchEvent(new Event(LOGOUT_EVENT));
   }, []);

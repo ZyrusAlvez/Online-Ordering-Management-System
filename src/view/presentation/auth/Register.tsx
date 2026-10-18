@@ -81,6 +81,11 @@ export default function Register() {
               <Button type="submit" size="lg" className="w-full" loading={busy}>
                 Sign up
               </Button>
+              <p className="text-center text-xs text-ink-soft">
+                By signing up you agree to our{' '}
+                <Link to="/terms" className="font-semibold text-brand hover:underline">Terms of Service</Link> and{' '}
+                <Link to="/privacy" className="font-semibold text-brand hover:underline">Privacy Policy</Link>.
+              </p>
             </form>
             <p className="mt-5 text-center text-sm text-ink-soft">
               Already have an account?{' '}

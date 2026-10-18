@@ -5,6 +5,7 @@ import { MapSkeleton } from '@/view/components/Skeletons';
 import { BranchCardSkeleton, BranchGridSkeleton } from '@/view/presentation/landing/SkeletonLoading';
 import { Suspense } from 'react';
 import { useAuth, HOME_FOR_ROLE } from '@/context/AuthContext';
+import { Link } from '@/utils/navigation';
 import { Logo, REGION, RESTAURANT } from '@/view/components/Logo';
 import { useSelectedBranch } from '@/hooks/useBranches';
 import { byDistance, directionsUrl, formatKm, haversineKm, hoursLabel, isOpenNow } from '@/utils/geo';
@@ -308,6 +309,11 @@ function LandingPage() {
               );
             })}
           </ul>
+        </div>
+        <div className="mx-auto mt-10 flex max-w-6xl flex-wrap gap-x-6 gap-y-2 border-t border-line pt-6 text-xs text-ink-soft">
+          <span>© {new Date().getFullYear()} 3K Kitchen</span>
+          <Link to="/privacy" className="hover:text-brand">Privacy Policy</Link>
+          <Link to="/terms" className="hover:text-brand">Terms of Service</Link>
         </div>
       </footer>
     </div>

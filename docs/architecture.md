@@ -64,6 +64,13 @@ shows grey placeholder shapes only where data is still coming: `Skeleton` and `S
 own in `view/presentation/<feature>/SkeletonLoading.tsx`. A new screen that loads data should do the same. The only
 full-page loader left is "Signing you in…" on the Google callback, which is an action, not data.
 
+**Caching** (`src/utils/cache.ts`). Controllers wrap reads in `cached(key, { ttlMs, kind }, load)`. `kind: 'public'`
+(menu, sold-out flags, branches, logo) is kept in memory and in `localStorage`, so a returning visitor sees the menu at
+once; `kind: 'private'` (the caller's branches, their profile) is kept in memory only and cleared by `clearPrivate()`
+whenever the signed-in user changes. Writes call `invalidate(prefix)`, so the editor sees their change immediately
+(other browsers within the TTL). Orders, payments and chats are never cached; live updates refetch them. Order prices
+never come from a cache: the database prices every order from the live menu.
+
 | Piece | Job |
 | --- | --- |
 | `utils/result.ts` | `Result<T>`: `{ success: true, data }` or `{ success: false, error, status }`. Every controller returns one. `status` keeps the HTTP-style codes (404, 409, …) screens use to tell a conflict from a failure |

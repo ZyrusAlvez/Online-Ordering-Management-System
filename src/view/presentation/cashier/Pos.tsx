@@ -623,12 +623,17 @@ function Register() {
   const statuses = { active: ACTIVE, completed: ['completed'], closed: ['cancelled', 'voided'] }[tab] ?? [undefined];
   const { data, error, loading, reload, refresh } = useFetch(async () => {
     if (!branchId) return { data: [] };
-    const pages = await Promise.all(
-      statuses.map((status) =>
-        call(listStaffOrders({ branch_id: branchId, limit: 100, q: q || undefined, channel: channel || undefined, status })),
-      ),
+    // One request for the whole tab, up to 100 orders per status as before.
+    const page = await call(
+      listStaffOrders({
+        branch_id: branchId,
+        limit: 100 * statuses.length,
+        q: q || undefined,
+        channel: channel || undefined,
+        ...(statuses[0] ? { statuses } : {}),
+      }),
     );
-    return { data: pages.flatMap((p) => p.data) };
+    return { data: page.data };
   }, [q, channel, tab, branchId]);
 
   useEffect(() => subscribeToOrders(() => refresh()), [refresh]);

@@ -128,6 +128,11 @@ export function CustomerLayout({ children }: { children: React.ReactNode }) {
       <main className="mx-auto max-w-6xl px-4 pb-24 pt-4">
         {children}
       </main>
+      <footer className="mx-auto flex max-w-6xl flex-wrap gap-x-6 gap-y-2 px-4 pb-28 text-xs text-ink-soft">
+        <span>© {new Date().getFullYear()} 3K Kitchen</span>
+        <Link to="/privacy" className="hover:text-brand">Privacy Policy</Link>
+        <Link to="/terms" className="hover:text-brand">Terms of Service</Link>
+      </footer>
     </CartProvider>
   );
 }

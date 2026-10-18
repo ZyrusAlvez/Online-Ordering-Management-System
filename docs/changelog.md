@@ -4,6 +4,21 @@ What has been built, grouped by feature, with the database migration that goes w
 numbers are the dates in the file names under `supabase/migrations/`. Security-relevant changes are also
 listed in [security.md](./security.md#issues-found-and-fixed).
 
+## Faster pages, caching, privacy and terms pages
+- **Caching with a privacy rule:** public data (menu, sold-out flags, branches, logo) is cached on the device for a few
+  minutes; private results are kept in memory only and wiped when the user changes; orders, payments and chats are
+  never cached. A returning visitor's menu loads with no database request.
+- **Fewer requests:** the cashier screen went from 18-20 database requests to 6-7 (one query for the whole queue
+  instead of one per status; the caller's branches are looked up once a minute instead of on every call). Customer
+  pages make one request instead of two or three.
+- **Self-hosted fonts:** no more 5-8 requests to Google Fonts on every page, no render-blocking font CSS, and visitors'
+  browsers no longer contact Google.
+- **Headers:** `Referrer-Policy`, `Permissions-Policy` and `nosniff` for every page; a day's cache for the bundled logo
+  and QR. Menu photos are uploaded with a one-year cache lifetime (each upload has a new name).
+- **Skeleton loading** on every data screen instead of full-page spinners.
+- **Privacy Policy** (`/privacy`) and **Terms of Service** (`/terms`), linked from the landing footer, the sign-up form
+  and every customer page. Their text is a sample: review it before going live.
+
 ## Next.js and Supabase only (no Express)
 *Migrations `20261018000000_nextjs_client_writes.sql`, `20261018000100_order_total_definer.sql`, `20261018000200_tighten_function_grants.sql`*
 - **One Next.js app** (App Router, TypeScript) replaces the Vite frontend and the Express API, laid out MVC like the

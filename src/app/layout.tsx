@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { Kaushan_Script, Poppins } from 'next/font/google';
 import Providers from './providers';
 import './globals.css';
 
@@ -14,16 +15,17 @@ export const viewport: Viewport = {
   themeColor: '#E8202A',
 };
 
+// Downloaded at build time and served from this site: no request to Google from visitors'
+// browsers (faster, and it does not share their IP address with Google), no render-blocking CSS.
+const poppins = Poppins({ subsets: ['latin'], weight: ['400', '500', '600', '700', '800'], variable: '--font-poppins', display: 'swap' });
+const kaushan = Kaushan_Script({ subsets: ['latin'], weight: '400', variable: '--font-kaushan', display: 'swap' });
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${poppins.variable} ${kaushan.variable}`}>
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Kaushan+Script&family=Poppins:wght@400;500;600;700;800&display=swap"
-          rel="stylesheet"
-        />
+        {/* Start the connection to the database while the app's code is still loading. */}
+        <link rel="preconnect" href={process.env.NEXT_PUBLIC_SUPABASE_URL} crossOrigin="" />
       </head>
       <body>
         <Providers>{children}</Providers>

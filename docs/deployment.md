@@ -85,7 +85,7 @@ npm start                     # serves on PORT (default 3000)
 Run it under a process manager behind a reverse proxy that terminates HTTPS. Set security headers there (or in
 `next.config.ts`), in particular a **Content-Security-Policy** allowing Supabase (including websockets), OpenStreetMap
 tiles (`tile.openstreetmap.org`), Nominatim
-(`nominatim.openstreetmap.org`), Google Fonts, and images from Supabase Storage.
+(`nominatim.openstreetmap.org`), and images from Supabase Storage. Fonts are self-hosted, so Google Fonts is not needed.
 
 **Map tiles.** Every map uses the standard OpenStreetMap tiles, greyed out by the app: free and with no key, under
 OpenStreetMap's tile usage policy, which suits light traffic. Keep the "© OpenStreetMap contributors" attribution (the
@@ -115,6 +115,7 @@ maps show it). If traffic grows, switch to a hosted tile provider in `src/view/c
 - [ ] A test online GCash order was sent, approved and (after a void) marked refunded by staff.
 
 **Content**
+- [ ] The sample Privacy Policy and Terms replaced with reviewed text and real contact details.
 - [ ] Menu prices checked (a dish with no price cannot be ordered); photos uploaded or placeholders accepted; logo set.
 - [ ] Kiosk devices unlocked and listed in Admin → Kiosks; a test order taken through every channel.
 

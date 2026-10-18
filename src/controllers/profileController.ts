@@ -6,6 +6,7 @@ import { shapeBranch, type Branch } from '@/controllers/branchController';
 import { validate } from '@/utils/validate';
 import { updateProfileSchema } from '@/utils/validators/auth.validators';
 import { fail, fromDbError, ok, type Result } from '@/utils/result';
+import { cached, invalidate } from '@/utils/cache';
 
 export type Profile = {
   id: string;
@@ -40,7 +41,11 @@ const shape = (user: User, row: any, branches: Branch[]): Profile => ({
 export const getMyProfile = async (): Promise<Result<Profile>> => {
   const caller = await getCaller();
   if (caller.success === false) return caller;
-  const { user, branchIds } = caller.data;
+  // Several screens ask at once (the staff branch picker, checkout): memory only, per user.
+  return cached(`profile:${caller.data.user.id}`, { ttlMs: 30_000, kind: 'private' }, () => loadProfile(caller.data));
+};
+
+const loadProfile = async ({ user, branchIds }: { user: User; branchIds: string[] | null }): Promise<Result<Profile>> => {
 
   const [{ data: row, error }, branchRows] = await Promise.all([
     profileModel.getOwnProfile(user.id),
@@ -65,6 +70,7 @@ export const updateMyProfile = async (input: unknown): Promise<Result<Profile>> 
   const { data, error } = await profileModel.updateOwnProfile(user.id, body.data);
   if (error) return fromDbError(error, 'Failed to save your profile');
   if (!data) return fail('Profile not found', 404);
+  invalidate(`profile:${user.id}`);
 
   // Merge rather than replace: Google stores the avatar in user_metadata too.
   let updated = user;

@@ -1,15 +1,17 @@
 import * as siteModel from '@/models/siteModel';
 import { removePublicImage, uploadPublicImage } from '@/controllers/storageController';
 import { fail, fromDbError, ok, type Result } from '@/utils/result';
+import { cached, invalidate } from '@/utils/cache';
 
 export type SiteImages = Record<string, string | null>;
 export const SITE_IMAGE_KEYS = ['logo'] as const;
 
-export const getSiteImages = async (): Promise<Result<SiteImages>> => {
-  const { data, error } = await siteModel.getSiteImages();
-  if (error) return fromDbError(error, 'Failed to load images');
-  return ok(Object.fromEntries((data ?? []).map((row) => [row.key, row.image_url])));
-};
+export const getSiteImages = (): Promise<Result<SiteImages>> =>
+  cached('site:images', { ttlMs: 10 * 60_000, kind: 'public' }, async () => {
+    const { data, error } = await siteModel.getSiteImages();
+    if (error) return fromDbError(error, 'Failed to load images');
+    return ok(Object.fromEntries((data ?? []).map((row) => [row.key, row.image_url])));
+  });
 
 const assertKey = (key: string) => (SITE_IMAGE_KEYS as readonly string[]).includes(key);
 
@@ -24,6 +26,7 @@ export const setSiteImage = async (key: string, file: Blob): Promise<Result<Site
     return fromDbError(error, 'Failed to save the image');
   }
   if (current.success) await removePublicImage(current.data[key]);
+  invalidate('site:');
   return getSiteImages();
 };
 
@@ -33,6 +36,7 @@ export const clearSiteImage = async (key: string): Promise<Result<SiteImages>> =
   const { error } = await siteModel.upsertSiteImage(key, null);
   if (error) return fromDbError(error, 'Failed to remove the image');
   if (current.success) await removePublicImage(current.data[key]);
+  invalidate('site:');
   return getSiteImages();
 };
 

@@ -118,8 +118,25 @@ Full table: [data-dictionary.md](./data-dictionary.md#input-rules-the-same-every
 
 ### Web layer
 
-Security headers and a Content-Security-Policy are set at the host (see [deployment.md](./deployment.md#building-and-hosting));
-the app sets none itself. Server actions return a message and status, never a stack trace.
+`next.config.ts` sets `Referrer-Policy: strict-origin-when-cross-origin` (OpenStreetMap never sees a full address such
+as `/orders/<id>`), a `Permissions-Policy` that allows location to our own pages only and turns off camera, microphone
+and payment APIs, and `X-Content-Type-Options: nosniff`. A Content-Security-Policy is still to be added at the host
+(see [deployment.md](./deployment.md#building-and-hosting)). Server actions return a message and status, never a stack
+trace.
+
+### Data kept on the device, and caching
+
+- Only **public** data is cached in the browser's storage (`3k.cache.*`): the menu (5 minutes), sold-out flags (30
+  seconds), active branches and the logo (10 minutes). See `src/utils/cache.ts`.
+- **Private** results (the caller's branches, their profile, the super admin's full branch list) are cached in memory
+  only, never written to the device, and dropped the moment anyone signs out or a different user signs in
+  (`clearPrivate()` in `AuthContext`). Orders, payments and chats are not cached at all.
+- A cached menu can show a price that changed in the last few minutes, but orders are always priced by the database
+  from the live menu (the `price_order_item` trigger), so nobody pays a stale price.
+- Fonts are self-hosted (`next/font`), so visitors' browsers make no requests to Google.
+- The Privacy Policy (`/privacy`) and Terms of Service (`/terms`) describe this. **Their text is a placeholder**: the
+  contact addresses (`.example`), retention periods and refund times are made up and must be reviewed before going
+  live.
 
 ## Rate limits
 
@@ -183,7 +200,7 @@ Found in review or testing, each now covered by a test. Recorded because they ex
 | **Shared cashier login per branch** | Cash payments record *the branch's cashier account*, not the person on shift | Per-cashier accounts or a name prompt at shift start |
 | **One branch per cashier login and rider** | A rider who covers two branches needs two accounts | Allow several rows in `branch_staff` for riders if that becomes common |
 | **A kiosk's device key is extractable** by anyone with developer tools on that terminal | It is a revocable device identifier, not a true secret | Revoke devices from Admin → Kiosks; a locked-down kiosk shell would be stronger |
-| **Logins are stored in the browser (`localStorage`)** | A cross-site-scripting bug anywhere would expose a session | React escapes output and the app renders no user HTML; add a Content-Security-Policy at the host (the app sets none) |
+| **Logins are stored in the browser (`localStorage`)** | A cross-site-scripting bug anywhere would expose a session | React escapes output and the app renders no user HTML; add a Content-Security-Policy at the host (the app sets other headers, but no CSP yet) |
 | **Leaked-password protection is off** in Supabase | Users may choose a password known from breaches | Turn it on: Authentication → Passwords |
 | **Guests are anonymous** | Spam is limited only by the 30-photo cap | Tighten limits, add a challenge, or require a name |
 | **A chat photo link works for up to an hour** for anyone who is given it | A person in the conversation could share it | Short expiry; only conversation members receive links |
@@ -206,6 +223,7 @@ Found in review or testing, each now covered by a test. Recorded because they ex
 - [ ] Add a Content-Security-Policy and standard headers at your host.
 - [ ] Restore rate limits on the cashier and kiosk gates ([Rate limits](#rate-limits)).
 - [ ] Turn on database backups and confirm you can restore.
+- [ ] Replace the sample Privacy Policy and Terms (`src/view/presentation/legal/`) with reviewed text and real contact details.
 - [ ] Run `npm run check:flows` against a **separate** project, never production.
 
 The full checklist, with configuration, is in [deployment.md](./deployment.md#go-live-checklist).

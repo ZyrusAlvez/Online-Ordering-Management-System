@@ -23,9 +23,9 @@
   --color-leaf: #2f6b3a;
   --color-leaf-soft: #e6f1e3;
 
-  --font-display: 'Poppins', ui-sans-serif, system-ui, sans-serif;
-  --font-script: 'Kaushan Script', 'Brush Script MT', cursive;
-  --font-sans: 'Poppins', ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
+  --font-script: var(--font-kaushan), 'Brush Script MT', cursive;
+  --font-sans: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
 
   --radius-xl: 0.625rem;
   --radius-2xl: 0.75rem;
