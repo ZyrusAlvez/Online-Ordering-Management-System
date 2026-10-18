@@ -39,7 +39,7 @@ function Inner({ onSubmit, submitLabel, extra, canSubmit, branchId }: any) {
   return (
     <div className="grid gap-4 md:grid-cols-[1fr_340px]">
       <div className="scroll-thin max-h-[58vh] overflow-y-auto rounded-2xl bg-cream px-4 pb-4">
-        <MenuBrowser onAdd={cart.add} branchId={branchId} />
+        <MenuBrowser onAdd={cart.add} branchId={branchId} size="list" />
       </div>
 
       <div className="flex flex-col gap-3">

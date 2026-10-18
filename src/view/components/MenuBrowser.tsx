@@ -168,9 +168,12 @@ function ProductModal({ product, onClose, onAdd, big }: any) {
  * The menu used by every ordering surface (customer, kiosk, POS).
  * `onAdd(line)` receives a cart line; the host decides what to do with it.
  * `branchId` shows what that branch has sold out as sold out.
+ * `size`: 'normal' (photo cards), 'kiosk' (large photo cards) or 'list' (compact rows without
+ * photos, for staff picking items in a narrow panel).
  */
 export default function MenuBrowser({ onAdd, branchId = null, size = 'normal', stickyTop = 'top-0' }: any) {
   const big = size === 'kiosk';
+  const list = size === 'list';
   const { data, error, loading, reload } = useFetch(
     () => respond(getMenu({ includeUnavailable: true, branchId: branchId ?? null })),
     [branchId],
@@ -192,7 +195,7 @@ export default function MenuBrowser({ onAdd, branchId = null, size = 'normal', s
       .filter((c) => c.products.length > 0);
   }, [categories, active, search]);
 
-  if (loading) return <MenuSkeleton big={big} />;
+  if (loading) return <MenuSkeleton big={big} list={list} />;
   if (error) return <ErrorNote error={error} onRetry={reload} />;
 
   const choose = (product) => {
@@ -256,40 +259,69 @@ export default function MenuBrowser({ onAdd, branchId = null, size = 'normal', s
           <h2 className={`mb-3 font-display text-ink ${big ? 'text-4xl' : 'text-xl'}`}>
             {c.name}
           </h2>
-          <div
-            className={`grid gap-3 ${
-              big ? 'grid-cols-2 gap-5 xl:grid-cols-3' : 'grid-cols-2 md:grid-cols-3 xl:grid-cols-4'
-            }`}
-          >
-            {c.products.map((p) => {
-              const ok = isOrderable(p);
-              return (
-                <button
-                  key={p.id}
-                  onClick={() => choose(p)}
-                  disabled={!ok}
-                  className={`group relative flex flex-col overflow-hidden rounded-2xl border border-line bg-paper text-left transition ${
-                    ok ? 'hover:border-ink/25 active:scale-[0.99]' : 'opacity-60'
-                  }`}
-                >
-                  <ProductImage product={p} big={big} />
-                  <div className={`flex flex-1 flex-col gap-1 ${big ? 'p-4' : 'p-3'}`}>
-                    <span className={`font-semibold leading-snug ${big ? 'text-xl' : 'text-sm sm:text-base'}`}>
-                      {p.name}
-                    </span>
-                    <span className={`mt-auto font-semibold text-brand ${big ? 'text-xl' : 'text-sm'}`}>
-                      {ok ? priceLabel(p) : p.is_available ? 'Unavailable' : 'Sold out'}
-                    </span>
-                  </div>
-                  {ok && (
-                    <span className="absolute right-2 top-2 rounded-full bg-white p-1.5 text-brand ring-1 ring-line">
-                      <Plus size={big ? 22 : 16} />
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+          {list ? (
+            <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-paper">
+              {c.products.map((p) => {
+                const ok = isOrderable(p);
+                return (
+                  <li key={p.id}>
+                    <button
+                      onClick={() => choose(p)}
+                      disabled={!ok}
+                      className={`flex w-full items-center gap-3 px-3 py-2.5 text-left transition ${
+                        ok ? 'hover:bg-cream' : 'opacity-60'
+                      }`}
+                    >
+                      <span className="min-w-0 flex-1 text-sm font-semibold leading-snug">{p.name}</span>
+                      <span className={`shrink-0 text-sm font-semibold ${ok ? 'text-brand' : 'text-ink-soft'}`}>
+                        {ok ? priceLabel(p) : p.is_available ? 'Unavailable' : 'Sold out'}
+                      </span>
+                      {ok && (
+                        <span className="shrink-0 rounded-full bg-white p-1 text-brand ring-1 ring-line">
+                          <Plus size={14} />
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <div
+              className={`grid gap-3 ${
+                big ? 'grid-cols-2 gap-5 xl:grid-cols-3' : 'grid-cols-2 md:grid-cols-3 xl:grid-cols-4'
+              }`}
+            >
+              {c.products.map((p) => {
+                const ok = isOrderable(p);
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => choose(p)}
+                    disabled={!ok}
+                    className={`group relative flex flex-col overflow-hidden rounded-2xl border border-line bg-paper text-left transition ${
+                      ok ? 'hover:border-ink/25 active:scale-[0.99]' : 'opacity-60'
+                    }`}
+                  >
+                    <ProductImage product={p} big={big} />
+                    <div className={`flex flex-1 flex-col gap-1 ${big ? 'p-4' : 'p-3'}`}>
+                      <span className={`font-semibold leading-snug ${big ? 'text-xl' : 'text-sm sm:text-base'}`}>
+                        {p.name}
+                      </span>
+                      <span className={`mt-auto font-semibold text-brand ${big ? 'text-xl' : 'text-sm'}`}>
+                        {ok ? priceLabel(p) : p.is_available ? 'Unavailable' : 'Sold out'}
+                      </span>
+                    </div>
+                    {ok && (
+                      <span className="absolute right-2 top-2 rounded-full bg-white p-1.5 text-brand ring-1 ring-line">
+                        <Plus size={big ? 22 : 16} />
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </section>
       ))}
 

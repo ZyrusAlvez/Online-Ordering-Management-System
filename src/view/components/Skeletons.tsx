@@ -6,7 +6,23 @@ import { Skeleton, SkeletonGroup } from '@/view/components/ui';
 // layout while only the data loads. Feature screens keep theirs in their own SkeletonLoading.tsx.
 
 /** The menu: category tabs, then a grid of dish cards (MenuBrowser). */
-export function MenuSkeleton({ big = false }: { big?: boolean }) {
+export function MenuSkeleton({ big = false, list = false }: { big?: boolean; list?: boolean }) {
+  if (list) {
+    return (
+      <SkeletonGroup label="Loading the menu…" className="space-y-4 pt-2">
+        <Skeleton className="h-11 w-full rounded-2xl" />
+        <Skeleton className="h-6 w-36" />
+        <div className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-paper">
+          {Array.from({ length: 8 }, (_, i) => (
+            <div key={i} className="flex items-center gap-3 px-3 py-3">
+              <Skeleton className="h-4 flex-1" style={{ maxWidth: `${55 + ((i * 17) % 35)}%` }} />
+              <Skeleton className="ml-auto h-4 w-16" />
+            </div>
+          ))}
+        </div>
+      </SkeletonGroup>
+    );
+  }
   return (
     <SkeletonGroup label="Loading the menu…" className="space-y-5">
       <Skeleton className={`w-full rounded-2xl ${big ? 'h-14' : 'h-11'}`} />
