@@ -141,17 +141,26 @@ trace.
 
 ## Rate limits
 
-The Express API's in-memory rate limits did not survive the move to Next.js (serverless functions keep no memory
-between requests). What remains is **Supabase Auth's own limits** on sign-in and sign-up. Nothing currently limits:
+The limits the Express API had are back, with the same numbers. Express counted in its own memory, which serverless
+functions do not keep between requests, so the counters now live in the database: table `rate_limits` (no browser
+access) and `rate_limit_hit()` / `rate_limit_count()`, used by the server actions through
+`src/controllers/server/rateLimit.ts` (migration `20261018000400`).
 
-- wrong passwords at the **cashier gate** and the **kiosk unlock** (the old limit was 10 per 15 minutes per IP),
-- password-change attempts,
-- starting guest chats, guest messages and guest photos (the 30-photo cap per conversation still applies),
-- kiosk orders per device.
+| What | Limit | Counted per |
+| --- | --- | --- |
+| Wrong passwords at the **cashier gate** | 10 per 15 minutes (correct logins do not count, so registers behind one router never lock each other out) | IP address |
+| Wrong passwords at the **kiosk unlock** | 10 per 15 minutes (the same) | IP address |
+| Password changes | 10 attempts per 15 minutes | account |
+| Kiosk orders | 30 per minute | kiosk device |
+| Starting a guest chat | 5 per hour | IP address |
+| Guest messages / photos | 20 per minute / 10 per 10 minutes (plus the 30-photo cap per conversation) | IP address |
 
-The gates are the important ones: their passwords are short and shared. Restoring them needs a shared counter: a small
-`rate_limits` table checked by the server actions, or a store such as Upstash. See
-[Known gaps](#known-gaps-and-accepted-risks).
+Supabase Auth applies its own limits to sign-in and sign-up on top.
+
+- The IP address is the first entry of `x-forwarded-for`. **Vercel sets that header itself**, so a visitor cannot
+  fake it there. On another host, make sure its proxy overwrites the header, or anyone can claim a new IP per attempt.
+- If the counter cannot be reached, the request is allowed (a database hiccup must not close the registers).
+- Fixed windows: a guesser gets at most 10 tries, then waits until the window ends.
 
 ## Secrets
 
@@ -192,6 +201,8 @@ Found in review or testing, each now covered by a test. Recorded because they ex
 | **Low** | Kiosk failure screens never reset; modals let keyboard focus escape | Fixed (see [changelog.md](./changelog.md)) |
 | **High** | **A rider's claim reset the order total to 0** (found while testing the move to browser writes). The guard trigger summed the order's items as the caller, and RLS hides an order's items from a rider until they hold it, so the cash-on-delivery check compared the cash against ₱0 | The sum runs with owner rights (`order_items_total()`, migration `20261018000100`). `check:flows` asserts the total survives a claim and short cash is refused |
 | **Low** | **A delivery-chat participant could edit any field of the thread** (e.g. move it to another branch's inbox), and **a customer could keep adding items to a pending, unpaid order** after placing it | Trigger `guard_chat_thread` locks everything but the preview, and only staff mark threads read; a customer's items can only be added in the request that places the order (migration `20261018000300`). Both in `check:flows` |
+| **Medium** | **The ordering rules could be skipped.** Branch open and taking orders, a valid scheduled time, and an address and number for delivery were checked only by the app before it inserted the order from the browser; a customer calling the API directly could order from a closed branch or ask for delivery with no address | Trigger `check_online_order` enforces the same rules with the same messages (migration `20261018000400`; 5 minutes' grace on the 30-minute lead for slow phone clocks). `check:flows` tries each one directly |
+| **Medium** | **No rate limits since the move from Express**: the shared cashier and kiosk passwords could be guessed without slowdown and guests could flood the inbox | Database-backed limits with the old numbers ([Rate limits](#rate-limits)). `check:flows` tests the counter; a browser test confirmed the 11th wrong cashier password is refused, even when correct |
 | **Design** | **Moving writes into the browser** reopened the risk of free or self-paid orders that the 2026-09 fix had closed | Write policies are per role, and triggers own prices, totals and payment status; `check:flows` tries each tampering move |
 | **Low** | With branch policies in place, an anonymous read of `orders` or chats failed with *permission denied for function has_branch_access* instead of returning nothing | The function is executable by `anon` (it answers false) and runs with the caller's rights rather than as a definer |
 
@@ -204,11 +215,10 @@ Found in review or testing, each now covered by a test. Recorded because they ex
 | **A kiosk's device key is extractable** by anyone with developer tools on that terminal | It is a revocable device identifier, not a true secret | Revoke devices from Admin → Kiosks; a locked-down kiosk shell would be stronger |
 | **Logins are stored in the browser (`localStorage`)** | A cross-site-scripting bug anywhere would expose a session | React escapes output and the app renders no user HTML; add a Content-Security-Policy at the host (the app sets other headers, but no CSP yet) |
 | **Leaked-password protection is off** in Supabase | Users may choose a password known from breaches | Turn it on: Authentication → Passwords |
-| **Guests are anonymous** | Spam is limited only by the 30-photo cap | Tighten limits, add a challenge, or require a name |
+| **Guests are anonymous** | Spam is slowed by per-IP limits and the 30-photo cap, but someone with many IP addresses gets past them | Add a challenge (e.g. Turnstile), or require a name |
 | **A chat photo link works for up to an hour** for anyone who is given it | A person in the conversation could share it | Short expiry; only conversation members receive links |
 | **Chat photos outlive a deleted conversation** | Orphaned files remain in storage | A periodic clean-up (see [operations.md](./operations.md#maintenance)) |
 | **Map tiles and lookups go to OpenStreetMap from the browser** | OSM sees the searched address, the pinned coordinates and which map area is viewed | Disclose it; self-host a geocoder or tile server if privacy requires |
-| **No rate limits on the password gates, password change or guest chat** | The cashier and kiosk passwords can be guessed without slowdown; guests can spam the inbox | A `rate_limits` table checked by the server actions, or Upstash (see [Rate limits](#rate-limits)) |
 | **Orders have no duplicate protection** | A dropped connection plus a second tap can create two orders | An idempotency key on order creation |
 
 ## Before going live
@@ -223,7 +233,7 @@ Found in review or testing, each now covered by a test. Recorded because they ex
       decide whether email confirmation is required.
 - [ ] Keep the GitHub repository **private** (it contains development credentials in the docs).
 - [ ] Add a Content-Security-Policy and standard headers at your host.
-- [ ] Restore rate limits on the cashier and kiosk gates ([Rate limits](#rate-limits)).
+- [ ] If you host anywhere but Vercel, make sure the proxy overwrites `x-forwarded-for` ([Rate limits](#rate-limits)).
 - [ ] Turn on database backups and confirm you can restore.
 - [ ] Replace the sample Privacy Policy and Terms (`src/view/presentation/legal/`) with reviewed text and real contact details.
 - [ ] Run `npm run check:flows` against a **separate** project, never production.

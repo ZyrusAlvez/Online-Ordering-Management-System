@@ -45,4 +45,5 @@ Google sign-in.
 
 - There is no isolated test database: the checks run against whichever project `.env.local` points at.
 - The checks call the controllers directly, not through a browser, so layout and click-through problems need a person.
-- Express's in-memory rate limits are gone (see [security.md](./security.md)); nothing tests rate limiting.
+- Limits counted per IP need a web request (the scripts have no visitor IP), so `check:flows` tests the counter
+  itself with its own keys. The per-IP gate limit was checked once in a browser.

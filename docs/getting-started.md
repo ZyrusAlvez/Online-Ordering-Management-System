@@ -50,6 +50,7 @@ Supabase **SQL Editor**, paste each file in turn and run it (or use the Supabase
 | 24 | `20261018000100_order_total_definer.sql` | The order total is summed with owner rights (a rider claiming an order used to reset it to 0) |
 | 25 | `20261018000200_tighten_function_grants.sql` | Removes two unneeded function grants |
 | 26 | `20261018000300_lock_chat_threads_and_items.sql` | A chat thread's order, branch and kind cannot be changed, only staff mark it read; customers cannot add items to an order already placed |
+| 27 | `20261018000400_rate_limits_and_order_rules.sql` | The `rate_limits` counters for the password gates, password change, kiosk orders and guest chat; the database checks an online order's branch, time and delivery details |
 
 Then load the menu: run `supabase/seed.sql` in the same editor (safe to run twice). It is generated from
 `supabase/seed-data/menu.json`; to change the menu, edit that file and run `npm run seed:menu`, or just use the admin

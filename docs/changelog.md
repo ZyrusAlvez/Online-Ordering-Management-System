@@ -4,6 +4,29 @@ What has been built, grouped by feature, with the database migration that goes w
 numbers are the dates in the file names under `supabase/migrations/`. Security-relevant changes are also
 listed in [security.md](./security.md#issues-found-and-fixed).
 
+## Rate limits back; ordering rules in the database
+*Migration `20261018000400_rate_limits_and_order_rules.sql`*
+- **Rate limits** with the numbers the Express API had: 10 wrong cashier or kiosk passwords per 15 minutes per IP
+  (correct ones do not count), 10 password-change attempts per 15 minutes per account, 30 kiosk orders a minute per
+  device, and for guests 5 new chats an hour, 20 messages a minute and 10 photos per 10 minutes per IP. Counted in the
+  database so they hold on serverless hosting.
+- **The database checks online orders**: the branch must be taking orders and open (for ASAP), a scheduled time must be
+  a 15-minute mark at least 30 minutes away and at most 2 days ahead inside the branch's hours, and a delivery needs an
+  address and a mobile number. These were checked only by the app, which a direct API call could skip.
+
+## Lighter menu photos and phone fixes
+- **Menu photos are resized to the size they are shown at** (Next.js image optimizer, WebP): scrolling the whole menu on
+  a phone went from **11.5 MB to 2.8 MB** of photos (about 28 KB per photo on ordinary screens). The admin menu's 48 px
+  thumbnails no longer load full photos. Only this project's menu-photo folder can be resized, so the optimizer cannot
+  be used for other sites' images.
+- **Even menu cards:** a photo could shrink inside its card, so cards in one row had different photo heights.
+- **Staff headers fit on a phone:** the cashier's "Walk-in" no longer wraps and the sign-out button is no longer cut off;
+  the buttons move to a second row instead of squeezing the title. The admin header no longer stacks the title.
+- **Page titles:** each page has its own ("Menu · 3K Kitchen", "Cashier · 3K Kitchen"), replacing the old
+  single-branch "GMA Terminal Branch" title.
+- **Error page:** an unexpected crash shows "Something went wrong" with *Try again* and a link home, instead of a blank
+  screen.
+
 ## Tighter rules for chat threads and order items
 *Migration `20261018000300_lock_chat_threads_and_items.sql`*
 - A delivery chat's customer or rider can only update its last-message preview; its order, branch, kind and guest are

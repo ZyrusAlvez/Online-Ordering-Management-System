@@ -22,5 +22,7 @@ export const fromDbError = (error: PostgrestError | { message: string; code?: st
   if (code === '23503') return fail('It is still in use, so it cannot be changed', 409);
   if (code === '23514' || code === '22P02') return fail('Some of the values are not valid', 400);
   if (code === '42501') return fail('You are not allowed to do that', 403);
+  // A rule the database checks with a message meant for the customer (e.g. "GMA Terminal is closed now").
+  if (code === 'P0001') return fail(error.message, 409);
   return fail(error.message || fallback, 500);
 };

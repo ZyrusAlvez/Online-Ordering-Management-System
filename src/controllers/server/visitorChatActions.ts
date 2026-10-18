@@ -4,6 +4,7 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import * as visitorChatModel from '@/models/server/visitorChatModel';
 import * as adminModel from '@/models/server/adminModel';
 import { checkImage } from '@/controllers/storageController';
+import { RULES, clientIp, limit } from '@/controllers/server/rateLimit';
 import { validate } from '@/utils/validate';
 import { createVisitorThreadSchema, messageBody } from '@/utils/validators/chat.validators';
 import { fail, fromDbError, ok, type Result } from '@/utils/result';
@@ -54,6 +55,8 @@ const requireVisitor = async (threadId: string, token: string): Promise<Result<n
 export async function createVisitorThread(input: unknown) {
   const body = validate(createVisitorThreadSchema, input);
   if (body.success === false) return body;
+  const allowed = await limit(RULES.visitorThread, await clientIp());
+  if (allowed.success === false) return allowed;
   const { data: branch } = await adminModel.getBranch(body.data.branch_id);
   if (!branch || !branch.is_active) return fail('That branch is not taking messages');
 
@@ -84,6 +87,8 @@ export async function postVisitorMessage(threadId: string, token: string, input:
   if (allowed.success === false) return allowed;
   const body = validate(messageBody, input);
   if (body.success === false) return body;
+  const pace = await limit(RULES.visitorMessage, await clientIp());
+  if (pace.success === false) return pace;
   return addMessage(threadId, body.data.body);
 }
 
@@ -93,6 +98,8 @@ export async function postVisitorImage(threadId: string, token: string, form: Fo
   if (allowed.success === false) return allowed;
   const file = form.get('file');
   if (!(file instanceof Blob)) return fail('Attach a photo');
+  const pace = await limit(RULES.visitorImage, await clientIp());
+  if (pace.success === false) return pace;
 
   const checked = await checkImage(file);
   if (checked.success === false) return checked;

@@ -3,6 +3,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import * as kioskModel from '@/models/server/kioskModel';
 import { hashKioskKey } from '@/controllers/server/kioskDevices';
+import { RULES, limit } from '@/controllers/server/rateLimit';
 import { priceFromRows, toPesos } from '@/controllers/orderController';
 import { getGcashAccount } from '@/controllers/siteController';
 import { validate } from '@/utils/validate';
@@ -40,6 +41,8 @@ export async function kioskMe(key: string | null) {
 export async function createKioskOrder(key: string | null, input: unknown) {
   const device = await requireKiosk(key);
   if (device.success === false) return device;
+  const allowed = await limit(RULES.kioskOrder, device.data.id);
+  if (allowed.success === false) return allowed;
   const body = validate(createKioskOrderSchema, input);
   if (body.success === false) return body;
   const b: any = body.data;

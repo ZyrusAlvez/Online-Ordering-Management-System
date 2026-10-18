@@ -1,6 +1,7 @@
 'use server';
 
 import * as accountModel from '@/models/server/accountModel';
+import { RULES, limit } from '@/controllers/server/rateLimit';
 import { verifyCaller } from '@/controllers/server/serverCaller';
 import { validate } from '@/utils/validate';
 import { changePasswordSchema } from '@/utils/validators/auth.validators';
@@ -14,6 +15,8 @@ import { fail, ok } from '@/utils/result';
 export async function changeMyPassword(token: string, input: unknown) {
   const caller = await verifyCaller(token);
   if (caller.success === false) return caller;
+  const allowed = await limit(RULES.passwordChange, caller.data.user.id);
+  if (allowed.success === false) return allowed;
   const body = validate(changePasswordSchema, input);
   if (body.success === false) return body;
   const user = caller.data.user;

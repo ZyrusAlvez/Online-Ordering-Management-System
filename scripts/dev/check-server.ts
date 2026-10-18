@@ -137,6 +137,33 @@ if (unlocked.success) {
   check('revoked kiosk key stops working (403)', !after.success && after.status === 403, after);
 }
 
+// --- rate limits (the counters live in the database; IP limits need a web request) ---------
+{
+  const rl = await import('@/controllers/server/rateLimit');
+  const rule = { name: 'flow-test', max: 2, windowSeconds: 60, message: 'Slow down' };
+  const who = crypto.randomUUID();
+  const r1 = await rl.limit(rule, who);
+  const r2 = await rl.limit(rule, who);
+  const r3 = await rl.limit(rule, who);
+  check('rate limit allows up to its maximum', r1.success && r2.success, [r1, r2]);
+  check('rate limit refuses past its maximum (429)', !r3.success && r3.status === 429 && r3.error === 'Slow down', r3);
+  check('another caller has its own allowance', (await rl.limit(rule, crypto.randomUUID())).success);
+
+  const guesser = crypto.randomUUID();
+  const before = await rl.checkFailures(rule, guesser);
+  await rl.recordFailure(rule, guesser);
+  await rl.recordFailure(rule, guesser);
+  const after = await rl.checkFailures(rule, guesser);
+  check('gate allows attempts until the wrong guesses run out', before.success && !after.success && after.status === 429, [before, after]);
+  check('outside a web request there is no IP to limit', (await rl.clientIp()) === null);
+
+  await supabase.auth.signOut({ scope: 'local' });
+  const fromBrowser = await supabase.rpc('rate_limit_hit', { p_key: 'x', p_window_seconds: 60 });
+  check('browsers cannot touch the counters', Boolean(fromBrowser.error), fromBrowser);
+  const peek = await supabase.from('rate_limits').select('key').limit(1);
+  check('browsers cannot read the counters', Boolean(peek.error) || (peek.data ?? []).length === 0, peek);
+}
+
 await supabase.auth.signOut({ scope: 'local' });
 console.log(failures ? `\n${failures} FAILED` : '\nALL PASSED');
 

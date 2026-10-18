@@ -230,6 +230,9 @@ Indexes: customer, `(status, channel)`, `(branch_id, status)`, `(branch_id, crea
 ### `order_counters`: next number per branch, day and channel
 `branch_id` + `business_date` (date) + `channel` (text) → `last_number` (integer, default 0). Primary key is the three. Server only.
 
+### `rate_limits`: attempt counters
+`key` (PK, `<rule>:<who>`, e.g. `kiosk-gate:203.0.113.7`) · `window_start` (timestamptz) · `hits` (integer). One fixed window per key, counted by `rate_limit_hit(key, window_seconds)` and read by `rate_limit_count(key, window_seconds)`. Rows a day past their window are deleted now and then by the server. Server only. See [security.md](./security.md#rate-limits).
+
 ### `site_images`: brand images
 `key` (`logo` only, PK) · `image_url` (null = use the bundled default) · `updated_at`. Readable by everyone.
 
@@ -311,7 +314,7 @@ Every table has Row Level Security on. Writes are allowed per role by the polici
 | `profiles` | Your own row; super admins (all) |
 | `chat_threads`, `chat_messages` | Cashiers and admins of the thread's branch, super admins; the customer and the rider holding a delivery order, for that order's chat |
 | `branch_staff` | Your own rows (used by `has_branch_access()`) |
-| `kiosk_devices`, `order_counters`, `employee_credentials`, `chat_thread_secrets` | Nobody (server only) |
+| `kiosk_devices`, `order_counters`, `employee_credentials`, `chat_thread_secrets`, `rate_limits` | Nobody (server only) |
 
 | Table | Who can write |
 | --- | --- |
@@ -323,14 +326,16 @@ Every table has Row Level Security on. Writes are allowed per role by the polici
 | `profiles` | Your own row, only `full_name`, `phone`, `default_address` (a column grant) |
 | `chat_threads` | The customer or rider of a delivery order may open its thread and update its last-message preview; only branch staff mark a thread read. The order, branch, kind and guest of a thread never change |
 | `chat_messages` | Branch staff on support threads (as `cashier`); the order's customer and the rider holding it on a delivery thread, while it is out for delivery. `sender_id` must be the caller |
-| `kiosk_devices`, `order_counters`, `employee_credentials`, `chat_thread_secrets` | Server only (secret key) |
+| `kiosk_devices`, `order_counters`, `employee_credentials`, `chat_thread_secrets`, `rate_limits` | Server only (secret key) |
 
 **Triggers.** `price_order_item` sets every line's price from the menu (refusing unavailable, sold-out or unpriced
 items); `recompute_order_total` and `guard_order` keep `orders.total_amount` equal to the sum of the items;
 `guard_order` also forces a new order to pending and unpaid and refuses any change a customer or rider may not make;
 `price_order_item` also stamps each line's time and refuses a customer's lines for an order that already has items;
 `guard_chat_thread` keeps a thread's order, branch, kind and guest fixed and leaves the read marker to staff;
-`guard_payment` sets a payment's amount from the order. They only act on browser requests; the server's secret key
+`guard_payment` sets a payment's amount from the order; `check_online_order` refuses an online order at a branch that
+is inactive or closed (ASAP), at an invalid scheduled time, or a delivery with no address or number, with the same
+messages as the checkout screen. They only act on browser requests; the server's secret key
 (kiosk orders, staff accounts) skips them.
 
 **Branch checks.** `public.has_branch_access(branch_id)` is true for a super admin, or when the caller has that branch in
@@ -350,5 +355,4 @@ Found during review and deliberately left for later:
 - **Duplicate orders on a dropped connection.** Placing an order has no idempotency key; if the reply is lost and the customer taps again, a second order is created.
 - **Looser status moves.** `ready → completed` lets a cashier finish a delivery without a rider, and nothing requires payment before `completed` (may be intended for pay-at-counter).
 - **Supabase dashboard setting:** *Authentication → Passwords → "Prevent use of leaked passwords"* is off.
-- **No rate limits on the password gates and guest chat** since the move from Express (see [security.md](./security.md#rate-limits)).
 - **Database tuning hints from Supabase's advisor:** policies could use `(select auth.uid())` so it is evaluated once per query; a few foreign keys have no covering index (`order_items.product_id`, `order_items.variant_id`, `orders.kiosk_device_id`, `orders.voided_by`, `chat_messages.sender_id`, `employee_credentials.updated_by`). Harmless at this size.

@@ -16,6 +16,7 @@ const chat = await import('@/controllers/chatController');
 const profile = await import('@/controllers/profileController');
 const branchCtl = await import('@/controllers/branchController');
 const menu = await import('@/controllers/menuController');
+const { isOpenNow } = await import('@/utils/geo');
 
 let failures = 0;
 const check = (name: string, ok: boolean, detail: unknown = '') => {
@@ -64,6 +65,37 @@ const t1 = await supabase.from('orders').update({ payment_status: 'paid' }).eq('
 check('customer cannot mark own order paid', Boolean(t1.error) || (t1.data ?? []).length === 0, t1);
 const t2 = await supabase.from('orders').update({ total_amount: 1 }).eq('id', id1).select('total_amount').single();
 check('customer cannot change the total', !t2.error && Number(t2.data?.total_amount) === price * 2, t2);
+
+// The ordering rules hold even when the app's own checks are skipped (a direct API call).
+{
+  const uid = (await supabase.auth.getUser()).data.user.id;
+  const manilaDay = (days: number) =>
+    new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date(Date.now() + days * 86_400_000));
+  const direct = (extra: Record<string, unknown>) =>
+    supabase.from('orders').insert({
+      branch_id: gma.id, channel: 'online', customer_id: uid, fulfillment_type: 'pickup', payment_method: 'cash',
+      scheduled_for: `${manilaDay(1)}T10:00:00+08:00`, ...extra,
+    }).select('id');
+  const refused = (r, text: string) => r.error?.code === 'P0001' && r.error.message.includes(text);
+
+  const noAddress = await direct({ fulfillment_type: 'delivery' });
+  check('database refuses a delivery with no address', refused(noAddress, 'address'), noAddress.error ?? noAddress.data);
+  const offMark = await direct({ scheduled_for: `${manilaDay(1)}T10:07:00+08:00` });
+  check('database refuses a time off the 15-minute mark', refused(offMark, '15-minute'), offMark.error ?? offMark.data);
+  const tooFar = await direct({ scheduled_for: `${manilaDay(4)}T10:00:00+08:00` });
+  check('database refuses a time more than 2 days ahead', refused(tooFar, '2 days'), tooFar.error ?? tooFar.data);
+  const soon = new Date(Math.ceil(Date.now() / 900_000) * 900_000); // the next 15-minute mark
+  const tooSoon = await direct({ scheduled_for: soon.toISOString() });
+  check('database refuses a time under 30 minutes away', refused(tooSoon, '30 minutes'), tooSoon.error ?? tooSoon.data);
+  if (!isOpenNow(gma)) {
+    const asap = await direct({ scheduled_for: null });
+    check('database refuses an ASAP order while the branch is closed', refused(asap, 'closed now'), asap.error ?? asap.data);
+  }
+  if (gma.opens_at && gma.closes_at && gma.opens_at.slice(0, 5) > '03:00') {
+    const night = await direct({ scheduled_for: `${manilaDay(1)}T03:00:00+08:00` });
+    check('database refuses a time outside the branch hours', refused(night, 'closed at that time'), night.error ?? night.data);
+  }
+}
 
 const proof = await pay.submitGcashProof(id1, { reference_number: '1234 567 890123' });
 check('customer submits GCash reference', proof.success && proof.data.payment_status === 'processing', proof);
@@ -145,9 +177,11 @@ check('customer cancels unpaid order', cn.success && cn.data.status === 'cancell
 // Placing an order straight through the database (skipping the app): the price and the timestamp
 // sent are replaced, and the order cannot be added to afterwards.
 const me = (await supabase.auth.getUser()).data.user;
+// Scheduled for tomorrow 10:00, so the branch's hours never refuse it (that rule is checked above).
+const tomorrow = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date(Date.now() + 86_400_000));
 const raw = await supabase
   .from('orders')
-  .insert({ branch_id: gma.id, channel: 'online', fulfillment_type: 'pickup', customer_id: me.id, customer_name: 'Flow Test', payment_method: 'cash', total_amount: 1 })
+  .insert({ branch_id: gma.id, channel: 'online', fulfillment_type: 'pickup', customer_id: me.id, customer_name: 'Flow Test', payment_method: 'cash', total_amount: 1, scheduled_for: `${tomorrow}T10:00:00+08:00` })
   .select('id')
   .single();
 const rawItems = await supabase

@@ -18,7 +18,8 @@ controllers call models, models call Supabase directly from the browser.
 **Why.** Supabase already is the backend (database, auth, storage, realtime); a second server only relayed requests.
 One app, one deployment.
 **Trade-off.** Rules the API used to enforce had to move into the database (policies and triggers) so a browser cannot
-skip them, and Express's in-memory rate limits were lost ([security.md](./security.md#rate-limits)). The earlier
+skip them, and Express's in-memory rate limits had to be rebuilt as database counters
+([security.md](./security.md#rate-limits)). The earlier
 decision "browsers never write to the database" is retired: they write, and the database checks.
 
 ### The secret key stays on the server, unlike Pasuyo
