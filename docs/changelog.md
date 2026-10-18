@@ -4,6 +4,13 @@ What has been built, grouped by feature, with the database migration that goes w
 numbers are the dates in the file names under `supabase/migrations/`. Security-relevant changes are also
 listed in [security.md](./security.md#issues-found-and-fixed).
 
+## Tighter rules for chat threads and order items
+*Migration `20261018000300_lock_chat_threads_and_items.sql`*
+- A delivery chat's customer or rider can only update its last-message preview; its order, branch, kind and guest are
+  fixed, and only the branch's staff can mark a thread read.
+- A customer's order lines can only be added in the request that places the order; adding to an order that already has
+  items is refused. Each line's time is stamped by the database. Staff still edit items before payment.
+
 ## Faster pages, caching, privacy and terms pages
 - **Caching that stays up to date, with a privacy rule:** public data (menu, sold-out flags, branches, logo) shows at
   once from a saved copy on the device and is refreshed in the background on every visit (stale-while-revalidate), so a

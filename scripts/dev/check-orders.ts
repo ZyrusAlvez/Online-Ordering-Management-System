@@ -118,6 +118,12 @@ const cm = await chat.postOrderMessage(id2, 'customer', { body: 'Thanks! (flow t
 check('customer replies in chat', cm.success, cm);
 const thread = await chat.getOrderChat(id2, 'customer');
 check('customer sees both messages and rider name', thread.success && thread.data.messages.length >= 2 && thread.data.with.name !== undefined, thread.success && { n: thread.data.messages.length, with: thread.data.with });
+const imus = branches.success ? branches.data.find((b) => b.code === 'imus') : null;
+const thr = await supabase.from('chat_threads').select('id').eq('order_id', id2).single();
+const moved = await supabase.from('chat_threads').update({ branch_id: imus.id }).eq('id', thr.data?.id).select();
+check('customer cannot move the delivery chat to another branch', Boolean(moved.error) || (moved.data ?? []).length === 0, moved);
+const marked = await supabase.from('chat_threads').update({ staff_read_at: new Date().toISOString() }).eq('id', thr.data?.id).select();
+check('customer cannot mark the chat read for staff', Boolean(marked.error) || (marked.data ?? []).length === 0, marked);
 
 await as(...RIDER);
 const short = await rider.markDelivered(id2, { collected_amount: price });
@@ -129,12 +135,36 @@ check('rider delivers with cash collected', dl.success && dl.data.status === 'co
 await as(...CUSTOMER);
 const o3 = await placeOnline({ fulfillment_type: 'pickup', payment_method: 'cash' });
 const id3 = o3.success ? o3.data.id : '';
-const t3 = await supabase.from('order_items').insert({ order_id: id3, product_id: product.id, quantity: 1, unit_price: 0.01 }).select('unit_price').single();
-check('a tampered unit price is replaced by the menu price', !t3.error && Number(t3.data?.unit_price) === price, t3);
+const added = await supabase.from('order_items').insert({ order_id: id3, product_id: product.id, quantity: 1, unit_price: 0.01 }).select('unit_price');
+check('customer cannot add items to an order already placed', Boolean(added.error), added);
 const after = await order.getOrder(id3);
-check('total follows the items', after.success && Number(after.data.total_amount) === price * 3, after.success && after.data.total_amount);
+check('total is unchanged', after.success && Number(after.data.total_amount) === price * 2, after.success && after.data.total_amount);
 const cn = await order.cancelMyOrder(id3);
 check('customer cancels unpaid order', cn.success && cn.data.status === 'cancelled', cn);
+
+// Placing an order straight through the database (skipping the app): the price and the timestamp
+// sent are replaced, and the order cannot be added to afterwards.
+const me = (await supabase.auth.getUser()).data.user;
+const raw = await supabase
+  .from('orders')
+  .insert({ branch_id: gma.id, channel: 'online', fulfillment_type: 'pickup', customer_id: me.id, customer_name: 'Flow Test', payment_method: 'cash', total_amount: 1 })
+  .select('id')
+  .single();
+const rawItems = await supabase
+  .from('order_items')
+  .insert({ order_id: raw.data?.id, product_id: product.id, quantity: 1, unit_price: 0.01, created_at: '2099-01-01T00:00:00Z' })
+  .select('unit_price, created_at')
+  .single();
+check(
+  'a tampered price and timestamp are replaced when the order is placed',
+  !rawItems.error && Number(rawItems.data?.unit_price) === price && rawItems.data?.created_at < '2099',
+  rawItems,
+);
+const later = await supabase.from('order_items').insert({ order_id: raw.data?.id, product_id: product.id, quantity: 1 }).select();
+check('…and nothing can be added to it afterwards', Boolean(later.error), later);
+const rawOrder = await order.getOrder(raw.data?.id);
+check('its total follows the items, not what was sent', rawOrder.success && Number(rawOrder.data.total_amount) === price, rawOrder.success && rawOrder.data.total_amount);
+await order.cancelMyOrder(raw.data?.id);
 
 // --- 5. POS walk-in with cash and change -----------------------------------------------------
 await as(...CASHIER);
@@ -146,7 +176,9 @@ const w = await order.createWalkInOrder({
   items: [{ product_id: product.id, quantity: 1 }],
 });
 check('cashier creates walk-in order', w.success && w.data.channel === 'pos', w);
-const cash = await pay.payCash(w.success ? w.data.id : '', { tendered_amount: price + 50 });
+const edited = await order.replaceItems(w.success ? w.data.id : '', { items: [{ product_id: product.id, quantity: 2 }] });
+check('cashier can still edit items before payment', edited.success && Number(edited.data.total_amount) === price * 2, edited);
+const cash = await pay.payCash(w.success ? w.data.id : '', { tendered_amount: price * 2 + 50 });
 check('cashier takes cash, change computed', cash.success && cash.data.change === 50, cash);
 const q = await order.listStaffOrders({ branch_id: gma.id, limit: 5 });
 check('POS queue lists branch orders', q.success && q.data.data.length > 0, q);

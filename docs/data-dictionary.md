@@ -316,18 +316,20 @@ Every table has Row Level Security on. Writes are allowed per role by the polici
 | Table | Who can write |
 | --- | --- |
 | `orders` | A customer inserts their own `online` order and may then only cancel it (pending/confirmed, unpaid) or move it to GCash `processing`. Cashiers and admins of the branch: walk-in (`pos`) orders and any change to their branch's orders. A rider: claim a ready delivery at their branch, return it, deliver it, record cash on delivery. Who and where an order belongs to never changes |
-| `order_items` | The customer, for their own new order; cashiers and admins of the branch, before payment starts |
+| `order_items` | The customer, only in the request that places their order (adding to a placed order is refused); cashiers and admins of the branch, before payment starts |
 | `payments` | The customer: a GCash `processing` row for their own GCash order. Cashiers and admins of the branch: any. A rider: a cash `paid` row for an order they hold, and marking a waiting GCash row failed |
 | `categories`, `products`, `product_variants`, `site_images`, `branches` | Super admins |
 | `branch_unavailable_products` | Admins of that branch, super admins |
 | `profiles` | Your own row, only `full_name`, `phone`, `default_address` (a column grant) |
-| `chat_threads` | The customer or rider of a delivery order may open its thread; participants and branch staff update the preview and read marker |
+| `chat_threads` | The customer or rider of a delivery order may open its thread and update its last-message preview; only branch staff mark a thread read. The order, branch, kind and guest of a thread never change |
 | `chat_messages` | Branch staff on support threads (as `cashier`); the order's customer and the rider holding it on a delivery thread, while it is out for delivery. `sender_id` must be the caller |
 | `kiosk_devices`, `order_counters`, `employee_credentials`, `chat_thread_secrets` | Server only (secret key) |
 
 **Triggers.** `price_order_item` sets every line's price from the menu (refusing unavailable, sold-out or unpriced
 items); `recompute_order_total` and `guard_order` keep `orders.total_amount` equal to the sum of the items;
 `guard_order` also forces a new order to pending and unpaid and refuses any change a customer or rider may not make;
+`price_order_item` also stamps each line's time and refuses a customer's lines for an order that already has items;
+`guard_chat_thread` keeps a thread's order, branch, kind and guest fixed and leaves the read marker to staff;
 `guard_payment` sets a payment's amount from the order. They only act on browser requests; the server's secret key
 (kiosk orders, staff accounts) skips them.
 
