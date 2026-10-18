@@ -12,15 +12,16 @@ Newest first. Migration numbers are the dates in `supabase/migrations/`.
 - **Rate limits restored**, counted in the database: gates, password change, kiosk orders, guest chat. *(27)*
 - **Faster:** menu photos resized to their drawn size (11.5 MB → 2.8 MB for the whole menu on a phone); self-hosted
   fonts; stale-while-revalidate caching for public data only; fewer requests on the cashier screen; skeleton loading.
+- **Old payment provider fully removed:** its table and columns, and the unused `refund_failed` status. *(22, 28)*
 - **Polish:** per-page titles, an error page with *Try again*, staff headers that fit on phones, even menu cards, no
   invalid HTML nesting.
 - **Privacy Policy and Terms** pages (sample text, no email contacts; requests go through the branch chat or counter).
 - **Fixed:** a rider's claim reset the order total to 0.
 - **Removed:** the Express test suite (replaced by `check:flows`), CARTO maps, seed scripts and their passwords.
 
-## 2026-10-12: Manual GCash replaces PayMongo *(21–22)*
+## 2026-10-12: Manual GCash *(21–22)*
 
-Customers pay the restaurant's own GCash and send a reference number or receipt (private bucket); staff approve or
+No payment provider: customers pay the restaurant's own GCash and send a reference number or receipt (private bucket); staff approve or
 reject it. Kiosk shows the QR; the counter records the receipt's reference. Voided GCash orders are refunded by hand
 (**Refund pending → Refunded**).
 

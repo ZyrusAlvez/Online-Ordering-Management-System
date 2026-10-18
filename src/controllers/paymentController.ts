@@ -26,7 +26,7 @@ import { fail, fromDbError, ok, type Result } from '@/utils/result';
  * payment_status, so a double-tap or two staff cannot both win.
  */
 
-const SETTLED = ['paid', 'refund_pending', 'refunded', 'refund_failed'];
+const SETTLED = ['paid', 'refund_pending', 'refunded'];
 const MAX_RECEIPTS_PER_ORDER = 10;
 const now = () => new Date().toISOString();
 

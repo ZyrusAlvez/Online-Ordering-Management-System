@@ -112,7 +112,7 @@ Staff actions take the caller's access token and verify it (`verifyCaller`).
 - **Kiosk device keys** are hashed and revocable per device.
 - **Server prices everything in centavos;** the paid price is saved per line.
 - **Payment status separate from order status.**
-- **Manual GCash:** a reference number proves nothing alone, so staff always verify; no PayMongo account was available.
+- **Manual GCash, no payment provider:** a reference number proves nothing alone, so staff always verify.
 - **First rider to claim wins** via one guarded update.
 - **Order numbers per branch per Manila day,** short enough to call out.
 - **Guests use a token + ping,** not anonymous sign-in (no dashboard setting, no user per visitor).

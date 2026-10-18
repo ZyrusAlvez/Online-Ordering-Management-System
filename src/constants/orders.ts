@@ -20,7 +20,6 @@ export const PAYMENT_STATUSES = [
   'paid',
   'refund_pending',
   'refunded',
-  'refund_failed',
   'failed',
 ] as const;
 

@@ -43,7 +43,7 @@ Enforced in the form (`src/utils/validation.ts`), the controller (`src/utils/val
 | `fulfillment_type` | `dine_in`, `take_out` (kiosk, pos); `delivery`, `pickup` (online), enforced |
 | `orders.status` | `pending`, `confirmed`, `preparing`, `ready`, `out_for_delivery`, `completed`, `cancelled`, `voided` |
 | `payment_method` | `cash`, `gcash` |
-| `payment_status` | `unpaid`, `processing` (GCash proof awaiting verification), `paid`, `failed` (rejected), `refund_pending`, `refunded`, `refund_failed` (unused) |
+| `payment_status` | `unpaid`, `processing` (GCash proof awaiting verification), `paid`, `failed` (rejected), `refund_pending`, `refunded` |
 | `chat_threads.kind` / `sender_role` | `support`, `delivery` / `visitor`, `customer`, `cashier`, `rider` |
 
 ## Tables
@@ -138,4 +138,3 @@ All buckets: 5 MB, JPEG/PNG/WebP.
 - Advisor hints (harmless at this size): policies could wrap `auth.uid()` as `(select auth.uid())`; a few foreign keys
   have no index (`order_items.product_id`, `variant_id`, `orders.kiosk_device_id`, `voided_by`, `chat_messages.sender_id`,
   `employee_credentials.updated_by`, `branch_id`, `payments.verified_by`).
-- The demo project still has PayMongo leftovers (`webhook_events`, three `payments` columns); see [setup.md](./setup.md#2-database).

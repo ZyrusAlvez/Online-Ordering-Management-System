@@ -19,15 +19,13 @@ Apply every file in `supabase/migrations/` **in filename order** (SQL editor or 
 | 1–4 | `20260903…init_schema` → `20260912020000…revoke_function_execute` | Menu, orders, channels, roles, payments, kiosks, RLS, locked-down functions |
 | 5–13 | `20260920…employee_credentials` → `20260927…chat_images` | Kiosk password, menu images, chat, saved address, guest numbers, validation rules, map-pin fix, sales report, chat photos |
 | 14–20 | `20261010…super_admin_role` → `20261011…remove_promo_image` | Super admin, seven branches and branch scoping, sold out per branch, scheduled orders, logo-only site images |
-| 21–22 | `20261012…manual_gcash`, `20261012000100_drop_paymongo` | Manual GCash (reference no., receipt, verifier, private bucket); drops PayMongo leftovers |
+| 21–22 | `20261012…manual_gcash`, `20261012000100_drop_paymongo` | Manual GCash (reference no., receipt, verifier, private bucket); removes the old payment provider's table and columns |
 | 23–25 | `20261018000000…nextjs_client_writes` → `…000200_tighten_function_grants` | Browser write policies and the triggers that own prices, totals and payment status |
 | 26 | `20261018000300_lock_chat_threads_and_items` | Chat thread fields locked; customers cannot add items to a placed order |
 | 27 | `20261018000400_rate_limits_and_order_rules` | Rate-limit counters; the database checks an online order's branch, time and delivery details |
+| 28 | `20261018000500_remove_refund_failed` | Drops the unused `refund_failed` payment status (refunds are by hand) |
 
 Never edit an applied migration; add a new one.
-
-> **Demo project note:** `20261012000100_drop_paymongo` was never applied there, so `webhook_events` and the
-> `payments.intent_id / payment_id / refund_id` columns still exist (unused).
 
 ## 3. Settings
 
