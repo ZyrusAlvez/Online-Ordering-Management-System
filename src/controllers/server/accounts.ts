@@ -107,7 +107,7 @@ export const getStaffProfile = async (id: string, roles: string[]) => {
 
 // Each branch's cashier gate signs in to a real Supabase account (so the register works under the
 // database rules as that branch's staff), and Supabase logins need an email. Nobody types it: the
-// gate finds it from the branch. GMA Terminal's is cashier@3k.local, from before branches existed.
+// gate finds it from the branch (branch_staff), so the email itself is never looked up.
 const cashierEmailFor = (code: string) => `cashier.${code}@3k.local`;
 
 /**

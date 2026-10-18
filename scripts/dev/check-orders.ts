@@ -28,11 +28,11 @@ const as = async (email: string, password: string) => {
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) throw new Error(`sign in ${email}: ${error.message}`);
 };
-const CUSTOMER = ['customer@3k.local', 'customer-1'] as const;
+const CUSTOMER = ['customer1@3k.local', 'customer-1'] as const;
 const CUSTOMER2 = ['customer2@3k.local', 'customer-2'] as const;
-const CASHIER = ['cashier@3k.local', 'cashier-gma'] as const;
+const CASHIER = ['cashier.gma@3k.local', 'cashier-gma'] as const;
 const ADMIN = ['admin.gma@3k.local', 'admin-gma'] as const;
-const RIDER = ['rider1@3k.local', 'rider-gma'] as const;
+const RIDER = ['rider.gma@3k.local', 'rider-gma'] as const;
 
 // --- setup: GMA branch and one plain priced product -------------------------------------
 const branches = await branchCtl.getActiveBranches();

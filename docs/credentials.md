@@ -10,7 +10,7 @@ Signs in at `/login`, lands on `/admin`. Sees every branch, plus Branches, Admin
 
 | Email | Password |
 | --- | --- |
-| `admin@3k.local` | `superadmin-all` |
+| `superadmin@3k.local` | `superadmin-all` |
 
 ## Admins
 
@@ -34,7 +34,7 @@ which can also sign in at `/login` with the same password.
 
 | Branch | Password | Register account |
 | --- | --- | --- |
-| GMA Terminal | `cashier-gma` | `cashier@3k.local` |
+| GMA Terminal | `cashier-gma` | `cashier.gma@3k.local` |
 | Dasma Bayan | `cashier-dasma` | `cashier.dasma@3k.local` |
 | Langkaan | `cashier-langkaan` | `cashier.langkaan@3k.local` |
 | Gen-Tri | `cashier-gentri` | `cashier.gentri@3k.local` |
@@ -64,7 +64,7 @@ Sign in at `/login`, land on `/driver`. See only their branch's deliveries. The 
 
 | Branch | Email | Password |
 | --- | --- | --- |
-| GMA Terminal | `rider1@3k.local` | `rider-gma` |
+| GMA Terminal | `rider.gma@3k.local` | `rider-gma` |
 | Imus | `rider.imus@3k.local` | `rider-imus` |
 
 ## Customers
@@ -73,7 +73,7 @@ Sign in at `/login`, land on `/menu`. Use both to check one customer can never s
 
 | Email | Password |
 | --- | --- |
-| `customer@3k.local` | `customer-1` |
+| `customer1@3k.local` | `customer-1` |
 | `customer2@3k.local` | `customer-2` |
 
 Google sign-in also works with your own Google account (no password), once Google is enabled in Supabase. Visitors

@@ -74,7 +74,7 @@ const vthread = vt.success ? vt.data.thread_id : '';
 const vbad = await visitor.getVisitorMessages(vthread, 'chat_wrong');
 check('wrong visitor token is refused (401)', !vbad.success && vbad.status === 401, vbad);
 
-await as('cashier@3k.local', 'cashier-gma');
+await as('cashier.gma@3k.local', 'cashier-gma');
 const inbox = await chat.listSupportThreads(gma.id);
 const mine = inbox.success ? inbox.data.find((t) => t.id === vthread) : null;
 check('cashier inbox shows it, unread, labelled', Boolean(mine?.unread) && /Flow Tester \(Guest-\d+\)/.test(mine?.display_name ?? ''), mine);
@@ -86,7 +86,7 @@ const vmsgs = vt.success ? await visitor.getVisitorMessages(vthread, vt.data.tok
 check('visitor sees the reply', Boolean(vmsgs?.success && vmsgs.data.some((x: any) => x.sender_role === 'cashier')), vmsgs);
 
 // --- GCash receipt upload (private storage) ---------------------------------------------------
-await as('customer@3k.local', 'customer-1');
+await as('customer1@3k.local', 'customer-1');
 const d = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date(Date.now() + 86_400_000));
 let go = await order.placeOnlineOrder({ branch_id: gma.id, fulfillment_type: 'pickup', payment_method: 'gcash', items: [{ product_id: product.id, quantity: 1 }] });
 if (!go.success && go.status === 409) {
@@ -103,12 +103,12 @@ check('a non-image is refused', !upBad.success && upBad.status === 415, upBad);
 if (up.success) {
   const proof = await pay.submitGcashProof(gid, { receipt_path: up.data });
   check('proof with receipt is submitted', proof.success && proof.data.payment_status === 'processing', proof);
-  await as('cashier@3k.local', 'cashier-gma');
+  await as('cashier.gma@3k.local', 'cashier-gma');
   const withPay = await pay.getOrderWithPayment(gid);
   check('cashier gets a signed link to the receipt', withPay.success && /token=/.test(withPay.data.gcash_payment?.receipt_url ?? ''), withPay.success && withPay.data.gcash_payment);
   const rej = await pay.verifyGcash(gid, { approve: false, reason: 'Flow test: not found in GCash' });
   check('cashier rejects with a reason', rej.success && rej.data.payment_status === 'failed', rej);
-  await as('customer@3k.local', 'customer-1');
+  await as('customer1@3k.local', 'customer-1');
   const cn = await order.cancelMyOrder(gid);
   check('customer cancels after a rejected payment', cn.success && cn.data.status === 'cancelled', cn);
 }
