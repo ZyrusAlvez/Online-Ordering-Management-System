@@ -20,9 +20,9 @@ export const getMenu = async ({
   branchId = null,
 }: { includeUnavailable?: boolean; branchId?: string | null } = {}): Promise<Result<MenuCategory[]>> => {
   const [menu, soldOut] = await Promise.all([
-    // The menu is public and changes rarely: kept on the device for 5 minutes. Prices shown from
-    // it are only an estimate; an order is always priced from the live menu.
-    cached(`menu:${includeUnavailable ? 'all' : 'available'}`, { ttlMs: 5 * 60_000, kind: 'public' }, async () => {
+    // Public: shown at once from the saved copy and re-checked in the background on every read.
+    // Prices shown are an estimate anyway; an order is always priced from the live menu.
+    cached(`menu:${includeUnavailable ? 'all' : 'available'}`, 'public', async () => {
       const { data, error } = await menuModel.getFullMenu(includeUnavailable);
       return error ? fromDbError(error, 'Failed to load the menu') : ok(data ?? []);
     }),

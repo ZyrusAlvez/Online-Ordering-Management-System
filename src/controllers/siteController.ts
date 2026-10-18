@@ -7,7 +7,7 @@ export type SiteImages = Record<string, string | null>;
 export const SITE_IMAGE_KEYS = ['logo'] as const;
 
 export const getSiteImages = (): Promise<Result<SiteImages>> =>
-  cached('site:images', { ttlMs: 10 * 60_000, kind: 'public' }, async () => {
+  cached('site:images', 'public', async () => {
     const { data, error } = await siteModel.getSiteImages();
     if (error) return fromDbError(error, 'Failed to load images');
     return ok(Object.fromEntries((data ?? []).map((row) => [row.key, row.image_url])));

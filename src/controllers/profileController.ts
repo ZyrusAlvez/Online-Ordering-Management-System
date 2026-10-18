@@ -41,8 +41,8 @@ const shape = (user: User, row: any, branches: Branch[]): Profile => ({
 export const getMyProfile = async (): Promise<Result<Profile>> => {
   const caller = await getCaller();
   if (caller.success === false) return caller;
-  // Several screens ask at once (the staff branch picker, checkout): memory only, per user.
-  return cached(`profile:${caller.data.user.id}`, { ttlMs: 30_000, kind: 'private' }, () => loadProfile(caller.data));
+  // Several parts of a screen ask at once (the staff branch picker, checkout): they share one request.
+  return cached(`profile:${caller.data.user.id}`, 'private', () => loadProfile(caller.data));
 };
 
 const loadProfile = async ({ user, branchIds }: { user: User; branchIds: string[] | null }): Promise<Result<Profile>> => {

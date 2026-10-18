@@ -64,12 +64,17 @@ shows grey placeholder shapes only where data is still coming: `Skeleton` and `S
 own in `view/presentation/<feature>/SkeletonLoading.tsx`. A new screen that loads data should do the same. The only
 full-page loader left is "Signing you in…" on the Google callback, which is an action, not data.
 
-**Caching** (`src/utils/cache.ts`). Controllers wrap reads in `cached(key, { ttlMs, kind }, load)`. `kind: 'public'`
-(menu, sold-out flags, branches, logo) is kept in memory and in `localStorage`, so a returning visitor sees the menu at
-once; `kind: 'private'` (the caller's branches, their profile) is kept in memory only and cleared by `clearPrivate()`
-whenever the signed-in user changes. Writes call `invalidate(prefix)`, so the editor sees their change immediately
-(other browsers within the TTL). Orders, payments and chats are never cached; live updates refetch them. Order prices
-never come from a cache: the database prices every order from the live menu.
+**Caching** (`src/utils/cache.ts`) never trades freshness for speed. Controllers wrap reads in
+`cached(key, kind, load)`:
+- `'public'` (menu, sold-out flags, branches, logo) is **stale-while-revalidate**: the saved copy (memory, then
+  `localStorage`) is returned at once so the page appears immediately, and the latest version is fetched in the
+  background on every read. When it differs, `onUpdate` tells the screens that read that key (`useFetch` records the
+  keys its loader read; `useBranches` and `useSiteImage` listen too) and they re-render. Edits made in another browser
+  show up a fraction of a second after a page is opened.
+- `'private'` (the caller's branches, their profile) is never saved: calls within 5 seconds share one request, in
+  memory only, cleared by `clearPrivate()` whenever the signed-in user changes.
+- Writes call `invalidate(prefix)`, so the next read waits for fresh data. Orders, payments and chats are never cached.
+  Order prices never come from a cache: the database prices every order from the live menu.
 
 | Piece | Job |
 | --- | --- |

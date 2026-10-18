@@ -22,9 +22,9 @@ export const getCaller = async (roles?: Role[]): Promise<Result<Caller>> => {
   if (role === 'customer') return ok({ user: session.user, role, branchIds: [] });
   if (role === 'super_admin') return ok({ user: session.user, role, branchIds: null });
 
-  // Every staff action needs this, so it is remembered for a minute (memory only, per user,
-  // dropped at sign-out). The database still checks branch access on every write.
-  const branches = await cached(`caller:${session.user.id}`, { ttlMs: 60_000, kind: 'private' }, async () => {
+  // A screen asks this several times while it loads; calls within a few seconds share one request
+  // (memory only, per user, dropped at sign-out). The database checks branch access on every write.
+  const branches = await cached(`caller:${session.user.id}`, 'private', async () => {
     const { data: rows, error } = await branchModel.getMyBranchIds(session.user.id);
     if (error) return fail('Could not load your branches', 500);
     return ok((rows ?? []).map((r) => r.branch_id as string));

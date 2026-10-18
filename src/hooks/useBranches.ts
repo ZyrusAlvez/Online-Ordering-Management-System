@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { getActiveBranches, type Branch } from '@/controllers/branchController';
 import { call } from '@/utils/apiError';
+import { onUpdate } from '@/utils/cache';
 import { nearestBranch } from '@/utils/geo';
 import { useUserPosition } from '@/hooks/usePosition';
 
@@ -30,6 +31,15 @@ const load = () => {
     });
   return loaded;
 };
+
+// The saved list shows at once; when the background check finds a change, show the new one.
+if (typeof window !== 'undefined') {
+  onUpdate((key) => {
+    if (key !== 'branches:active') return;
+    loaded = null;
+    load();
+  });
+}
 
 /** Call after a super admin adds or edits a branch. */
 export const refreshBranches = () => {

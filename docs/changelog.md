@@ -5,12 +5,13 @@ numbers are the dates in the file names under `supabase/migrations/`. Security-r
 listed in [security.md](./security.md#issues-found-and-fixed).
 
 ## Faster pages, caching, privacy and terms pages
-- **Caching with a privacy rule:** public data (menu, sold-out flags, branches, logo) is cached on the device for a few
-  minutes; private results are kept in memory only and wiped when the user changes; orders, payments and chats are
-  never cached. A returning visitor's menu loads with no database request.
-- **Fewer requests:** the cashier screen went from 18-20 database requests to 6-7 (one query for the whole queue
-  instead of one per status; the caller's branches are looked up once a minute instead of on every call). Customer
-  pages make one request instead of two or three.
+- **Caching that stays up to date, with a privacy rule:** public data (menu, sold-out flags, branches, logo) shows at
+  once from a saved copy on the device and is refreshed in the background on every visit (stale-while-revalidate), so a
+  change made elsewhere appears a fraction of a second after the page opens (measured: saved copy at 160 ms, sold-out
+  shown at 297 ms). An earlier version trusted the copy for minutes, which could show an out-of-date menu; replaced.
+  Private results are never saved and only shared for a few seconds; orders, payments and chats are never cached.
+- **Fewer requests:** the cashier screen went from 18-20 database requests to 8 (one query for the whole queue instead
+  of one per status, and the caller's branches looked up once per screen load instead of on every call).
 - **Self-hosted fonts:** no more 5-8 requests to Google Fonts on every page, no render-blocking font CSS, and visitors'
   browsers no longer contact Google.
 - **Headers:** `Referrer-Policy`, `Permissions-Policy` and `nosniff` for every page; a day's cache for the bundled logo

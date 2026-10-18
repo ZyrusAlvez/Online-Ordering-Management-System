@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { getSiteImages } from '@/controllers/siteController';
 import { call } from '@/utils/apiError';
+import { onUpdate } from '@/utils/cache';
 
 // Bundled fallback, used until the super admin uploads their own (and if the API is unreachable).
 const DEFAULTS = { logo: '/brand/logo.jpg' };
@@ -23,6 +24,15 @@ const load = () => {
     .catch(() => {});
   return loaded;
 };
+
+// The saved logo shows at once; when the background check finds a new one, show it.
+if (typeof window !== 'undefined') {
+  onUpdate((key) => {
+    if (key !== 'site:images') return;
+    loaded = null;
+    load();
+  });
+}
 
 export const refreshSiteImages = (next) => {
   if (next) publish(next);

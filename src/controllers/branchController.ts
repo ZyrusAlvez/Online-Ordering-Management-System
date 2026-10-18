@@ -16,17 +16,17 @@ export const shapeBranch = (row: BranchRow): Branch => ({
   closes_at: row.closes_at?.slice(0, 5) ?? null,
 });
 
-// Public, so kept on the device for a returning visitor; any branch edit clears it.
+// Public: shown at once from the saved copy and refreshed in the background on every read.
 export const getActiveBranches = (): Promise<Result<Branch[]>> =>
-  cached('branches:active', { ttlMs: 10 * 60_000, kind: 'public' }, async () => {
+  cached('branches:active', 'public', async () => {
     const { data, error } = await branchModel.getActiveBranches();
     if (error) return fromDbError(error, 'Failed to load branches');
     return ok((data ?? []).map(shapeBranch));
   });
 
-// Inactive branches are only visible to a super admin: memory only.
+// Inactive branches are only visible to a super admin: private (memory only, never saved).
 export const getAllBranches = (): Promise<Result<Branch[]>> =>
-  cached('branches:all', { ttlMs: 60_000, kind: 'private' }, async () => {
+  cached('branches:all', 'private', async () => {
     const { data, error } = await branchModel.getAllBranches();
     if (error) return fromDbError(error, 'Failed to load branches');
     return ok((data ?? []).map(shapeBranch));
@@ -52,10 +52,10 @@ export const updateBranch = async (id: string, input: unknown): Promise<Result<B
   return ok(shapeBranch(data));
 };
 
-// Public, but it changes during service, so it is kept only briefly.
+// Public; shown from the saved copy and re-checked on every read, like the menu.
 export const getSoldOutIds = async (branchId: string | null): Promise<Set<string>> => {
   if (!branchId) return new Set();
-  const result = await cached(`soldout:${branchId}`, { ttlMs: 30_000, kind: 'public' }, async () => {
+  const result = await cached(`soldout:${branchId}`, 'public', async () => {
     const { data, error } = await branchModel.getSoldOut(branchId);
     if (error) return fromDbError(error);
     return ok((data ?? []).map((row) => row.product_id as string));

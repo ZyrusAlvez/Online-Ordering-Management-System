@@ -126,13 +126,14 @@ trace.
 
 ### Data kept on the device, and caching
 
-- Only **public** data is cached in the browser's storage (`3k.cache.*`): the menu (5 minutes), sold-out flags (30
-  seconds), active branches and the logo (10 minutes). See `src/utils/cache.ts`.
-- **Private** results (the caller's branches, their profile, the super admin's full branch list) are cached in memory
-  only, never written to the device, and dropped the moment anyone signs out or a different user signs in
-  (`clearPrivate()` in `AuthContext`). Orders, payments and chats are not cached at all.
-- A cached menu can show a price that changed in the last few minutes, but orders are always priced by the database
-  from the live menu (the `price_order_item` trigger), so nobody pays a stale price.
+- Only **public** data is saved in the browser's storage (`3k.cache.*`): the menu, sold-out flags, active branches and
+  the logo. The saved copy is shown at once and the latest version is fetched on every visit, replacing it within a
+  fraction of a second if anything changed (stale-while-revalidate). See `src/utils/cache.ts`.
+- **Private** results (the caller's branches, their profile, the super admin's full branch list) are never saved:
+  calls within a few seconds share one request, in memory only, dropped the moment anyone signs out or a different user
+  signs in (`clearPrivate()` in `AuthContext`). Orders, payments and chats are not cached at all.
+- Orders are always priced by the database from the live menu (the `price_order_item` trigger), whatever a screen
+  showed.
 - Fonts are self-hosted (`next/font`), so visitors' browsers make no requests to Google.
 - The Privacy Policy (`/privacy`) and Terms of Service (`/terms`) describe this. **Their text is a placeholder**: the
   contact addresses (`.example`), retention periods and refund times are made up and must be reviewed before going
