@@ -24,6 +24,7 @@ import { BranchPicker, StaffBranchProvider, useStaffBranch } from '@/view/compon
 import StaffInbox from '@/view/components/chat/StaffInbox';
 import ItemsEditor, { linesFromOrder } from '@/view/components/ItemsEditor';
 import GcashAccount from '@/view/components/GcashAccount';
+import { printReceipt } from '@/view/components/Receipt';
 import {
   DUE_SOON_MINUTES,
   MapLink,
@@ -49,7 +50,7 @@ import {
   Textarea,
 } from '@/view/components/ui';
 import { OrderPanelSkeleton, QueueSkeleton } from '@/view/presentation/cashier/SkeletonLoading';
-import { Chat, Plus, Search } from '@/view/components/icons';
+import { Chat, Plus, Receipt, Search } from '@/view/components/icons';
 
 const ACTIVE = ['pending', 'preparing', 'ready', 'out_for_delivery'];
 const TABS = [
@@ -114,22 +115,38 @@ function QueueRow({ order, selected, onSelect }: any) {
 /**
  * Take payment: one window for both ways a customer pays at the counter, opening on the method
  * they chose (Cash or GCash). GCash is left out when the restaurant's GCash is switched off.
+ * Once paid it shows the change (cash) and offers to print the customer's receipt.
  */
 function PaymentModal({ order, onClose, onPaid }: any) {
   const gcashOn = Boolean(useGcashAccount());
   const [method, setMethod] = useState(gcashOn && order.payment_method === 'gcash' ? 'gcash' : 'cash');
-  const [paidCash, setPaidCash] = useState(null);
+  // { order, cash? }: the paid order as the receipt prints it, and the cash handed over.
+  const [paid, setPaid] = useState(null);
 
-  if (paidCash) {
+  if (paid) {
+    const { cash } = paid;
     return (
       <Modal open onClose={onClose} title="Payment received">
         <div className="space-y-4 text-center">
-          <p className="text-sm text-ink-soft">Change to give back</p>
-          <p className="text-6xl font-extrabold text-leaf">{money(paidCash.change)}</p>
-          <p className="text-sm text-ink-soft">Tendered {money(paidCash.tendered)}</p>
-          <Button size="lg" className="w-full" onClick={onClose}>
-            Done
-          </Button>
+          {cash ? (
+            <>
+              <p className="text-sm text-ink-soft">Change to give back</p>
+              <p className="text-6xl font-extrabold text-leaf">{money(cash.change)}</p>
+              <p className="text-sm text-ink-soft">Tendered {money(cash.tendered)}</p>
+            </>
+          ) : (
+            <p className="text-lg font-semibold text-leaf">
+              {order.order_number} paid with GCash · {money(order.total_amount)}
+            </p>
+          )}
+          <div className="flex gap-3">
+            <Button size="lg" tone="outline" className="flex-1" onClick={() => printReceipt(paid.order, cash)}>
+              <Receipt size={18} /> Print receipt
+            </Button>
+            <Button size="lg" className="flex-1" onClick={onClose}>
+              Done
+            </Button>
+          </div>
         </div>
       </Modal>
     );
@@ -150,9 +167,15 @@ function PaymentModal({ order, onClose, onPaid }: any) {
           />
         )}
         {method === 'cash' ? (
-          <CashPanel order={order} onPaid={(res) => { setPaidCash(res); onPaid(); }} />
+          <CashPanel
+            order={order}
+            onPaid={({ tendered, change }) => {
+              setPaid({ order: { ...order, payment_status: 'paid', payment_method: 'cash' }, cash: { tendered, change } });
+              onPaid();
+            }}
+          />
         ) : (
-          <GcashPanel order={order} onPaid={() => { onPaid(); onClose(); }} />
+          <GcashPanel order={order} onPaid={(res) => { setPaid({ order: res }); onPaid(); }} />
         )}
       </div>
     </Modal>
@@ -236,9 +259,7 @@ function GcashPanel({ order, onPaid }: any) {
   const pay = async () => {
     setBusy(true);
     try {
-      await call(payGcashAtCounter(order.id, { reference_number: reference.trim() }));
-      toast.success(`${order.order_number} paid with GCash`);
-      onPaid();
+      onPaid(await call(payGcashAtCounter(order.id, { reference_number: reference.trim() })));
     } catch (err) {
       toast.error(err.friendly);
       setBusy(false);
@@ -436,6 +457,7 @@ function OrderPanel({ orderId, onChanged, onClose }: any) {
     !(isDelivery && ['ready', 'out_for_delivery'].includes(order.status)) &&
     !(next.to === 'preparing' && mustPayFirst(order));
   const more = [
+    ...(order.payment_status === 'paid' ? [{ label: 'Print receipt', onClick: () => printReceipt(order) }] : []),
     ...(order.status === 'pending' && ['unpaid', 'failed'].includes(order.payment_status)
       ? [{ label: 'Edit items', onClick: () => setModal('edit') }]
       : []),
@@ -490,7 +512,7 @@ function OrderPanel({ orderId, onChanged, onClose }: any) {
         <p className="rounded-2xl bg-brand/10 p-3 text-sm text-brand-dark">Voided: {order.void_reason}</p>
       )}
 
-      {/* At most: take payment, the one next step, and More (edit, void). */}
+      {/* At most: take payment, the one next step, and More (edit, void, print receipt). */}
       <div className="flex flex-wrap items-center gap-2">
         {canPay && (
           <Button tone="green" onClick={() => setModal('pay')}>
@@ -511,9 +533,6 @@ function OrderPanel({ orderId, onChanged, onClose }: any) {
           <ActionMenu items={more} />
         </div>
       </div>
-      {canPay && mustPayFirst(order) && order.status === 'pending' && (
-        <p className="text-sm text-ink-soft">Take payment first, then send it to the kitchen.</p>
-      )}
       {isDelivery && ['ready', 'out_for_delivery'].includes(order.status) && (
         <p className="text-sm text-ink-soft">
           {order.status === 'ready' ? 'Waiting for a rider to claim this order.' : 'Out with the rider.'}

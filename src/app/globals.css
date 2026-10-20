@@ -97,6 +97,27 @@ body {
   scrollbar-color: var(--color-line) transparent;
 }
 
+/* --- Printed receipts ---------------------------------------------------------
+   printReceipt (components/Receipt) puts the receipt in a .print-receipt box at the
+   end of <body>. It never shows on screen; when printing it is the only thing shown. */
+.print-receipt {
+  display: none;
+}
+@media print {
+  @page {
+    margin: 4mm;
+  }
+  body {
+    background: #fff;
+  }
+  body > :not(.print-receipt) {
+    display: none !important;
+  }
+  .print-receipt {
+    display: block;
+  }
+}
+
 /* --- Maps: quiet and minimal --------------------------------------------------
    One look for every Leaflet map: pale tiles, flat controls, small dot markers on
    the branch map, and plain popups and labels in the app's own font. Each rule is
