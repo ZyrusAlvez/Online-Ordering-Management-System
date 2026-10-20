@@ -97,6 +97,9 @@ Staff actions take the caller's access token and verify it (`verifyCaller`).
 ## Sign-in and live updates
 
 - Email and Google (PKCE, code exchanged on `/auth/callback`) end in one Supabase session in `localStorage` (`3k.auth`).
+- Sign-up confirmation and password-reset emails link to `/auth/confirm?token_hash=…&type=…`, checked with `verifyOtp`
+  (not a PKCE code, so they open in any browser). A reset link signs the user in, then `/reset-password` sets the new
+  password and signs out their other sessions. Templates: `supabase/templates/`.
   The cashier gate returns tokens from the server, adopted by the same client. The kiosk gets a device key (`3k.kioskKey`).
 - Route guards (`view/components/guards.tsx`) only decide what to render; the database checks again.
 - **Realtime:** signed-in users subscribe to `orders`, `chat_messages`, `chat_threads` (scoped by RLS); guests get a

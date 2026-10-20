@@ -14,6 +14,10 @@ export const registerSchema = z.object({
   fullName: personName().optional(),
 });
 
+export const forgotPasswordSchema = z.object({ email });
+
+export const resetPasswordSchema = z.object({ password });
+
 /**
  * What a user may change about themselves. Strict on purpose: role and
  * is_active are not here, so sending them is a 400 rather than silently ignored.

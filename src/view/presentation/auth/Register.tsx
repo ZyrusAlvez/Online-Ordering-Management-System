@@ -46,7 +46,11 @@ export default function Register() {
           <div className="text-center">
             <h1 className="font-display text-4xl">Check your email</h1>
             <p className="mt-3 text-sm text-ink-soft">
-              We sent a confirmation link to <strong>{form.email}</strong>. Open it, then log in.
+              We sent a confirmation link to <strong>{form.email}</strong>. Open it and you're signed in.
+            </p>
+            <p className="mt-3 text-sm text-ink-soft">
+              Nothing there? Check your spam folder. If you'd already signed up with this email,{' '}
+              <Link to="/forgot-password" className="font-semibold text-brand hover:underline">reset your password</Link>.
             </p>
             <Button to="/login" className="mt-6">Go to log in</Button>
           </div>
@@ -90,6 +94,10 @@ export default function Register() {
               Already have an account?{' '}
               <Link to="/login" className="font-semibold text-brand hover:underline">
                 Log in
+              </Link>
+              {' · '}
+              <Link to="/forgot-password" className="font-semibold text-brand hover:underline">
+                Forgot password?
               </Link>
             </p>
           </>
