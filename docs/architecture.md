@@ -91,16 +91,17 @@ Triggers act only on browser requests (`is_client_request()`); server actions us
 | `visitorChatActions` create, read, post, post image | Anyone / the token holder | 5 chats / h, 20 msgs / min, 10 photos / 10 min per IP |
 | `staffActions` riders, admins, kiosks, employee passwords, sales report | Admins (their branches), super admin | |
 | `accountActions.changeMyPassword` | Email accounts except the shared cashier | 10 / 15 min per account |
+| `accountActions.sendPasswordResetCode` | Anyone; refuses unknown emails (404), the cashier login, Google-only and deactivated accounts | 10 / 15 min per IP; 1 code / 30 s per email |
 
 Staff actions take the caller's access token and verify it (`verifyCaller`).
 
 ## Sign-in and live updates
 
 - Email and Google (PKCE, code exchanged on `/auth/callback`) end in one Supabase session in `localStorage` (`3k.auth`).
-- Sign-up confirmation and password-reset emails link to `/auth/confirm?token_hash=…&type=…`, checked with `verifyOtp`
-  (not a PKCE code, so they open in any browser). A reset link signs the user in, then `/reset-password` sets the new
-  password and signs out their other sessions. Templates: `supabase/templates/`.
-  The cashier gate returns tokens from the server, adopted by the same client. The kiosk gets a device key (`3k.kioskKey`).
+- Sign-up confirmation and password-reset emails carry a 6-digit code, checked with `verifyOtp({ email, token })`;
+  a right code signs the user in. Reset codes are sent by the server, after `password_reset_target` (secret key only)
+  confirms the email has an account that can take one. Forgot password then saves the new password and signs out their other sessions.
+  Templates: `supabase/templates/`.
 - Route guards (`view/components/guards.tsx`) only decide what to render; the database checks again.
 - **Realtime:** signed-in users subscribe to `orders`, `chat_messages`, `chat_threads` (scoped by RLS); guests get a
   content-free broadcast ping on `chat:<thread id>`. Every event just means "refetch".

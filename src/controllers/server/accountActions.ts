@@ -1,10 +1,11 @@
 'use server';
 
 import * as accountModel from '@/models/server/accountModel';
-import { RULES, limit } from '@/controllers/server/rateLimit';
+import { RULES, clientIp, limit } from '@/controllers/server/rateLimit';
 import { verifyCaller } from '@/controllers/server/serverCaller';
 import { validate } from '@/utils/validate';
-import { changePasswordSchema } from '@/utils/validators/auth.validators';
+import { changePasswordSchema, forgotPasswordSchema } from '@/utils/validators/auth.validators';
+import { emailRefused } from '@/utils/emailRefused';
 import { fail, ok } from '@/utils/result';
 
 /**
@@ -31,5 +32,31 @@ export async function changeMyPassword(token: string, input: unknown) {
 
   const { error } = await accountModel.updateUser(user.id, { password: body.data.new_password });
   if (error) return fail(error.message, error.status ?? 400);
+  return ok(null);
+}
+
+/**
+ * Forgot password: emails a 6-digit reset code, after checking the address has an account that
+ * can have one. Saying "no account" tells a visitor which emails are registered, so lookups are
+ * limited per visitor, and each address gets at most one code every RESEND_SECONDS.
+ */
+export async function sendPasswordResetCode(input: unknown) {
+  const allowed = await limit(RULES.passwordResetLookup, await clientIp());
+  if (allowed.success === false) return allowed;
+  const body = validate(forgotPasswordSchema, input);
+  if (body.success === false) return body;
+  const { email } = body.data;
+
+  const { data: account, error: lookupError } = await accountModel.passwordResetTarget(email);
+  if (lookupError) return fail('Could not check that email. Please try again.', 500);
+  if (!account) return fail('No account uses this email. Check it, or create an account.', 404);
+  if (account.role === 'cashier') return fail('The cashier password is changed by an admin', 403);
+  if (!account.is_active) return fail('This account is turned off. Ask the restaurant for help.', 403);
+  if (!account.has_password) return fail('This email signs in with Google. Use Continue with Google to log in.');
+
+  const once = await limit(RULES.passwordResetEmail, email);
+  if (once.success === false) return once;
+  const { error } = await accountModel.sendRecoveryEmail(email);
+  if (error) return emailRefused(error) ?? fail('Could not send the email. Please try again.', 500);
   return ok(null);
 }

@@ -1,6 +1,7 @@
 import 'server-only';
 import { headers } from 'next/headers';
 import * as rateLimitModel from '@/models/server/rateLimitModel';
+import { RESEND_SECONDS } from '@/constants/auth';
 import { fail, ok, type Result } from '@/utils/result';
 
 // The limits the Express server had (express-rate-limit), kept in the database so they hold on
@@ -17,6 +18,15 @@ export const RULES = {
   kioskGate: { name: 'kiosk-gate', max: 10, windowSeconds: 15 * 60, message: TOO_MANY },
   // The current password is re-checked on every attempt, so a stolen session could guess it.
   passwordChange: { name: 'password-change', max: 10, windowSeconds: 15 * 60, message: TOO_MANY },
+  // Forgot password says whether an email has an account, so checking addresses is limited per
+  // visitor; and one code per address every RESEND_SECONDS, matching the Resend countdown.
+  passwordResetLookup: { name: 'password-reset-lookup', max: 10, windowSeconds: 15 * 60, message: TOO_MANY },
+  passwordResetEmail: {
+    name: 'password-reset-email',
+    max: 1,
+    windowSeconds: RESEND_SECONDS,
+    message: `Wait ${RESEND_SECONDS} seconds before asking for another code.`,
+  },
   // A kiosk is a public terminal.
   kioskOrder: { name: 'kiosk-order', max: 30, windowSeconds: 60, message: 'Too many orders from this kiosk. Wait a minute.' },
   // Guest chat needs no account. Opening threads is the expensive abuse (each is a row the

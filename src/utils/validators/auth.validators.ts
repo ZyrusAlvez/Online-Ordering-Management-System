@@ -16,6 +16,12 @@ export const registerSchema = z.object({
 
 export const forgotPasswordSchema = z.object({ email });
 
+/** The code Supabase emails to confirm a sign-up or reset a password (Email OTP length: 6). */
+export const emailCodeSchema = z.object({
+  email,
+  code: z.string().trim().regex(/^\d{6}$/, 'Enter the 6-digit code from the email'),
+});
+
 export const resetPasswordSchema = z.object({ password });
 
 /**

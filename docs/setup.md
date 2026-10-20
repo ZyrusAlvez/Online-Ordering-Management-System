@@ -25,6 +25,7 @@ Apply every file in `supabase/migrations/` **in filename order** (SQL editor or 
 | 27 | `20261018000400_rate_limits_and_order_rules` | Rate-limit counters; the database checks an online order's branch, time and delivery details |
 | 28 | `20261018000500_remove_refund_failed` | Drops the unused `refund_failed` payment status (refunds are by hand) |
 | 29 | `20261018000600_remove_confirmed_status` | Order flow New → Preparing → Ready → Completed (no `confirmed`); kiosk and walk-in orders paid before the kitchen |
+| 30 | `20261020000000_password_reset_lookup` | `password_reset_target`: Forgot password checks the email has an account (server only) |
 
 Never edit an applied migration; add a new one.
 
@@ -67,24 +68,26 @@ a branch creates its register login `cashier.<code>@3k.local`), **Riders**, **Ad
 
 ## Email: sign-up confirmation and password reset
 
-Both emails link to `/auth/confirm` with a `token_hash`, so they work in any browser, not only the one that asked.
+Both emails carry a 6-digit code (`{{ .Token }}`) that the customer types into the app: the sign-up screen asks for it
+after **Sign up** (and Log in asks for it if the email was never confirmed), and **Forgot password** asks for it with
+the new password. No links, so nothing to add to the redirect URLs.
 
 1. **Custom SMTP first:** Supabase only lets you edit the templates once one is set, and its built-in sender only
    delivers to your team's addresses. With Gmail:
-   - Google account → Security → turn on **2-Step Verification**, then search **App passwords** → create one named
-     `Supabase` and copy the 16 characters.
+   - Google account → Security → turn on **2-Step Verification**, then
+     [App passwords](https://myaccount.google.com/apppasswords) → create one named `Supabase` and copy the 16 characters.
    - Supabase → Authentication → Emails → **SMTP Settings** → Enable custom SMTP: sender email = the Gmail address,
      sender name `3K Kitchen`, host `smtp.gmail.com`, port `465`, username = the Gmail address, password = the app
-     password (no spaces).
+     password (no spaces), **Minimum interval per user** `30` seconds (the app's Resend countdown).
    - Authentication → **Rate Limits**: emails per hour (30 by default with custom SMTP). Gmail allows about 500 a day.
-2. Supabase → Authentication → URL Configuration → **Redirect URLs**: add `http://localhost:5173/auth/confirm` and your
-   site's `/auth/confirm`. A link whose address is missing there falls back to the Site URL and does nothing.
-3. Supabase → Authentication → **Emails** → Templates. Paste each file's whole content into **Message body**:
+2. Authentication → Sign In / Providers → **Email**: **Confirm email** on, **Email OTP Length** `6`, **Email OTP
+   Expiration** `3600` (the emails say "an hour").
+3. Authentication → **Emails** → Templates. Paste each file's whole content into **Message body**, then **Save changes**:
 
    | Template | Subject | File |
    | --- | --- | --- |
-   | Confirm signup | `Confirm your 3K Kitchen account` | `supabase/templates/confirm-signup.html` |
-   | Reset password | `Reset your 3K Kitchen password` | `supabase/templates/reset-password.html` |
+   | Confirm signup | `Your 3K Kitchen sign-up code` | `supabase/templates/confirm-signup.html` |
+   | Reset password | `Your 3K Kitchen password reset code` | `supabase/templates/reset-password.html` |
 
 The templates show the logo from its Storage URL; if you upload a new logo in **Site images**, update the `<img src>`
 in both. Staff accounts (`@3k.local`) have no inbox: their passwords are reset by an admin.
@@ -178,7 +181,8 @@ migration with a new one.
 | Dish can't be deleted / "Price not yet set" | Ordered dishes are kept → switch it off; set a price in Menu |
 | Sales look empty | Only paid, non-voided orders count, by the Manila day placed → check the range |
 | Google lands on a Supabase error | Provider off, or `/auth/callback` not in redirect URLs |
-| Email link opens the home page and nothing happens | `/auth/confirm` not in redirect URLs, or the old default template is still in place |
+| Email has a link instead of a code | The template was pasted but not saved (**Save changes**), or Supabase's default is still in place |
+| "That code is wrong or has expired" for a fresh code | Email OTP Length isn't 6, or an older email's code was used (each new email replaces the last code) |
 | "Too many emails sent" | Supabase's email rate limit → set up custom SMTP, or wait |
 | "Unsupported image" | Only JPEG, PNG, WebP (not HEIC or GIF) |
 | `check:flows` fails at "sign in" | A demo password changed → reset it to [credentials.md](./credentials.md) |

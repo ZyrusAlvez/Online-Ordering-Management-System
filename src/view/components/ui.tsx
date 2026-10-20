@@ -210,6 +210,23 @@ export function PasswordInput({ className = '', ...props }: any) {
   );
 }
 
+/** The 6-digit code from a Supabase email. Digits only; phones offer the code from the email. */
+export function CodeInput({ value, onChange, className = '', ...props }: any) {
+  return (
+    <input
+      {...props}
+      value={value}
+      onChange={(e) => onChange(e.target.value.replace(/\D/g, '').slice(0, 6))}
+      inputMode="numeric"
+      autoComplete="one-time-code"
+      pattern="\d{6}"
+      maxLength={6}
+      placeholder="000000"
+      className={cx(inputClass, 'text-center font-semibold tracking-[0.5em] placeholder:tracking-[0.5em]', className)}
+    />
+  );
+}
+
 export function Select({ children, ...props }: any) {
   return (
     <select {...props} className={cx(inputClass, props.className)}>

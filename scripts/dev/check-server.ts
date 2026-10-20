@@ -119,6 +119,16 @@ check('wrong current password is a 400, not 401', !wrongPw.success && wrongPw.st
 const samePw = await account.changeMyPassword(await token(), { current_password: 'customer-1', new_password: 'customer-1' });
 check('password change with the right current password', samePw.success || /same|different/i.test(samePw.error ?? ''), samePw);
 
+// --- forgot password (only refusals: a real code would email the @3k.local address) ---------------
+const noAccount = await account.sendPasswordResetCode({ email: 'nobody-here@example.com' });
+check('reset code for an unknown email is a 404', !noAccount.success && noAccount.status === 404, noAccount);
+const cashierReset = await account.sendPasswordResetCode({ email: 'CASHIER.gma@3k.local' });
+check('the shared cashier login gets no reset code (403)', !cashierReset.success && cashierReset.status === 403, cashierReset);
+const badEmail = await account.sendPasswordResetCode({ email: 'not-an-email' });
+check('reset code needs a valid email (400)', !badEmail.success && badEmail.status === 400, badEmail);
+const lookup = await supabase.rpc('password_reset_target', { p_email: 'customer1@3k.local' });
+check('browsers cannot look up accounts by email', Boolean(lookup.error), lookup);
+
 // --- admin: sales, riders, kiosks (and revoke the test kiosk) ------------------------------------
 await as('admin.gma@3k.local', 'admin-gma');
 const sales = await staff.getSalesReport(await token(), {});
