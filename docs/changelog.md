@@ -13,7 +13,7 @@ Newest first. Migration numbers are the dates in `supabase/migrations/`.
 
 - **Forgot password:** *Forgot password?* on log in and sign up → email with a 6-digit code → enter it with the new
   password (other devices are signed out). Tells you when no account uses the email (lookups limited per visitor);
-  one code per email every 30 seconds, with a countdown on **Resend code**. *(30)*
+  one code per email every 60 seconds, with a countdown on **Resend code**. *(30)*
 - **Sign-up confirmation by code:** after signing up, the customer enters the code from the email and is signed in.
   Logging in with an unconfirmed email asks for the code instead of saying "Invalid email or password".
 - **Branded email templates** for both, in `supabase/templates/` (pasted into the Supabase dashboard; Gmail SMTP steps in

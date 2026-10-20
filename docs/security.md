@@ -55,13 +55,13 @@ Counted in the database (`rate_limits`) so they work on serverless hosting. Same
 | Wrong kiosk passwords | 10 / 15 min (correct ones don't count) | IP |
 | Password changes | 10 / 15 min | account |
 | Forgot password lookups (they say whether an email has an account) | 10 / 15 min | IP |
-| Reset codes | 1 / 30 s (the Resend countdown) | email |
+| Reset codes | 1 / 60 s (the Resend countdown) | email |
 | Kiosk orders | 30 / min | device |
 | New guest chats / messages / photos | 5 / h, 20 / min, 10 / 10 min | IP |
 
 The IP is the first `x-forwarded-for` entry: Vercel sets it, other hosts must have their proxy overwrite it. If the
 counter can't be reached, the request is allowed. Supabase Auth adds its own sign-in limits, and its own
-minimum interval between emails to one address (SMTP settings; set it to 30 s to match).
+minimum interval of 60 s between emails to one address, which the Resend countdown matches (`RESEND_SECONDS`).
 
 ## Secrets
 
