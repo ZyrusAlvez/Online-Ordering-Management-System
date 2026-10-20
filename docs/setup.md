@@ -78,7 +78,7 @@ the new password. No links, so nothing to add to the redirect URLs.
      [App passwords](https://myaccount.google.com/apppasswords) → create one named `Supabase` and copy the 16 characters.
    - Supabase → Authentication → Emails → **SMTP Settings** → Enable custom SMTP: sender email = the Gmail address,
      sender name `3K Kitchen`, host `smtp.gmail.com`, port `465`, username = the Gmail address, password = the app
-     password (no spaces), **Minimum interval per user** `30` seconds (the app's Resend countdown).
+     password (no spaces).
    - Authentication → **Rate Limits**: emails per hour (30 by default with custom SMTP). Gmail allows about 500 a day.
 2. Authentication → Sign In / Providers → **Email**: **Confirm email** on, **Email OTP Length** `6`, **Email OTP
    Expiration** `3600` (the emails say "an hour").
