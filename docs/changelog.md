@@ -11,11 +11,13 @@ Newest first. Migration numbers are the dates in `supabase/migrations/`.
 
 ## 2026-10-20: Forgot password and branded emails
 
-- **Forgot password:** *Forgot password?* on log in and sign up → email → `/auth/confirm` → choose a new password
-  (other devices are signed out). Says the same whether or not the email has an account.
-- **Sign-up confirmation signs you in:** the link now opens `/auth/confirm` instead of the Site URL, and a log in with an
-  unconfirmed email says so instead of "Invalid email or password".
-- **Branded email templates** for both, in `supabase/templates/` (pasted into the Supabase dashboard; see setup.md).
+- **Forgot password:** *Forgot password?* on log in and sign up → email with a 6-digit code → enter it with the new
+  password (other devices are signed out). Tells you when no account uses the email (lookups limited per visitor);
+  one code per email every 30 seconds, with a countdown on **Resend code**. *(30)*
+- **Sign-up confirmation by code:** after signing up, the customer enters the code from the email and is signed in.
+  Logging in with an unconfirmed email asks for the code instead of saying "Invalid email or password".
+- **Branded email templates** for both, in `supabase/templates/` (pasted into the Supabase dashboard; Gmail SMTP steps in
+  setup.md).
 
 ## 2026-10-18: Next.js + Supabase, hardening and speed
 

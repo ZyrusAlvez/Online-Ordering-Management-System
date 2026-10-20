@@ -4,19 +4,20 @@ import { supabase } from '@/utils/supabase';
 export const signInWithPassword = (email: string, password: string) =>
   supabase.auth.signInWithPassword({ email, password });
 
-export const signUp = (email: string, password: string, fullName: string | undefined, emailRedirectTo: string) =>
+export const signUp = (email: string, password: string, fullName?: string) =>
   supabase.auth.signUp({
     email,
     password,
-    options: { data: fullName ? { full_name: fullName } : {}, emailRedirectTo },
+    options: { data: fullName ? { full_name: fullName } : {} },
   });
 
-export const resetPasswordForEmail = (email: string, redirectTo: string) =>
-  supabase.auth.resetPasswordForEmail(email, { redirectTo });
+export const resendSignupCode = (email: string) => supabase.auth.resend({ type: 'signup', email });
 
-/** Checks the token_hash from a confirm-signup or reset-password email and starts a session. */
-export const verifyEmailLink = (tokenHash: string, type: EmailOtpType) =>
-  supabase.auth.verifyOtp({ token_hash: tokenHash, type });
+export const resetPasswordForEmail = (email: string) => supabase.auth.resetPasswordForEmail(email);
+
+/** Checks the 6-digit code from a confirm-signup or reset-password email and starts a session. */
+export const verifyEmailCode = (email: string, token: string, type: EmailOtpType) =>
+  supabase.auth.verifyOtp({ email, token, type });
 
 export const updatePassword = (password: string) => supabase.auth.updateUser({ password });
 

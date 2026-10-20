@@ -8,6 +8,18 @@ export const signInFresh = (email: string, password: string) =>
     auth: { persistSession: false, autoRefreshToken: false },
   }).auth.signInWithPassword({ email, password });
 
+/** Who an email belongs to, for Forgot password (see migration password_reset_lookup). */
+export const passwordResetTarget = (email: string) =>
+  supabaseAdmin.rpc('password_reset_target', { p_email: email }).maybeSingle<{
+    id: string;
+    role: string;
+    is_active: boolean;
+    has_password: boolean;
+  }>();
+
+/** Emails the reset-password template (a 6-digit code). */
+export const sendRecoveryEmail = (email: string) => supabaseAdmin.auth.resetPasswordForEmail(email);
+
 export const getUserById = (id: string) => supabaseAdmin.auth.admin.getUserById(id);
 
 export const createUser = (fields: Parameters<typeof supabaseAdmin.auth.admin.createUser>[0]) =>

@@ -63,3 +63,22 @@ export function useTick(ms = 60_000) {
     return () => clearInterval(timer);
   }, [ms]);
 }
+
+/**
+ * A wait before something may be done again ("Resend code in 30s"). `start()` begins it;
+ * `left` is the whole seconds remaining, 0 when it is allowed.
+ */
+export function useCooldown(seconds: number, startNow = false) {
+  const [until, setUntil] = useState(() => (startNow ? Date.now() + seconds * 1000 : 0));
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (until <= Date.now()) return undefined;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [until]);
+  const start = useCallback(() => {
+    setNow(Date.now());
+    setUntil(Date.now() + seconds * 1000);
+  }, [seconds]);
+  return { left: Math.max(0, Math.ceil((until - now) / 1000)), start };
+}

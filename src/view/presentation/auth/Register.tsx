@@ -5,6 +5,7 @@ import { Link, Navigate, useNavigate } from '@/utils/navigation';
 import { HOME_FOR_ROLE, useAuth } from '@/context/AuthContext';
 import GoogleButton, { OrDivider } from '@/view/components/GoogleButton';
 import { Logo } from '@/view/components/Logo';
+import ConfirmEmailCode from '@/view/presentation/auth/ConfirmEmailCode';
 import { Button, Card, ErrorNote, Field, Input, PasswordInput } from '@/view/components/ui';
 
 export default function Register() {
@@ -43,17 +44,8 @@ export default function Register() {
       <Logo size={56} />
       <Card className="mt-8 w-full max-w-md p-7">
         {needsConfirm ? (
-          <div className="text-center">
-            <h1 className="font-display text-4xl">Check your email</h1>
-            <p className="mt-3 text-sm text-ink-soft">
-              We sent a confirmation link to <strong>{form.email}</strong>. Open it and you're signed in.
-            </p>
-            <p className="mt-3 text-sm text-ink-soft">
-              Nothing there? Check your spam folder. If you'd already signed up with this email,{' '}
-              <Link to="/forgot-password" className="font-semibold text-brand hover:underline">reset your password</Link>.
-            </p>
-            <Button to="/login" className="mt-6">Go to log in</Button>
-          </div>
+          // A right code signs them in, and the redirect above takes them to the menu.
+          <ConfirmEmailCode email={form.email.trim()} justSent onBack={() => setNeedsConfirm(false)} />
         ) : (
           <>
             <h1 className="font-display text-4xl">
