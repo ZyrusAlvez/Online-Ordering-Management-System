@@ -79,6 +79,12 @@ export default function Login() {
               onChange={(e) => setPassword(e.target.value)}
             />
           </Field>
+          {/* Outside the Field: a link inside its <label> would also focus the input. */}
+          <div className="-mt-2 text-right">
+            <Link to="/forgot-password" className="text-sm font-semibold text-brand hover:underline">
+              Forgot password?
+            </Link>
+          </div>
           <ErrorNote error={error} />
           <Button type="submit" size="lg" className="w-full" loading={busy}>
             Log in

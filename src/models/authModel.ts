@@ -1,15 +1,27 @@
-import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
+import type { AuthChangeEvent, EmailOtpType, Session } from '@supabase/supabase-js';
 import { supabase } from '@/utils/supabase';
 
 export const signInWithPassword = (email: string, password: string) =>
   supabase.auth.signInWithPassword({ email, password });
 
-export const signUp = (email: string, password: string, fullName?: string) =>
+export const signUp = (email: string, password: string, fullName: string | undefined, emailRedirectTo: string) =>
   supabase.auth.signUp({
     email,
     password,
-    options: { data: fullName ? { full_name: fullName } : {} },
+    options: { data: fullName ? { full_name: fullName } : {}, emailRedirectTo },
   });
+
+export const resetPasswordForEmail = (email: string, redirectTo: string) =>
+  supabase.auth.resetPasswordForEmail(email, { redirectTo });
+
+/** Checks the token_hash from a confirm-signup or reset-password email and starts a session. */
+export const verifyEmailLink = (tokenHash: string, type: EmailOtpType) =>
+  supabase.auth.verifyOtp({ token_hash: tokenHash, type });
+
+export const updatePassword = (password: string) => supabase.auth.updateUser({ password });
+
+/** Ends every other session of this user (after a password reset). */
+export const signOutOthers = () => supabase.auth.signOut({ scope: 'others' });
 
 export const signInWithGoogle = (redirectTo: string) =>
   supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });

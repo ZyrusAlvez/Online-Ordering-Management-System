@@ -2,6 +2,21 @@
 
 Newest first. Migration numbers are the dates in `supabase/migrations/`.
 
+## 2026-10-20: Printed receipts at the counter
+
+- **Print receipt:** after the cashier takes a payment (cash or GCash), the *Payment received* window has a
+  *Print receipt* button next to *Done*: branch, order number, items, total, the 12% VAT already included in it
+  (VATable sales + VAT, adding up to the total), how it was paid, and the cash tendered and
+  change (or the GCash reference no.). Any paid order can be reprinted from *More → Print receipt*.
+
+## 2026-10-20: Forgot password and branded emails
+
+- **Forgot password:** *Forgot password?* on log in and sign up → email → `/auth/confirm` → choose a new password
+  (other devices are signed out). Says the same whether or not the email has an account.
+- **Sign-up confirmation signs you in:** the link now opens `/auth/confirm` instead of the Site URL, and a log in with an
+  unconfirmed email says so instead of "Invalid email or password".
+- **Branded email templates** for both, in `supabase/templates/` (pasted into the Supabase dashboard; see setup.md).
+
 ## 2026-10-18: Next.js + Supabase, hardening and speed
 
 - **One Next.js app** (MVC like Pasuyo) replaces the Vite frontend and the Express API; the browser talks to Supabase

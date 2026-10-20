@@ -65,6 +65,30 @@ a branch creates its register login `cashier.<code>@3k.local`), **Riders**, **Ad
 | `npm run check:flows` | End-to-end checks against the database ([testing.md](./testing.md)); writes test orders |
 | `npm run seed:menu` | Regenerate `supabase/seed.sql` from `menu.json` |
 
+## Email: sign-up confirmation and password reset
+
+Both emails link to `/auth/confirm` with a `token_hash`, so they work in any browser, not only the one that asked.
+
+1. **Custom SMTP first:** Supabase only lets you edit the templates once one is set, and its built-in sender only
+   delivers to your team's addresses. With Gmail:
+   - Google account → Security → turn on **2-Step Verification**, then search **App passwords** → create one named
+     `Supabase` and copy the 16 characters.
+   - Supabase → Authentication → Emails → **SMTP Settings** → Enable custom SMTP: sender email = the Gmail address,
+     sender name `3K Kitchen`, host `smtp.gmail.com`, port `465`, username = the Gmail address, password = the app
+     password (no spaces).
+   - Authentication → **Rate Limits**: emails per hour (30 by default with custom SMTP). Gmail allows about 500 a day.
+2. Supabase → Authentication → URL Configuration → **Redirect URLs**: add `http://localhost:5173/auth/confirm` and your
+   site's `/auth/confirm`. A link whose address is missing there falls back to the Site URL and does nothing.
+3. Supabase → Authentication → **Emails** → Templates. Paste each file's whole content into **Message body**:
+
+   | Template | Subject | File |
+   | --- | --- | --- |
+   | Confirm signup | `Confirm your 3K Kitchen account` | `supabase/templates/confirm-signup.html` |
+   | Reset password | `Reset your 3K Kitchen password` | `supabase/templates/reset-password.html` |
+
+The templates show the logo from its Storage URL; if you upload a new logo in **Site images**, update the `<img src>`
+in both. Staff accounts (`@3k.local`) have no inbox: their passwords are reset by an admin.
+
 ## Optional: Google sign-in
 
 1. Google Cloud → Google Auth Platform: consent screen (External), then a **Web** client with redirect URI
@@ -154,6 +178,8 @@ migration with a new one.
 | Dish can't be deleted / "Price not yet set" | Ordered dishes are kept → switch it off; set a price in Menu |
 | Sales look empty | Only paid, non-voided orders count, by the Manila day placed → check the range |
 | Google lands on a Supabase error | Provider off, or `/auth/callback` not in redirect URLs |
+| Email link opens the home page and nothing happens | `/auth/confirm` not in redirect URLs, or the old default template is still in place |
+| "Too many emails sent" | Supabase's email rate limit → set up custom SMTP, or wait |
 | "Unsupported image" | Only JPEG, PNG, WebP (not HEIC or GIF) |
 | `check:flows` fails at "sign in" | A demo password changed → reset it to [credentials.md](./credentials.md) |
 | Server errors | Terminal running the app, or Vercel → Logs; database: Supabase → Logs / Advisors |

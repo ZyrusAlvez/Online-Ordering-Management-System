@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <meta name="supported-color-schemes" content="light" />
+    <title>Confirm your email</title>
+    <!-- Loaded by Apple Mail and iOS; everywhere else falls back to Arial and a script face. -->
+    <link href="https://fonts.googleapis.com/css2?family=Kaushan+Script&family=Poppins:wght@400;600&display=swap" rel="stylesheet" />
+  </head>
+  <body style="margin: 0; padding: 0; background-color: #fbf7f2; -webkit-font-smoothing: antialiased">
+    <!-- Inbox preview line -->
+    <div style="display: none; max-height: 0; overflow: hidden; opacity: 0">
+      Confirm your email to finish creating your 3K Kitchen account.
+    </div>
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #fbf7f2">
+      <tr>
+        <td align="center" style="padding: 40px 16px">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 480px">
+            <!-- Logo and wordmark, as on the site -->
+            <tr>
+              <td align="center" style="padding-bottom: 28px">
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td style="padding-right: 12px; vertical-align: middle">
+                      <img
+                        src="https://dlruutvhumcrirazntcw.supabase.co/storage/v1/object/public/menu-images/site/logo/504b02e4-880c-4dec-af5b-7d1f1d0fd89d.jpg"
+                        width="56"
+                        height="56"
+                        alt="3K Kitchen"
+                        style="display: block; width: 56px; height: 56px; border-radius: 50%; border: 1px solid #ece3da; background-color: #ffffff"
+                      />
+                    </td>
+                    <td style="vertical-align: middle; line-height: 1">
+                      <div style="font-family: 'Kaushan Script', 'Brush Script MT', cursive; font-size: 26px; color: #2b1812">3K Kitchen</div>
+                      <div style="padding-top: 4px; font-family: Poppins, Arial, Helvetica, sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: #c9631a">Cavite</div>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Card -->
+            <tr>
+              <td style="background-color: #ffffff; border: 1px solid #ece3da; border-radius: 16px; padding: 32px 28px">
+                <h1 style="margin: 0; font-family: Poppins, Arial, Helvetica, sans-serif; font-size: 28px; font-weight: 600; letter-spacing: -0.5px; line-height: 1.2; color: #2b1812">
+                  Confirm your email
+                </h1>
+                <p style="margin: 14px 0 0; font-family: Poppins, Arial, Helvetica, sans-serif; font-size: 15px; line-height: 1.6; color: #75635a">
+                  Thanks for signing up! Tap the button below to confirm <strong style="color: #2b1812">{{ .Email }}</strong> and you'll be signed in, ready to order.
+                </p>
+
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top: 28px">
+                  <tr>
+                    <td align="center" style="border-radius: 12px; background-color: #e8202a">
+                      <a
+                        href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=email"
+                        target="_blank"
+                        style="display: block; padding: 14px 24px; font-family: Poppins, Arial, Helvetica, sans-serif; font-size: 16px; font-weight: 600; color: #ffffff; text-decoration: none; border-radius: 12px"
+                      >Confirm my email</a>
+                    </td>
+                  </tr>
+                </table>
+
+                <p style="margin: 28px 0 0; font-family: Poppins, Arial, Helvetica, sans-serif; font-size: 13px; line-height: 1.6; color: #75635a">
+                  Button not working? Copy this link into your browser:
+                </p>
+                <p style="margin: 6px 0 0; font-family: Poppins, Arial, Helvetica, sans-serif; font-size: 12px; line-height: 1.5; word-break: break-all">
+                  <a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=email" target="_blank" style="color: #e8202a; text-decoration: underline">{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=email</a>
+                </p>
+
+                <p style="margin: 24px 0 0; padding-top: 20px; border-top: 1px solid #ece3da; font-family: Poppins, Arial, Helvetica, sans-serif; font-size: 13px; line-height: 1.6; color: #75635a">
+                  Didn't sign up for 3K Kitchen? You can ignore this email; no account will be created.
+                </p>
+              </td>
+            </tr>
+
+            <!-- Footer -->
+            <tr>
+              <td align="center" style="padding-top: 24px; font-family: Poppins, Arial, Helvetica, sans-serif; font-size: 12px; line-height: 1.6; color: #75635a">
+                3K Kitchen · Cavite<br />
+                <a href="{{ .SiteURL }}" target="_blank" style="color: #75635a; text-decoration: underline">Visit our menu</a>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
